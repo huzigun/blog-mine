@@ -1,0 +1,34 @@
+{
+  "name": "blog-mine",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Blog application with NestJS backend and Nuxt frontend",
+  "packageManager": "pnpm@9.12.3",
+  "scripts": {
+    "dev": "pnpm --parallel --stream dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build": "pnpm --filter backend build && pnpm --filter frontend build",
+    "build:backend": "pnpm --filter backend build",
+    "build:frontend": "pnpm --filter frontend build",
+    "start": "pnpm --parallel --stream start",
+    "start:backend": "pnpm --filter backend start",
+    "start:frontend": "pnpm --filter frontend preview",
+    "lint": "pnpm --parallel --stream lint",
+    "lint:backend": "pnpm --filter backend lint",
+    "lint:frontend": "echo 'Frontend linting not configured'",
+    "format": "pnpm --filter backend format",
+    "test": "pnpm --filter backend test",
+    "test:backend": "pnpm --filter backend test",
+    "test:e2e": "pnpm --filter backend test:e2e",
+    "clean": "pnpm --parallel --stream clean",
+    "clean:backend": "pnpm --filter backend exec rm -rf dist node_modules",
+    "clean:frontend": "pnpm --filter frontend exec rm -rf .nuxt .output node_modules"
+  },
+  "keywords": [
+    "blog",
+    "nestjs",
+    "nuxt",
+    "monorepo"
+  ]
+}

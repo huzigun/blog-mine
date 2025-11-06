@@ -1,0 +1,26 @@
+{
+  "name": "frontend",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "start": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "clean": "rm -rf .nuxt .output node_modules"
+  },
+  "dependencies": {
+    "@nuxt/image": "2.0.0",
+    "@nuxt/ui": "4.1.0",
+    "@vee-validate/zod": "^4.15.1",
+    "nuxt": "^4.2.0",
+    "typescript": "^5.6.3",
+    "vee-validate": "^4.15.1",
+    "vue": "^3.5.22",
+    "vue-router": "^4.6.3",
+    "zod": "^3.24.0"
+  },
+  "packageManager": "pnpm@9.12.3+sha1.4fb96925d434c491285182acf29803bb9aa2e6e5"
+}
