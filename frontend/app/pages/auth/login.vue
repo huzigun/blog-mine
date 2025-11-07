@@ -1,0 +1,158 @@
+<script setup lang="ts">
+import type { FormSubmitEvent } from '#ui/types'
+import { loginSchema, type LoginSchema } from '~/schemas/auth'
+
+definePageMeta({
+  layout: 'auth',
+  middleware: ['guest'],
+})
+
+const router = useRouter()
+const toast = useToast()
+
+const state = reactive<LoginSchema>({
+  email: '',
+  password: '',
+})
+
+const { login } = useAuth()
+const [isPending, startTransition] = useTransition()
+
+async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
+  await startTransition(
+    async () => {
+      const { email, password } = event.data
+      await useWait(1000);
+      await login({ email, password })
+    },
+    {
+      onSuccess: () => {
+        toast.add({
+          title: '로그인 성공',
+          description: '환영합니다!',
+          color: 'success',
+        });
+        return navigateTo('/');
+      },
+      onError: (err) => {
+        const errorMessage = (err as any)?.response?._data.message || '로그인에 실패했습니다. 잠시 후 다시 시도해주세요.';
+        toast.add({
+          title: '로그인 실패',
+          description: errorMessage,
+          color: 'error',
+          icon: 'mdi-alert-circle',
+        });
+      },
+      minDuration: 300, // Prevent flash of loading state for fast responses
+    },
+  )
+}
+</script>
+
+<template>
+  <!-- Logo -->
+  <AuthLogo class="mb-8" />
+
+  <!-- Page Title -->
+
+  <!-- Login Card -->
+  <div
+    class="w-full max-w-md bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-sm"
+  >
+    <h1
+      class="text-2xl font-bold text-gray-900 dark:text-white mb-4 text-center"
+    >
+      로그인
+    </h1>
+    <UForm
+      :state="state"
+      :schema="loginSchema"
+      @submit="onSubmit"
+      class="flex flex-col gap-4"
+    >
+      <!-- Email Field -->
+      <UFormField label="아이디" name="email">
+        <UInput
+          v-model.trim="state.email"
+          type="email"
+          placeholder="아이디를 입력해주세요"
+          size="xl"
+          :disabled="isPending"
+          class="w-full"
+          variant="soft"
+        />
+      </UFormField>
+
+      <!-- Password Field -->
+      <UFormField label="비밀번호" name="password">
+        <UInput
+          v-model.trim="state.password"
+          type="password"
+          placeholder="비밀번호를 입력해주세요"
+          size="xl"
+          :disabled="isPending"
+          class="w-full"
+          variant="soft"
+        />
+      </UFormField>
+
+      <!-- Signup Link -->
+      <div class="flex items-center justify-end gap-2 text-[13px]">
+        <span class="text-gray-600 dark:text-gray-400"
+          >블로그 마인이 처음이신가요?</span
+        >
+        <NuxtLink
+          to="/auth/signup"
+          class="text-purple-600 dark:text-purple-400 font-medium hover:underline"
+        >
+          회원가입
+        </NuxtLink>
+      </div>
+
+      <!-- Login Button -->
+      <div class="mt-4 flex flex-col gap-y-1.5">
+        <UButton
+          type="submit"
+          size="xl"
+          block
+          :loading="isPending"
+          :disabled="isPending"
+          class="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 font-bold"
+        >
+          로그인
+        </UButton>
+
+        <UButton
+          type="button"
+          size="xl"
+          block
+          :disabled="isPending"
+          color="warning"
+        >
+          카카오로 시작하기
+        </UButton>
+      </div>
+    </UForm>
+  </div>
+
+  <!-- Footer Links -->
+  <div
+    class="mt-6 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400"
+  >
+    <button
+      type="button"
+      class="hover:text-gray-900 dark:hover:text-white transition-colors"
+      @click="() => toast.add({ title: '준비 중입니다', color: 'info' })"
+    >
+      아이디 찾기
+    </button>
+    <span class="text-gray-300 dark:text-gray-700">|</span>
+    <button
+      type="button"
+      class="hover:text-gray-900 dark:hover:text-white transition-colors"
+      @click="() => toast.add({ title: '준비 중입니다', color: 'info' })"
+    >
+      비밀번호 재설정
+    </button>
+  </div>
+</template>

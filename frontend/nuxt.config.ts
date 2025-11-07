@@ -19,4 +19,17 @@ export default defineNuxtConfig({
         process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:3000',
     },
   },
+
+  app: {
+    head: {
+      link: [
+        {
+          href: 'https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css',
+          rel: 'stylesheet',
+          crossorigin: 'anonymous',
+          as: 'style',
+        },
+      ],
+    },
+  },
 });

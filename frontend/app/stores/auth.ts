@@ -41,7 +41,7 @@ export const useAuth = defineStore('auth', {
         console.error('Logout failed:', error);
       } finally {
         this.clearAuth();
-        navigateTo('/membership/login');
+        navigateTo('/auth/login');
       }
     },
 

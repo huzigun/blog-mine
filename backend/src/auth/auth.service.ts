@@ -73,7 +73,7 @@ export class AuthService {
     // 사용자 조회
     const user = await this.userService.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('아이디 또는 비밀번호가 잘못되었습니다');
     }
 
     // 비밀번호 검증
@@ -83,7 +83,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException('아이디 또는 비밀번호가 잘못되었습니다');
     }
 
     this.logger.log(`User logged in: ${user.email}`);

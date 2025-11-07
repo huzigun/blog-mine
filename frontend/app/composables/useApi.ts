@@ -35,31 +35,57 @@ async function onRequest({ options }: FetchContext<any>) {
 async function onResponseError({
   response,
   options,
-  error,
-}: FetchContext<any> & { response: FetchResponse<ResponseType> }) {
+}: FetchContext<any> & {
+  response: FetchResponse<ResponseType>;
+}): Promise<void> {
+  // 토큰 만료 에러 (498)
   if (response.status === 498 && response._data?.message === 'Token expired') {
     const config = useRuntimeConfig();
     const refreshToken = useCookie('refresh_token');
+    const auth = useAuth();
+
+    // refresh token이 없으면 로그인 페이지로 이동
+    if (!refreshToken.value) {
+      auth.logout();
+      navigateTo('/auth/login');
+      return;
+    }
 
     try {
-      const response = await $fetch<{ accessToken: string }>(
+      // 토큰 재발급 시도
+      const data = await $fetch<{ accessToken: string }>(
         `${config.public.apiBaseUrl}/auth/refresh`,
-        { method: 'POST', body: { refreshToken: refreshToken.value } },
+        {
+          method: 'POST',
+          body: { refreshToken: refreshToken.value },
+        },
       );
-      options.retry = 1;
 
-      const auth = useAuth();
-      auth.setAccessToken(response.accessToken);
+      // 새로운 access token 저장
+      auth.setAccessToken(data.accessToken);
+
+      // 요청 헤더에 새 토큰 업데이트
+      options.headers = new Headers({
+        ...options.headers,
+        Authorization: `Bearer ${data.accessToken}`,
+      });
+
+      // 재시도 플래그 설정 (ofetch가 자동으로 재시도)
+      if (options.retry === undefined) {
+        options.retry = 1; // 1회만 재시도
+      }
     } catch (error: any) {
-      navigateTo('/login');
+      // 토큰 재발급 실패 시 로그아웃 및 로그인 페이지로 이동
+      console.error('Token refresh failed:', error);
+      auth.logout();
     }
   }
 }
 
 export const useApi = $fetch.create({
-  retryStatusCodes: [401, 498],
+  retryStatusCodes: [498],
   onRequest,
-  onResponse({ response }) {
+  onResponse() {
     // response._data = new myBusinessResponse(response._data)
   },
   onResponseError,

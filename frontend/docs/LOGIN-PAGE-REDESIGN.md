@@ -9,6 +9,7 @@ Redesigned the login page to match the clean, centered design from https://conso
 ### Before (Original Design)
 
 **Layout**:
+
 - Card-based layout with header/footer sections
 - Gray background (`bg-gray-50`)
 - Compact form with standard Nuxt UI styling
@@ -17,6 +18,7 @@ Redesigned the login page to match the clean, centered design from https://conso
 - Footer with signup link inside card
 
 **Components**:
+
 - UCard with template slots (header, default, footer)
 - Standard UInput with icons
 - UCheckbox for "remember me"
@@ -25,6 +27,7 @@ Redesigned the login page to match the clean, centered design from https://conso
 ### After (Sendon-Inspired Design)
 
 **Layout**:
+
 - Clean white background (`bg-white`)
 - Centered column layout with all elements vertically stacked
 - Logo at top (purple circle with power icon + "sendon" text)
@@ -37,6 +40,7 @@ Redesigned the login page to match the clean, centered design from https://conso
 **Visual Elements**:
 
 1. **Logo Section**
+
    ```vue
    <div class="mb-8 flex items-center gap-2">
      <div class="w-10 h-10 bg-purple-600 rounded-full">
@@ -47,6 +51,7 @@ Redesigned the login page to match the clean, centered design from https://conso
    ```
 
 2. **Page Title**
+
    ```vue
    <h1 class="text-3xl font-bold mb-8">로그인</h1>
    ```
@@ -258,6 +263,7 @@ All components include dark mode variants:
 **Modified**: [`frontend/app/pages/membership/login.vue`](../app/pages/membership/login.vue)
 
 **Changes**:
+
 1. Removed card-based layout
 2. Added logo section
 3. Centered layout with white background

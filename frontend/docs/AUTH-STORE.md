@@ -64,6 +64,7 @@ JWT access token for API authentication.
 **Lifetime**: Short-lived (typically 15 minutes)
 
 **Security Considerations**:
+
 - ✅ Memory-only storage prevents XSS token theft
 - ✅ Cleared on page refresh (requires re-authentication)
 - ✅ Not persisted to localStorage/sessionStorage
@@ -180,7 +181,7 @@ End user session and clear authentication state.
 2. Catch: Log error but continue
 3. Finally:
    - clearAuth() (clear local state)
-   - navigateTo('/membership/login')
+   - navigateTo('/auth/login')
 ```
 
 **Usage**:
@@ -287,6 +288,7 @@ Clear all authentication state.
 **Returns**: `void`
 
 **Effects**:
+
 - Sets `user` to `null`
 - Sets `accessToken` to `null`
 
@@ -390,7 +392,7 @@ See [API-SYSTEM.md](./API-SYSTEM.md) for complete API documentation.
        │   - user = null
        │   - accessToken = null
        │
-       └─→ navigateTo('/membership/login')
+       └─→ navigateTo('/auth/login')
 ```
 
 ## Usage in Components
@@ -556,11 +558,13 @@ async function handleLogout() {
 ### Current Implementation: Memory-Only
 
 **Pros**:
+
 - ✅ XSS-safe (no token in localStorage)
 - ✅ Simple implementation
 - ✅ Automatic cleanup on browser close
 
 **Cons**:
+
 - ❌ Lost on page refresh
 - ❌ Lost on browser close
 - ❌ Requires re-authentication or token refresh
