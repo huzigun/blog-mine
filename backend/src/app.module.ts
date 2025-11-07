@@ -12,7 +12,7 @@ import { AuthModule } from './auth/auth.module';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: ['.env', `.env.${process.env.NODE_ENV || 'development'}`],
+      envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
       cache: true,
     }),
     ConfigServiceModule,

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from './config';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -11,6 +12,9 @@ async function bootstrap() {
     origin: ['http://localhost:3001', 'http://localhost:3000'],
     credentials: true,
   });
+
+  // Apply global exception filter for consistent error responses
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   const port = configService.port;
   const appName = configService.appName;

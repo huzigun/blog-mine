@@ -6,6 +6,8 @@ import { UserService } from '../../user/user.service';
 
 export interface JwtPayload {
   sub: number; // userId만 포함
+  iat?: number; // issued at
+  exp?: number; // expiration time
 }
 
 export interface RequestUser {
@@ -22,12 +24,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
+      ignoreExpiration: false, // passport-jwt will verify expiration
       secretOrKey: configService.jwtSecret,
     });
   }
 
   async validate(payload: JwtPayload): Promise<RequestUser> {
+    // passport-jwt already handles token expiration before this method
+    // If we reach here, token is valid and not expired
+
     const user = await this.userService.findById(payload.sub);
 
     if (!user) {
