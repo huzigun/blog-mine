@@ -1,41 +1,33 @@
 <script setup lang="ts">
-const isSidebarOpen = ref(true)
-const isMobile = ref(false)
+const uiStore = useUiStore();
+const isSidebarHovered = ref(false);
 
 // Detect mobile screen size
 const checkMobile = () => {
-  isMobile.value = window.innerWidth < 1024
-  // Auto-collapse sidebar on mobile
-  if (isMobile.value) {
-    isSidebarOpen.value = false
-  }
-}
-
-const toggleSidebar = () => {
-  isSidebarOpen.value = !isSidebarOpen.value
-}
+  uiStore.setMobile(window.innerWidth < 1024);
+};
 
 const closeSidebar = () => {
-  if (isMobile.value) {
-    isSidebarOpen.value = false
+  if (uiStore.isMobileView) {
+    uiStore.closeSidebar();
   }
-}
+};
 
 onMounted(() => {
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
-})
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
-})
+  window.removeEventListener('resize', checkMobile);
+});
 </script>
 
 <template>
-  <div class="min-h-screen bg-neutral-50 dark:bg-neutral-950">
+  <div class="min-h-screen bg-neutral-50">
     <!-- Mobile Sidebar Overlay -->
     <div
-      v-if="isSidebarOpen && isMobile"
+      v-if="uiStore.sidebarOpen && uiStore.isMobileView"
       class="fixed inset-0 z-40 bg-neutral-900/50 backdrop-blur-sm lg:hidden"
       @click="closeSidebar"
     />
@@ -43,14 +35,34 @@ onUnmounted(() => {
     <!-- Sidebar -->
     <aside
       :class="[
-        'fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-neutral-200 bg-white transition-transform duration-300 dark:border-neutral-800 dark:bg-neutral-900',
-        isMobile && !isSidebarOpen && '-translate-x-full',
-        !isMobile && !isSidebarOpen && '-translate-x-full lg:translate-x-0 lg:w-16',
+        'fixed inset-y-0 left-0 z-50 flex flex-col transition-all duration-300',
+        uiStore.isMobileView &&
+          !uiStore.sidebarOpen &&
+          '-translate-x-full w-64',
+        uiStore.isMobileView && uiStore.sidebarOpen && 'w-64',
+        !uiStore.isMobileView && uiStore.sidebarOpen && 'w-64',
+        !uiStore.isMobileView &&
+          !uiStore.sidebarOpen &&
+          !isSidebarHovered &&
+          'w-16',
+        !uiStore.isMobileView &&
+          !uiStore.sidebarOpen &&
+          isSidebarHovered &&
+          'w-64',
       ]"
+      @mouseenter="
+        !uiStore.isMobileView &&
+        !uiStore.sidebarOpen &&
+        (isSidebarHovered = true)
+      "
+      @mouseleave="
+        !uiStore.isMobileView &&
+        !uiStore.sidebarOpen &&
+        (isSidebarHovered = false)
+      "
     >
-      <DashboardSidebar
-        :is-collapsed="!isSidebarOpen && !isMobile"
-        @toggle="toggleSidebar"
+      <ConsoleSidebar
+        :is-collapsed="!uiStore.sidebarOpen && !uiStore.isMobileView"
       />
     </aside>
 
@@ -58,17 +70,14 @@ onUnmounted(() => {
     <div
       :class="[
         'transition-all duration-300',
-        !isMobile && isSidebarOpen ? 'lg:pl-64' : 'lg:pl-16',
+        !uiStore.isMobileView && uiStore.sidebarOpen ? 'lg:pl-64' : 'lg:pl-16',
       ]"
     >
       <!-- Header -->
-      <!-- <DashboardHeader
-        :is-sidebar-open="isSidebarOpen"
-        @toggle-sidebar="toggleSidebar"
-      /> -->
+      <ConsoleHeader />
 
       <!-- Page Content -->
-      <main class="p-4 sm:p-6 lg:p-8">
+      <main class="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
         <slot />
       </main>
     </div>

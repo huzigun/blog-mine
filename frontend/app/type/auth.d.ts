@@ -14,6 +14,12 @@ interface LoginCredentials {
   password: string;
 }
 
+interface RegisterCredentials {
+  email: string;
+  password: string;
+  name: string;
+}
+
 interface RegisterData {
   email: string;
   password: string;
