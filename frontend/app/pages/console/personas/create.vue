@@ -41,7 +41,7 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
       });
 
       // 페르소나 목록 페이지로 이동
-      return navigateTo('/console/personas');
+      return navigateTo('/console/personas/manage');
     } catch (err: any) {
       const message = err.response?._data?.message || err.message;
       toast.add({
@@ -59,7 +59,7 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
     <ConsoleTitle
       title="페르소나 생성"
       description="블로그 원고 작성에 사용할 페르소나를 만들어보세요."
-      returnPath="/console/personas"
+      returnPath="/console/personas/manage"
     />
 
     <div class="grid grid-cols-2 gap-x-5">

@@ -7,7 +7,10 @@ import { z } from 'zod';
 // 페르소나 생성 스키마
 export const createPersonaSchema = z.object({
   gender: z.string().min(1, '성별을 선택해주세요'),
-  age: z.number().min(1, '나이를 입력해주세요').max(120, '올바른 나이를 입력해주세요'),
+  age: z
+    .number()
+    .min(1, '나이를 입력해주세요')
+    .max(120, '올바른 나이를 입력해주세요'),
   isMarried: z.boolean(),
   hasChildren: z.boolean(),
   occupation: z.string().min(1, '직업을 입력해주세요'),
@@ -22,22 +25,6 @@ export const updatePersonaSchema = createPersonaSchema.partial();
 // TypeScript 타입 추출
 export type CreatePersonaSchema = z.infer<typeof createPersonaSchema>;
 export type UpdatePersonaSchema = z.infer<typeof updatePersonaSchema>;
-
-// API Response 타입
-export interface Persona {
-  id: number;
-  gender: string;
-  age: number;
-  isMarried: boolean;
-  hasChildren: boolean;
-  occupation: string;
-  blogStyle: string;
-  blogTone: string;
-  additionalInfo?: string;
-  createdAt: string;
-  updatedAt: string;
-  userId: number;
-}
 
 // 선택 옵션들
 export const genderOptions = ['남성', '여성', '기타'];

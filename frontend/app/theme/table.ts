@@ -11,7 +11,7 @@ export default {
     th: 'px-4 py-3.5 text-sm text-highlighted text-left rtl:text-right font-semibold [&:has([role=checkbox])]:pe-0',
     td: 'p-4 text-sm text-default whitespace-nowrap [&:has([role=checkbox])]:pe-0',
     separator: 'absolute z-[1] left-0 w-full h-px bg-zinc-100',
-    empty: 'py-6 text-center text-sm text-default',
+    empty: 'py-10 text-center text-sm text-default border-b border-zinc-100',
     loading: 'py-6 text-center',
   },
   variants: {

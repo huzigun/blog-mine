@@ -115,6 +115,26 @@ export class PersonaService {
   }
 
   /**
+   * 특정 사용자의 모든 페르소나를 간단한 정보만 조회합니다 (select options용).
+   */
+  async findSimpleByUserId(
+    userId: number,
+  ): Promise<Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'>[]> {
+    return this.prisma.persona.findMany({
+      where: { userId },
+      select: {
+        id: true,
+        occupation: true,
+        age: true,
+        gender: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  /**
    * ID로 특정 페르소나를 조회합니다.
    */
   async findOne(id: number): Promise<Persona> {

@@ -7,7 +7,8 @@ definePageMeta({
 });
 
 const toast = useToast();
-const router = useRouter();
+const confirm = useConfirm();
+const [isPending, startTransition] = useTransition();
 
 // Pagination state
 const currentPage = ref(1);
@@ -36,8 +37,8 @@ const columns: ColumnDef<Persona>[] = [
     },
   },
   {
-    accessorKey: 'age',
-    header: '나이',
+    accessorKey: 'info',
+    header: '페르소나 정보',
     cell: ({ row }) =>
       `${row.original.occupation} (${row.original.age}세/${row.original.gender})`,
   },
@@ -64,29 +65,46 @@ const columns: ColumnDef<Persona>[] = [
     header: '액션',
     cell: ({ row }) => {
       const handleEdit = () => {
-        router.push(`/console/personas/${row.original.id}/edit`);
+        navigateTo(`/console/personas/${row.original.id}/edit`);
       };
 
       const handleDelete = async () => {
-        if (!confirm('정말 이 페르소나를 삭제하시겠습니까?')) {
+        const confirmed = await confirm({
+          title: '페르소나 삭제',
+          description:
+            '정말 이 페르소나를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.',
+          confirmText: '삭제',
+          cancelText: '취소',
+          confirmColor: 'error',
+          icon: 'i-heroicons-trash',
+        });
+
+        if (!confirmed) {
           return;
         }
 
-        try {
-          await useApi(`/personas/${row.original.id}`, {
-            method: 'DELETE',
-          });
-          toast.add({
-            title: '페르소나 삭제 완료',
-            color: 'success',
-          });
-          refresh();
-        } catch (error) {
-          toast.add({
-            title: '페르소나 삭제 실패',
-            color: 'error',
-          });
-        }
+        startTransition(
+          async () => {
+            await useApi(`/personas/${row.original.id}`, {
+              method: 'DELETE',
+            });
+          },
+          {
+            onComplete: () => {
+              toast.add({
+                title: '페르소나 삭제 완료',
+                color: 'success',
+              });
+              refresh();
+            },
+            onError: () => {
+              toast.add({
+                title: '페르소나 삭제 실패',
+                color: 'error',
+              });
+            },
+          },
+        );
       };
 
       return h('div', { class: 'flex gap-2' }, [
@@ -97,6 +115,7 @@ const columns: ColumnDef<Persona>[] = [
             color: 'primary',
             variant: 'soft',
             onClick: handleEdit,
+            loading: isPending.value,
           },
           () => '수정',
         ),
@@ -106,6 +125,7 @@ const columns: ColumnDef<Persona>[] = [
             size: 'xs',
             color: 'error',
             variant: 'soft',
+            loading: isPending.value,
             onClick: handleDelete,
           },
           () => '삭제',
@@ -119,11 +139,6 @@ const columns: ColumnDef<Persona>[] = [
     },
   },
 ];
-
-// Navigate to create page
-const handleCreate = () => {
-  router.push('/console/personas/create');
-};
 </script>
 
 <template>
@@ -138,12 +153,15 @@ const handleCreate = () => {
       <div class="text-[13px]">
         총 <span class="text-primary font-semibold">{{ (response?.meta.total || 0).toLocaleString() }}</span>개의 페르소나
       </div>
-      <UButton color="primary" @click="handleCreate">페르소나 생성</UButton>
+      <UButton color="primary" to="/console/personas/create">
+        페르소나 생성
+      </UButton>
     </div>
     <UTable
       :data="response?.data || []"
       :columns="columns"
-      :loading="!response"
+      :loading="isPending"
+      empty="등록된 페르소나가 없습니다. 페르소나를 생성해보세요."
     />
     <div class="flex justify-center py-4">
       <UPagination

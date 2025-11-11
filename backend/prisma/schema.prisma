@@ -22,7 +22,9 @@ model User {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
 
-  personas   Persona[]
+  personas         Persona[]
+  blogPosts        BlogPost[]
+  keywordTrackings KeywordTracking[]
 
   @@map("users")
 }
@@ -58,4 +60,146 @@ model Persona {
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("personas")
+}
+
+// 블로그 원고 요청
+model BlogPost {
+  id               Int        @id @default(autoincrement())
+  keyword          String     // 주요 키워드
+  persona          Json       // 페르소나 정보 스냅샷
+  postType         String     @map("post_type")
+  subKeywords      String[]   @map("sub_keywords")
+  length           Int        @default(300)
+  count            Int        @default(1)
+  additionalFields Json?      @map("additional_fields") // 동적 필드 (포스트 유형별)
+  status           PostStatus @default(PENDING) // 작업 상태
+
+  // 진행 상황 추적
+  completedCount   Int        @default(0) @map("completed_count") // 완료된 원고 수
+  targetCount      Int        @map("target_count") // 목표 원고 수 (원본 count 값)
+
+  userId           Int        @map("user_id")
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  posts            AIPost[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("blog_posts")
+}
+
+enum PostStatus {
+  PENDING     // 대기 중
+  IN_PROGRESS // 생성 진행 중
+  COMPLETED   // 모두 완료
+  FAILED      // 재시도 횟수 초과로 실패
+}
+
+model AIPost {
+  id           Int      @id @default(autoincrement())
+  blogPostId   Int      @map("blog_post_id")
+  title        String?  // 블로그 제목 (분리 저장)
+  content      String   @db.Text // AI가 생성한 원고 HTML (분리 저장)
+
+  // 재시도 추적
+  retryCount   Int      @default(0) @map("retry_count") // 재시도 횟수
+  lastError    String?  @map("last_error") // 마지막 에러 (디버깅용)
+
+  // 토큰 사용량 추적 (비용 모니터링 및 최적화)
+  promptTokens      Int? @map("prompt_tokens") // 입력 토큰 수
+  completionTokens  Int? @map("completion_tokens") // 출력 토큰 수
+  totalTokens       Int? @map("total_tokens") // 총 토큰 수
+
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  blogPost     BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+
+  @@index([blogPostId, createdAt])
+  @@map("ai_posts")
+}
+
+// 블로그 순위 수집용 키워드-DATE 모델
+model KeywordDate {
+  id        Int      @id @default(autoincrement())
+  keyword   String   // 키워드
+  dateStr   String   @map("date_str") // 날짜 문자열 (YYYY-MM-DD)
+
+  // 메타데이터
+  totalResults Int?     @map("total_results") // Naver API total 값
+  fetchedAt    DateTime @default(now()) @map("fetched_at") // 실제 수집 시간
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blogRanks BlogRank[]
+
+  @@unique([keyword, dateStr])
+  @@index([dateStr])
+  @@map("keyword_dates")
+}
+
+model BlogRank {
+  id            Int      @id @default(autoincrement())
+  keywordDateId Int      @map("keyword_date_id")
+  rank          Int      // 순위 (1부터 시작)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  blogId      Int         @map("blog_id")
+  blog        Blog        @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  keywordDate KeywordDate @relation(fields: [keywordDateId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordDateId, rank]) // 같은 키워드-날짜에 동일 순위 중복 방지
+  @@index([keywordDateId, blogId])
+  @@map("blog_ranks")
+}
+
+model Blog {
+  id          Int      @id @default(autoincrement())
+  link        String   @unique // 블로그 간략 링크
+  title       String   // 블로그 제목
+  description String?  @db.Text // 블로그 간략 설명
+  bloggerName String   @map("blogger_name") // 블로거 이름
+  bloggerLink String   @map("blogger_link") // 블로거 링크
+  postDate    String   @map("post_date") // 포스트 작성일
+  content     String?  @db.Text // 포스트 전체 내용
+  summary     String?  @db.Text // LLM으로 요약한 핵심 내용 (프롬프트 최적화용)
+  realUrl     String?  @map("real_url") // 실제 포스트 URL
+
+  // 메타데이터
+  lastFetchedAt DateTime? @map("last_fetched_at") // 마지막 콘텐츠 수집 시간
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  ranks BlogRank[]
+
+  @@index([bloggerName])
+  @@map("blogs")
+}
+
+// 키워드 추적 설정 (사용자가 자신의 블로그 순위를 추적하기 위한 키워드 등록)
+model KeywordTracking {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  keyword     String   // 추적할 키워드
+  myBlogUrl   String   @map("my_blog_url") // 사용자의 블로그 URL (추적 대상)
+
+  // 수집 설정
+  isActive    Boolean  @default(true) @map("is_active") // 활성화 여부 (스케줄링 on/off)
+  displayCount Int     @default(40) @map("display_count") // 검색 결과 수 (기본 40)
+
+  // 메타데이터
+  lastCollectedAt DateTime? @map("last_collected_at") // 마지막 수집 시간
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, keyword, myBlogUrl]) // 동일 사용자-키워드-블로그 조합 중복 방지
+  @@index([userId, isActive]) // 활성화된 추적 조회 최적화
+  @@index([isActive]) // 스케줄러용 전체 활성 추적 조회
+  @@map("keyword_trackings")
 }

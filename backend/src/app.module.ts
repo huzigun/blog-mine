@@ -8,6 +8,9 @@ import { PrismaModule } from './prisma';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { PersonaModule } from './persona/persona.module';
+import { BlogPostModule } from './blog-post/blog-post.module';
+import { NaverApiModule } from './naver-api/naver-api.module';
+import { DateModule } from './date';
 
 @Module({
   imports: [
@@ -22,10 +25,13 @@ import { PersonaModule } from './persona/persona.module';
       maxRedirects: 5,
     }),
     ConfigServiceModule,
+    DateModule,
     PrismaModule,
     UserModule,
     AuthModule,
     PersonaModule,
+    BlogPostModule,
+    NaverApiModule,
   ],
   controllers: [AppController],
   providers: [AppService],

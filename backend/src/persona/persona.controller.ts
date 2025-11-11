@@ -49,8 +49,15 @@ export class PersonaController {
     @GetRequestUser() user: RequestUser,
     @Query() paginationDto: PaginationDto,
   ) {
-    console.log(paginationDto);
     return this.personaService.findByUserId(user.id, paginationDto);
+  }
+
+  /**
+   * 현재 사용자의 모든 페르소나를 간단한 정보만 조회합니다 (select options용).
+   */
+  @Get('my/simple')
+  async findMyPersonasSimple(@GetRequestUser() user: RequestUser) {
+    return await this.personaService.findSimpleByUserId(user.id);
   }
 
   /**
