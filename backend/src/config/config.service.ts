@@ -121,4 +121,13 @@ export class ConfigService {
   getOrThrow<T = any>(key: string): T {
     return this.configService.getOrThrow<T>(key);
   }
+
+  // Naver Configuration
+  get naverClientId(): string | undefined {
+    return this.configService.get<string>('naver.clientId');
+  }
+
+  get naverClientSecret(): string | undefined {
+    return this.configService.get<string>('naver.clientSecret');
+  }
 }

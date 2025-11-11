@@ -1,0 +1,158 @@
+<script lang="ts" setup>
+import type { ColumnDef } from '@tanstack/vue-table';
+import { UButton } from '#components';
+
+definePageMeta({
+  middleware: ['auth'],
+});
+
+const toast = useToast();
+const router = useRouter();
+
+// Pagination state
+const currentPage = ref(1);
+const itemsPerPage = ref(10);
+
+// Fetch data with pagination
+const { data: response, refresh } = await useApiFetch<
+  PaginatedResponse<Persona>
+>('/personas/my', {
+  query: {
+    page: currentPage,
+    limit: itemsPerPage,
+  },
+  watch: [currentPage, itemsPerPage],
+});
+
+// Table columns definition
+const columns: ColumnDef<Persona>[] = [
+  {
+    accessorKey: 'id',
+    header: 'ID',
+    meta: {
+      class: {
+        td: 'w-20',
+      },
+    },
+  },
+  {
+    accessorKey: 'age',
+    header: '나이',
+    cell: ({ row }) =>
+      `${row.original.occupation} (${row.original.age}세/${row.original.gender})`,
+  },
+  {
+    accessorKey: 'isMarried',
+    header: '결혼',
+    cell: ({ row }) => (row.original.isMarried ? '기혼' : '미혼'),
+  },
+  {
+    accessorKey: 'hasChildren',
+    header: '자녀',
+    cell: ({ row }) => (row.original.hasChildren ? '유' : '무'),
+  },
+  {
+    accessorKey: 'blogStyle',
+    header: '블로그 문체',
+  },
+  {
+    accessorKey: 'blogTone',
+    header: '블로그 분위기',
+  },
+  {
+    id: 'actions',
+    header: '액션',
+    cell: ({ row }) => {
+      const handleEdit = () => {
+        router.push(`/console/personas/${row.original.id}/edit`);
+      };
+
+      const handleDelete = async () => {
+        if (!confirm('정말 이 페르소나를 삭제하시겠습니까?')) {
+          return;
+        }
+
+        try {
+          await useApi(`/personas/${row.original.id}`, {
+            method: 'DELETE',
+          });
+          toast.add({
+            title: '페르소나 삭제 완료',
+            color: 'success',
+          });
+          refresh();
+        } catch (error) {
+          toast.add({
+            title: '페르소나 삭제 실패',
+            color: 'error',
+          });
+        }
+      };
+
+      return h('div', { class: 'flex gap-2' }, [
+        h(
+          UButton,
+          {
+            size: 'xs',
+            color: 'primary',
+            variant: 'soft',
+            onClick: handleEdit,
+          },
+          () => '수정',
+        ),
+        h(
+          UButton,
+          {
+            size: 'xs',
+            color: 'error',
+            variant: 'soft',
+            onClick: handleDelete,
+          },
+          () => '삭제',
+        ),
+      ]);
+    },
+    meta: {
+      class: {
+        td: 'w-32',
+      },
+    },
+  },
+];
+
+// Navigate to create page
+const handleCreate = () => {
+  router.push('/console/personas/create');
+};
+</script>
+
+<template>
+  <section class="container mx-auto max-w-5xl">
+    <ConsoleTitle
+      title="페르소나 관리"
+      description="페르소나를 생성, 수정 및 삭제할 수 있습니다."
+    />
+
+    <div class="flex justify-between items-center py-4">
+      <!-- prettier-ignore -->
+      <div class="text-[13px]">
+        총 <span class="text-primary font-semibold">{{ (response?.meta.total || 0).toLocaleString() }}</span>개의 페르소나
+      </div>
+      <UButton color="primary" @click="handleCreate">페르소나 생성</UButton>
+    </div>
+    <UTable
+      :data="response?.data || []"
+      :columns="columns"
+      :loading="!response"
+    />
+    <div class="flex justify-center py-4">
+      <UPagination
+        v-model:page="currentPage"
+        :total="response?.meta.total || 0"
+        :items-per-page="itemsPerPage"
+        :show-edges="true"
+        :show-controls="true"
+      />
+    </div>
+  </section>
+</template>

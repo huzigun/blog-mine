@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { ConfigService } from './config';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -12,6 +13,18 @@ async function bootstrap() {
     origin: ['http://localhost:3001', 'http://localhost:3000'],
     credentials: true,
   });
+
+  // Apply global validation pipe for automatic DTO validation and transformation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true, // Automatically transform payloads to DTO instances
+      transformOptions: {
+        enableImplicitConversion: true, // Enable implicit type conversion for primitives
+      },
+      whitelist: true, // Strip properties that don't have decorators
+      forbidNonWhitelisted: false, // Don't throw error for extra properties
+    }),
+  );
 
   // Apply global exception filter for consistent error responses
   app.useGlobalFilters(new HttpExceptionFilter());

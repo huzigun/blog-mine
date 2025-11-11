@@ -72,7 +72,7 @@ const navigationGroups: NavigationGroup[] = [
           },
           {
             name: '페르소나 관리',
-            to: '/console/personas/manage',
+            to: '/console/personas',
             icon: 'i-heroicons-users',
           },
         ],

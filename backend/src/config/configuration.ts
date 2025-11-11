@@ -39,4 +39,8 @@ export default () => ({
     name: process.env.SEED_USER_NAME,
     password: process.env.SEED_USER_PASSWORD,
   },
+  naver: {
+    clientId: process.env.NAVER_CLIENT_ID,
+    clientSecret: process.env.NAVER_CLIENT_SECRET,
+  },
 });

@@ -66,7 +66,7 @@ const quickActions = [
   {
     label: '새 게시글',
     icon: 'i-heroicons-plus',
-    color: 'primary' as const,
+    color: 'neutral' as const,
     click: () => router.push('/console/posts/new'),
   },
 ];
@@ -130,11 +130,14 @@ onMounted(() => {
 
 <template>
   <header
-    class="sticky top-0 z-30 bg-white/80 backdrop-blur-xl dark:bg-neutral-900/80"
+    class="sticky top-0 z-30 bg-white/80 backdrop-blur-xl"
+    :style="{
+      boxShadow: '0 0 10px rgba(0, 0, 0, 0.1)',
+    }"
   >
     <!-- Main Header -->
     <div
-      class="flex h-16 items-center gap-4 border-b border-neutral-200 px-4 dark:border-neutral-800 sm:px-6"
+      class="flex h-16 items-center gap-4 px-4 dark:border-neutral-800 sm:px-6"
     >
       <!-- Sidebar Toggle (Always Visible) -->
       <UButton
@@ -146,33 +149,6 @@ onMounted(() => {
       >
         <UIcon name="i-heroicons-bars-3" class="h-5 w-5" />
       </UButton>
-
-      <!-- Breadcrumbs (Desktop) -->
-      <!-- <nav class="hidden items-center gap-2 text-sm md:flex">
-        <NuxtLink
-          to="/console/dashboard"
-          class="text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white"
-          key="dashboard"
-        >
-          <UIcon name="i-heroicons-home" class="h-4 w-4" />
-        </NuxtLink>
-        <template v-for="(crumb, index) in breadcrumbs" :key="crumb.to">
-          <UIcon
-            name="i-heroicons-chevron-right"
-            class="h-4 w-4 text-neutral-400"
-          />
-          <NuxtLink
-            :to="crumb.to"
-            :class="[
-              index === breadcrumbs.length - 1
-                ? 'font-medium text-neutral-900 dark:text-white'
-                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white',
-            ]"
-          >
-            {{ crumb.label }}
-          </NuxtLink>
-        </template>
-      </nav> -->
 
       <!-- Search Bar -->
       <div class="flex flex-1 items-center justify-end gap-3">

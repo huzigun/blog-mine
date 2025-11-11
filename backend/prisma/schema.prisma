@@ -6,7 +6,6 @@
 
 generator client {
   provider = "prisma-client-js"
-  output   = "./generated"
 }
 
 datasource db {
@@ -23,6 +22,8 @@ model User {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
 
+  personas   Persona[]
+
   @@map("users")
 }
 
@@ -36,4 +37,25 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("refresh_tokens")
+}
+
+// 페르소나 모델
+model Persona {
+  id          Int      @id @default(autoincrement())
+  gender      String // 성별
+  age        Int // 연령
+  isMarried   Boolean  @map("is_married") // 결혼 유무
+  hasChildren Boolean  @map("has_children") // 자녀 유무
+  occupation  String // 직업
+  blogStyle  String   @map("blog_style") // 블로그 문체
+  blogTone   String   @map("blog_tone") // 블로그 분위기 
+  additionalInfo String? @map("additional_info") // 추가 정보
+ 
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  userId Int @map("user_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("personas")
 }
