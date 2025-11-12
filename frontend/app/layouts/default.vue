@@ -80,6 +80,14 @@ onUnmounted(() => {
       <main class="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
         <slot />
       </main>
+      <footer
+        class="text-center text-xs text-neutral-500 py-2.5"
+        :style="{
+          boxShadow: '0 -3px 6px rgba(0, 0, 0, 0.05)',
+        }"
+      >
+        &copy; {{ new Date().getFullYear() }} Blog Mine. All rights reserved.
+      </footer>
     </div>
   </div>
 </template>

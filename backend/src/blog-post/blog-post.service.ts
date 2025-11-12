@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { OpenAIService } from '../openai/openai.service';
 import { BlogRankService } from '../naver-api/blog-rank.service';
 import { DateService } from '../date/date.service';
-import { CreateBlogPostDto } from './dto';
+import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 
 @Injectable()
 export class BlogPostService {
@@ -87,14 +87,54 @@ export class BlogPostService {
   }
 
   /**
-   * 사용자의 블로그 원고 요청 목록 조회
+   * 사용자의 블로그 원고 요청 목록 조회 (필터링 지원)
    */
-  async findAll(userId: number, page: number = 1, limit: number = 10) {
+  async findAll(userId: number, filterDto: FilterBlogPostDto) {
+    const {
+      page = 1,
+      limit = 10,
+      startDate,
+      endDate,
+      postType,
+      keyword,
+    } = filterDto;
     const skip = (page - 1) * limit;
+
+    // 동적 where 조건 생성
+    const where: any = { userId };
+
+    // 날짜 필터 (검색 기간)
+    // DateService를 사용하여 로컬 날짜를 UTC 범위로 변환
+    if (startDate || endDate) {
+      const dateRange = this.dateService.getDateRangeForQuery(
+        startDate,
+        endDate,
+      );
+      where.createdAt = {};
+      if (dateRange.start) {
+        where.createdAt.gte = dateRange.start;
+      }
+      if (dateRange.end) {
+        where.createdAt.lte = dateRange.end;
+      }
+    }
+
+    // postType 필터
+    if (postType) {
+      where.postType = postType;
+    }
+
+    // 키워드 검색 (부분 일치)
+    if (keyword) {
+      where.keyword = {
+        contains: keyword,
+        mode: 'insensitive', // 대소문자 구분 없음
+      };
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.blogPost.findMany({
-        where: { userId },
+        where,
         include: {
           _count: {
             select: { posts: true },
@@ -105,7 +145,7 @@ export class BlogPostService {
         take: limit,
       }),
       this.prisma.blogPost.count({
-        where: { userId },
+        where,
       }),
     ]);
 
@@ -116,6 +156,8 @@ export class BlogPostService {
         page,
         limit,
         totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPreviousPage: page > 1,
       },
     };
   }

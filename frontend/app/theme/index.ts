@@ -6,6 +6,7 @@ import card from './card';
 import formField from './form-field';
 import inputTags from './input-tags';
 import table from './table';
+import calendar from './calendar';
 
 export const theme = {
   select,
@@ -16,6 +17,7 @@ export const theme = {
   formField,
   inputTags,
   table,
+  calendar,
 };
 
 export default theme;

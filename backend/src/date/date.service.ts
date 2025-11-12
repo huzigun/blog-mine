@@ -213,4 +213,58 @@ export class DateService {
   isValid(date: string | Date | dayjs.Dayjs): boolean {
     return dayjs(date).isValid();
   }
+
+  /**
+   * 로컬 날짜 문자열(YYYY-MM-DD)을 해당 날짜의 시작/끝 Date 객체로 변환
+   *
+   * 사용 사례: 날짜 필터링 시 사용자의 로컬 날짜로 검색할 때
+   *
+   * 예시:
+   * - 한국(UTC+9)에서 "2024-01-15" 검색
+   * - startOfDay: 2024-01-15 00:00:00 KST → 2024-01-14T15:00:00.000Z (UTC)
+   * - endOfDay: 2024-01-15 23:59:59.999 KST → 2024-01-15T14:59:59.999Z (UTC)
+   *
+   * @param dateStr YYYY-MM-DD 형식의 날짜 문자열
+   * @returns { start: Date, end: Date } - 해당 날짜의 시작과 끝 시간 (Date 객체, UTC로 저장됨)
+   */
+  getLocalDateRange(dateStr: string): { start: Date; end: Date } {
+    // 로컬 타임존 기준으로 날짜의 시작과 끝을 계산
+    const startOfDay = dayjs(dateStr).tz('Asia/Seoul').startOf('day').toDate();
+
+    const endOfDay = dayjs(dateStr).tz('Asia/Seoul').endOf('day').toDate();
+
+    return {
+      start: startOfDay,
+      end: endOfDay,
+    };
+  }
+
+  /**
+   * 두 날짜 문자열(YYYY-MM-DD)을 기간의 시작/끝 Date 객체로 변환
+   *
+   * @param startDateStr 시작 날짜 (YYYY-MM-DD)
+   * @param endDateStr 종료 날짜 (YYYY-MM-DD)
+   * @returns { start: Date, end: Date } - 기간의 시작과 끝 시간
+   */
+  getDateRangeForQuery(
+    startDateStr?: string,
+    endDateStr?: string,
+  ): { start?: Date; end?: Date } {
+    const result: { start?: Date; end?: Date } = {};
+
+    if (startDateStr) {
+      // 시작 날짜의 00:00:00 (로컬 타임존)
+      result.start = dayjs(startDateStr)
+        .tz('Asia/Seoul')
+        .startOf('day')
+        .toDate();
+    }
+
+    if (endDateStr) {
+      // 종료 날짜의 23:59:59.999 (로컬 타임존)
+      result.end = dayjs(endDateStr).tz('Asia/Seoul').endOf('day').toDate();
+    }
+
+    return result;
+  }
 }

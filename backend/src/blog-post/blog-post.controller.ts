@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { BlogPostService } from './blog-post.service';
-import { CreateBlogPostDto } from './dto';
+import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
@@ -34,16 +34,15 @@ export class BlogPostController {
 
   /**
    * 사용자의 블로그 원고 요청 목록 조회
-   * GET /blog-posts?page=1&limit=10
+   * GET /blog-posts?page=1&limit=10&startDate=2024-01-01&endDate=2024-12-31&postType=맛집 후기&keyword=검색어
    */
   @Get()
   async findAll(
     @GetRequestUser() user: RequestUser,
-    @Query('page', ParseIntPipe) page: number = 1,
-    @Query('limit', ParseIntPipe) limit: number = 10,
+    @Query() filterDto: FilterBlogPostDto,
   ) {
     const userId = user.id;
-    return this.blogPostService.findAll(userId, page, limit);
+    return this.blogPostService.findAll(userId, filterDto);
   }
 
   /**
