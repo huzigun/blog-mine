@@ -1,7 +1,6 @@
 <script setup lang="ts">
 const uiStore = useUiStore();
 const { user, logout } = useAuth();
-const router = useRouter();
 const toast = useToast();
 const route = useRoute();
 
@@ -67,7 +66,7 @@ const quickActions = [
     label: '새 게시글',
     icon: 'i-heroicons-plus',
     color: 'neutral' as const,
-    click: () => router.push('/console/posts/new'),
+    click: () => navigateTo('/console/posts/new'),
   },
 ];
 
@@ -76,19 +75,19 @@ const userMenuItems = [
     {
       label: '프로필',
       icon: 'i-heroicons-user',
-      click: () => router.push('/console/profile'),
+      to: '/mypage/profile',
     },
     {
       label: '설정',
       icon: 'i-heroicons-cog-6-tooth',
-      click: () => router.push('/console/settings'),
+      to: '/mypage/settings',
     },
   ],
   [
     {
       label: '로그아웃',
       icon: 'i-heroicons-arrow-right-on-rectangle',
-      click: async () => {
+      onSelect: async () => {
         try {
           await logout();
           toast.add({
@@ -96,7 +95,7 @@ const userMenuItems = [
             description: '성공적으로 로그아웃되었습니다.',
             color: 'success',
           });
-          router.push('/auth/login');
+          navigateTo('/');
         } catch (error) {
           toast.add({
             title: '로그아웃 실패',

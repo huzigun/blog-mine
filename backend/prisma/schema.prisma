@@ -22,11 +22,38 @@ model User {
   updatedAt     DateTime       @updatedAt @map("updated_at")
   refreshTokens RefreshToken[]
 
-  personas         Persona[]
-  blogPosts        BlogPost[]
-  keywordTrackings KeywordTracking[]
+  personas              Persona[]
+  blogPosts             BlogPost[]
+  keywordTrackings      KeywordTracking[]
+  businessInfo          BusinessInfo?
+  subscriptions         UserSubscription[]
+  usageLogs             SubscriptionUsageLog[]
+  payments              Payment[]
+  cards                 Card[]
+  creditAccount         CreditAccount?
+  creditTransactions    CreditTransaction[]
+  subscriptionHistories SubscriptionHistory[]
 
   @@map("users")
+}
+
+// 사업자 정보 모델
+model BusinessInfo {
+  id               Int      @id @default(autoincrement())
+  businessName     String?  @map("business_name") // 상호명
+  businessNumber   String?  @map("business_number") // 사업자등록번호
+  businessOwner    String?  @map("business_owner") // 대표자명
+  businessAddress  String?  @map("business_address") // 사업장 주소
+  businessType     String?  @map("business_type") // 업태
+  businessCategory String?  @map("business_category") // 종목
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userId Int  @unique @map("user_id")
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("business_info")
 }
 
 model RefreshToken {
@@ -202,4 +229,366 @@ model KeywordTracking {
   @@index([userId, isActive]) // 활성화된 추적 조회 최적화
   @@index([isActive]) // 스케줄러용 전체 활성 추적 조회
   @@map("keyword_trackings")
+}
+
+// 구독 플랜 모델
+model SubscriptionPlan {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // 플랜 이름 (FREE, BASIC, PRO, ENTERPRISE)
+  displayName String  @map("display_name") // 표시용 이름 (무료, 베이직, 프로, 엔터프라이즈)
+  description String? // 플랜 설명
+
+  // 가격 정보
+  price       Int     @default(0) // 월 구독료 (원 단위)
+  yearlyPrice Int?    @map("yearly_price") // 연간 구독료 (할인가)
+
+  // 크레딧 정보
+  monthlyCredits Int @default(0) @map("monthly_credits") // 월별 지급 크레딧
+
+  // 기능 제한
+  maxBlogPostsPerMonth Int @map("max_blog_posts_per_month") // 월별 원고 생성 한도
+  maxPostLength        Int @map("max_post_length") // 원고당 최대 글자 수
+  maxKeywordTrackings  Int @map("max_keyword_trackings") // 키워드 추적 개수
+  maxPersonas          Int @map("max_personas") // 페르소나 개수
+
+  // 기능 플래그
+  allowPriorityQueue     Boolean @default(false) @map("allow_priority_queue") // 우선 처리
+  allowAdvancedAnalytics Boolean @default(false) @map("allow_advanced_analytics") // 고급 분석
+  allowApiAccess         Boolean @default(false) @map("allow_api_access") // API 접근
+  allowCustomPersonas    Boolean @default(false) @map("allow_custom_personas") // 커스텀 페르소나
+
+  // 메타데이터
+  isActive  Boolean  @default(true) @map("is_active") // 활성화 여부
+  sortOrder Int      @default(0) @map("sort_order") // 정렬 순서
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  subscriptions UserSubscription[]
+
+  @@index([isActive, sortOrder])
+  @@map("subscription_plans")
+}
+
+// 사용자 구독 상태 모델
+model UserSubscription {
+  id         Int                @id @default(autoincrement())
+  userId     Int                @map("user_id")
+  planId     Int                @map("plan_id")
+  status     SubscriptionStatus @default(TRIAL) // 구독 상태
+
+  // 구독 기간
+  startedAt DateTime @default(now()) @map("started_at") // 구독 시작일
+  expiresAt DateTime @map("expires_at") // 구독 만료일
+  canceledAt DateTime? @map("canceled_at") // 구독 취소일
+
+  // 결제 정보
+  autoRenewal        Boolean   @default(true) @map("auto_renewal") // 자동 갱신 여부
+  nextBillingDate    DateTime? @map("next_billing_date") // 다음 결제일
+  lastPaymentDate    DateTime? @map("last_payment_date") // 마지막 결제일
+  lastPaymentAmount  Int?      @map("last_payment_amount") // 마지막 결제 금액
+
+  // 메타데이터
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@map("user_subscriptions")
+}
+
+// 구독 상태 enum
+enum SubscriptionStatus {
+  TRIAL       // 무료 체험 중
+  ACTIVE      // 활성 상태
+  PAST_DUE    // 결제 실패 (유예 기간)
+  CANCELED    // 사용자가 취소
+  EXPIRED     // 만료됨
+}
+
+// 구독 사용량 로그 모델
+model SubscriptionUsageLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  resource  String   // 리소스 유형 (blog_post, keyword_tracking, persona, api_call 등)
+  amount    Int      @default(1) // 사용량
+  metadata  Json?    // 추가 메타데이터 (원고 ID, 키워드 등)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([resource, createdAt])
+  @@map("subscription_usage_logs")
+}
+
+// 결제 내역 모델
+model Payment {
+  id            Int           @id @default(autoincrement())
+  userId        Int           @map("user_id")
+  amount        Int           // 결제 금액
+  currency      String        @default("KRW") // 통화 단위
+  status        PaymentStatus @default(PENDING) // 결제 상태
+
+  // 결제 정보
+  paymentMethod String?   @map("payment_method") // 결제 수단 (card, transfer, etc.)
+  transactionId String?   @unique @map("transaction_id") // PG사 거래 ID
+  receiptUrl    String?   @map("receipt_url") // 영수증 URL
+
+  // 환불 정보
+  refundedAt     DateTime? @map("refunded_at") // 환불 일시
+  refundAmount   Int?      @map("refund_amount") // 환불 금액
+  refundReason   String?   @map("refund_reason") // 환불 사유
+
+  // 메타데이터
+  metadata  Json?    // 추가 메타데이터 (플랜 정보, 기간, 카드 정보 등)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("payments")
+}
+
+// 결제 상태 enum
+enum PaymentStatus {
+  PENDING   // 결제 대기 중
+  COMPLETED // 결제 완료
+  FAILED    // 결제 실패
+  REFUNDED  // 환불 완료
+}
+
+model Card {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id") // 사용자 ID
+  customerKey     String    @unique @map("customer_key") // 나이스페이 고객키
+  authenticatedAt DateTime? @map("authenticated_at") // 나이스페이 인증일시
+  method          String? // 결제수단
+  billingKey      String?   @map("billing_key") // 결제수단 고유키(암호화 저장)
+  cardCompany     String?   @map("card_company") // 카드사
+  issuerCode      String?   @map("issuer_code") // 발급사 코드
+  acquirerCode    String?   @map("acquirer_code") // 매입사 코드
+  number          String? // 카드번호
+  cardType        String?   @map("card_type") // 카드 타입
+  ownerType       String?   @map("owner_type") // 카드 소유자 구분
+
+  isAuthenticated Boolean @default(false) @map("is_authenticated") // 인증 여부
+  isDefault       Boolean @default(false) @map("is_default") // 기본 결제 수단 여부
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userId])
+  @@map("cards")
+}
+
+// 결제 승인 결과 (나이스 페이먼츠)
+model NicepayResult {
+  id               Int       @id @default(autoincrement())
+  moid             String    @unique // 결제 고유 아이디
+  signature        String // 결제 인증 서명 (결제전 서명 후 결제 승인 비교용)
+  userId           String    @map("user_id") // 결제 사용자 아이디
+  resultCode       String?   @map("result_code") // 결제 결과 코드 (필수)
+  resultMsg        String?   @map("result_msg") // 결제 결과 메시지
+  msgSource        String?   @map("msg_source") // 결제 채널
+  amt              String? // 결제 금액
+  mid              String? // 가맹점 아이디
+  buyerEmail       String?   @map("buyer_email") // 구매자 이메일
+  buyerTel         String?   @map("buyer_tel") // 구매자 전화번호
+  buyerName        String?   @map("buyer_name") // 구매자 이름
+  goodsName        String?   @map("goods_name") // 상품 이름
+  tid              String? // 거래ID
+  authCode         String?   @map("auth_code") // 승인 번호
+  authDate         String?   @map("auth_date") // 승인일시
+  payMethod        String?   @map("pay_method") // 결제 수단
+  cartData         String?   @map("cart_data") // 카드 데이터
+  mallReserved     String?   @map("mall_reserved") // 가맹점 예약 필드
+  cardCode         String?   @map("card_code") // 카드 코드
+  cardName         String?   @map("card_name") // 카드 이름
+  cardNo           String?   @map("card_no") // 카드 번호
+  cardQuota        String?   @map("card_quota") // 카드 할부 기간
+  cardInterest     String?   @map("card_interest") // 무이자 적용여부
+  acquCardCode     String?   @map("acqu_card_code") // 매입 카드사 코드
+  acquCardName     String?   @map("acqu_card_name") // 매입 카드사 이름
+  cardCl           String?   @map("card_cl") // 카드 구분
+  ccPartCl         String?   @map("cc_part_cl") // 부분취소 가능 여부
+  couponAmt        String?   @map("coupon_amt") // 쿠폰 금액
+  couponMinAmt     String?   @map("coupon_min_amt") // 쿠폰 최소 금액
+  pointAppAmt      String?   @map("point_app_amt") // 포인트 승인금액
+  clickpayCl       String?   @map("clickpay_cl") // 클릭페이 여부
+  multiCl          String?   @map("multi_cl") // 복합결제 여부
+  multiCardAcquAmt String?   @map("multi_card_acqu_amt") // 복합결제 신용카드 금액
+  multiPointAmt    String?   @map("multi_point_amt") // 복합결제 포인트 금액
+  multiCouponAmt   String?   @map("multi_coupon_amt") // 복합결제 쿠폰 금액
+  multiDiscountAmt String?   @map("multi_discount_amt") // 복합결제 할인 금액
+  rcptType         String?   @map("rcpt_type") // 현금영수증타입
+  rcptTid          String?   @map("rcpt_tid") // 현금영수증 거래ID
+  rcptAuthCode     String?   @map("rcpt_auth_code") // 현금영수증 승인번호
+  cardType         String?   @map("card_type") // 카드 형태
+  approveCardQuota String?   @map("approve_card_quota") // 승인 카드 할부 기간
+  pointCl          String?   @map("point_cl") // 포인트 적용 여부
+
+  // 가상계좌 정보
+  vbankBankCode String? @map("vbank_bank_code") // 가상계좌 은행코드
+  vbankBankName String? @map("vbank_bank_name") // 결제은행명
+  vbankNum      String? @map("vbank_num") // 가상계좌번호
+  vbankExpDate  String? @map("vbank_exp_date") // 가상계좌 입금만료일
+  vbankExpTime  String? @map("vbank_exp_time") // 가상계좌 입금만료시간
+
+  // 계좌이체 정보
+  bankCode String? @map("bank_code") // 결제은행코드
+  bankName String? @map("bank_name") // 결제은행명
+
+  // 취소 정보
+  cancelAmt  String? @map("cancel_amt") // 취소 금액
+  cancelDate String? @map("cancel_date") // 취소 일시
+  cancelTime String? @map("cancel_time") // 취소 시간
+  cancelNum  String? @map("cancel_num") // 취소 번호
+  remainAmt  String? @map("remain_amt") // 남은 금액
+
+  // 에러 정보
+  errorCd  String? @map("error_cd") // 에러 코드
+  errorMsg String? @map("error_msg") // 에러 메시지
+
+  // 메타데이터
+  createdAt  DateTime  @default(now()) @map("created_at") // 결제 요청 일시
+  approvedAt DateTime? @map("approved_at") // 결제 승인 일시
+
+  @@map("nicepay_results")
+}
+
+// 크레딧 계정 (사용자별 크레딧 잔액)
+model CreditAccount {
+  id                  Int      @id @default(autoincrement())
+  userId              Int      @unique @map("user_id")
+
+  // 크레딧 잔액 (타입별 분리 관리)
+  subscriptionCredits Int      @default(0) @map("subscription_credits") // 구독으로 받은 크레딧
+  purchasedCredits    Int      @default(0) @map("purchased_credits") // 별도 구매한 크레딧
+  bonusCredits        Int      @default(0) @map("bonus_credits") // 보너스/프로모션 크레딧
+
+  // 총 잔액 (합계)
+  totalCredits Int @default(0) @map("total_credits")
+
+  // 메타데이터
+  lastUsedAt DateTime? @map("last_used_at") // 마지막 사용 일시
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
+
+  @@index([userId])
+  @@map("credit_accounts")
+}
+
+// 크레딧 거래 내역 (히스토리)
+model CreditTransaction {
+  id        Int                   @id @default(autoincrement())
+  accountId Int                   @map("account_id")
+  userId    Int                   @map("user_id") // 비정규화 (쿼리 최적화)
+
+  // 거래 정보
+  type          CreditTransactionType @map("type") // 거래 유형
+  amount        Int // 크레딧 양 (양수: 충전, 음수: 사용)
+  balanceBefore Int                   @map("balance_before") // 거래 전 잔액
+  balanceAfter  Int                   @map("balance_after") // 거래 후 잔액
+
+  // 크레딧 타입
+  creditType CreditType @map("credit_type") // 어떤 타입의 크레딧인지
+
+  // 관련 정보
+  description   String? // 거래 설명
+  referenceType String? @map("reference_type") // 연관 엔티티 타입 (subscription, payment, blog_post 등)
+  referenceId   Int?    @map("reference_id") // 연관 엔티티 ID
+  metadata      Json? // 추가 메타데이터
+
+  // 만료 정보 (프로모션 크레딧 등)
+  expiresAt DateTime? @map("expires_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  account CreditAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([accountId, createdAt])
+  @@index([type, createdAt])
+  @@map("credit_transactions")
+}
+
+// 크레딧 거래 유형
+enum CreditTransactionType {
+  SUBSCRIPTION_GRANT // 구독 갱신으로 크레딧 지급
+  PURCHASE           // 크레딧 별도 구매
+  BONUS              // 보너스 지급
+  PROMO              // 프로모션 지급
+  USAGE              // 서비스 사용 (차감)
+  REFUND             // 환불
+  EXPIRE             // 만료
+  ADMIN_ADJUSTMENT   // 관리자 조정
+}
+
+// 크레딧 타입
+enum CreditType {
+  SUBSCRIPTION // 구독 크레딧
+  PURCHASED    // 구매 크레딧
+  BONUS        // 보너스 크레딧
+}
+
+// 구독 히스토리 (구독 변경 이력)
+model SubscriptionHistory {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @map("user_id")
+  subscriptionId Int?     @map("subscription_id") // UserSubscription ID (nullable for cancelled)
+
+  // 플랜 정보 스냅샷
+  planId    Int    @map("plan_id")
+  planName  String @map("plan_name")
+  planPrice Int    @map("plan_price")
+
+  // 변경 정보
+  action    SubscriptionAction  @map("action") // 액션 유형
+  oldStatus SubscriptionStatus? @map("old_status") // 이전 상태
+  newStatus SubscriptionStatus? @map("new_status") // 새로운 상태
+
+  // 기간 정보
+  startedAt DateTime? @map("started_at")
+  expiresAt DateTime? @map("expires_at")
+
+  // 크레딧 정보
+  creditsGranted Int? @map("credits_granted") // 지급된 크레딧
+
+  // 결제 정보
+  paymentId Int? @map("payment_id")
+
+  // 메타데이터
+  reason    String? // 변경 사유
+  metadata  Json? // 추가 정보
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([subscriptionId])
+  @@map("subscription_histories")
+}
+
+// 구독 액션 유형
+enum SubscriptionAction {
+  CREATED        // 신규 구독
+  RENEWED        // 갱신
+  UPGRADED       // 업그레이드
+  DOWNGRADED     // 다운그레이드
+  CANCELLED      // 취소
+  EXPIRED        // 만료
+  REACTIVATED    // 재활성화
+  PAYMENT_FAILED // 결제 실패
 }

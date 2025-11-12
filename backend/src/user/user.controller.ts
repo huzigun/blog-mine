@@ -1,5 +1,6 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
+import { UpdateBusinessInfoDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
@@ -9,12 +10,42 @@ import { RequestUser } from '../auth/strategies/jwt.strategy';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  /**
+   * 현재 사용자 정보 조회
+   * GET /user/me
+   */
   @Get('me')
-  getMe(@GetRequestUser() user: RequestUser) {
+  async getMe(@GetRequestUser() user: RequestUser) {
+    const userWithBusinessInfo =
+      await this.userService.findByIdWithBusinessInfo(user.id);
+
     return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
+      id: userWithBusinessInfo.id,
+      email: userWithBusinessInfo.email,
+      name: userWithBusinessInfo.name,
+      createdAt: userWithBusinessInfo.createdAt,
+      businessInfo: userWithBusinessInfo.businessInfo,
     };
+  }
+
+  /**
+   * 사업자 정보 조회
+   * GET /user/business-info
+   */
+  @Get('business-info')
+  async getBusinessInfo(@GetRequestUser() user: RequestUser) {
+    return this.userService.getBusinessInfo(user.id);
+  }
+
+  /**
+   * 사업자 정보 생성 또는 업데이트
+   * PUT /user/business-info
+   */
+  @Put('business-info')
+  async updateBusinessInfo(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: UpdateBusinessInfoDto,
+  ) {
+    return this.userService.upsertBusinessInfo(user.id, dto);
   }
 }

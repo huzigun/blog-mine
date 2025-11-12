@@ -7,7 +7,6 @@ definePageMeta({
   middleware: ['guest'],
 });
 
-const router = useRouter();
 const toast = useToast();
 
 const state = reactive<LoginSchema>({
@@ -15,7 +14,7 @@ const state = reactive<LoginSchema>({
   password: '',
 });
 
-const { login } = useAuth();
+const auth = useAuth();
 const [isPending, startTransition] = useTransition();
 
 async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
@@ -23,7 +22,7 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
     async () => {
       const { email, password } = event.data;
       await useWait(1000);
-      await login({ email, password });
+      await auth.login({ email, password });
     },
     {
       onSuccess: () => {

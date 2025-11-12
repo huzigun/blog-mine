@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '../config/config.service';
+import { UpdateBusinessInfoDto } from './dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -75,5 +76,43 @@ export class UserService implements OnModuleInit {
     hashedPassword: string,
   ): Promise<boolean> {
     return bcrypt.compare(plainPassword, hashedPassword);
+  }
+
+  /**
+   * 사용자의 사업자 정보 조회
+   */
+  async getBusinessInfo(userId: number) {
+    return this.prisma.businessInfo.findUnique({
+      where: { userId },
+    });
+  }
+
+  /**
+   * 사용자의 사업자 정보 생성 또는 업데이트
+   */
+  async upsertBusinessInfo(
+    userId: number,
+    dto: UpdateBusinessInfoDto,
+  ) {
+    return this.prisma.businessInfo.upsert({
+      where: { userId },
+      create: {
+        userId,
+        ...dto,
+      },
+      update: dto,
+    });
+  }
+
+  /**
+   * 사용자 정보 조회 (사업자 정보 포함)
+   */
+  async findByIdWithBusinessInfo(id: number) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      include: {
+        businessInfo: true,
+      },
+    });
   }
 }

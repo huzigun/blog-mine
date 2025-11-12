@@ -35,9 +35,7 @@ export const useAuth = defineStore('auth', {
     },
 
     // 회원가입
-    async register(
-      credentials: RegisterCredentials,
-    ): Promise<AuthResponse> {
+    async register(credentials: RegisterCredentials): Promise<AuthResponse> {
       // Nuxt server API 호출 (쿠키는 서버에서 자동 설정됨)
       const data = await $fetch<AuthResponse>('/api/auth/register', {
         method: 'POST',

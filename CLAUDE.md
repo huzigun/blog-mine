@@ -33,6 +33,8 @@ This is a pnpm workspace monorepo blog application with two main packages:
   - **TypeScript Paths**: `@prisma/client` mapped to `./prisma/generated` in tsconfig.json
   - **Important**: Run `pnpm prisma generate` after schema changes to regenerate client
   - **Build Safety**: Generated client is outside `src/` to avoid being affected by TypeScript compilation
+  - **Migrations**: Run with `DATABASE_URL="..." pnpm prisma migrate dev --name <migration-name>`
+  - **Core Models**: User, Persona, BlogPost, KeywordTracking, BusinessInfo, Subscription, Payment, Credit
 - **Build Output**: `dist/` directory (CommonJS modules)
 - **TypeScript Config**: ES2023 target, decorators enabled, strict null checks
 
@@ -113,6 +115,12 @@ pnpm --parallel [command]   # Parallel execution
   - Copy `.env.example` to `.env` and configure for local development
   - Environment files are loaded based on NODE_ENV (defaults to development)
   - Access config via `ConfigService` injection with type safety
+  - **DATABASE_URL** required for Prisma CLI operations
+- **Prisma Workflow**:
+  - Edit `prisma/schema.prisma` for schema changes
+  - Run migrations: `DATABASE_URL="..." pnpm prisma migrate dev --name <name>`
+  - Generate client: `pnpm prisma generate`
+  - Studio (GUI): `DATABASE_URL="..." pnpm prisma studio`
 - Tests use Jest framework with ts-jest
 - Unit tests: `*.spec.ts` files alongside source
 - E2E tests: `test/` directory with separate Jest config
@@ -445,3 +453,310 @@ If you encounter TypeScript errors:
 - [Nuxt UI v4 Migration Guide](frontend/NUXT-UI-V4-MIGRATION.md) - Complete v2 to v4 migration reference
 - [Validation Guide](frontend/VALIDATION.md) - Zod schema validation documentation
 - [Official Nuxt UI v4 Docs](https://ui.nuxt.com) - Primary reference for components and API
+
+## Business Logic: Credit & Subscription System
+
+This project implements a comprehensive credit-based subscription system for the "BloC" service.
+
+### System Overview
+
+**Credit System Architecture**:
+- Users receive credits based on their subscription tier
+- Credits are consumed when using paid services (blog post generation, etc.)
+- Users can purchase additional credits when needed
+- Complete transaction history maintained for audit trail
+
+**Key Design Patterns**:
+- **Separate Balance + History Tables**: `CreditAccount` (current balance) + `CreditTransaction` (history)
+- **Type-based Credit Separation**: Subscription, Purchased, Bonus credits tracked separately
+- **Snapshot Pattern**: `SubscriptionHistory` stores point-in-time plan information
+- **Polymorphic References**: Flexible associations using referenceType + referenceId
+
+### Database Models
+
+#### Subscription Models
+
+**`SubscriptionPlan`** - Subscription tier definitions:
+- Pricing: Monthly and yearly rates
+- **`monthlyCredits`**: Credits granted per month
+- Feature limits: Blog posts, post length, keyword trackings, personas
+- Feature flags: Priority queue, advanced analytics, API access, custom personas
+
+**`UserSubscription`** - User subscription state:
+- Status: TRIAL, ACTIVE, PAST_DUE, CANCELED, EXPIRED
+- Period tracking: startedAt, expiresAt, canceledAt
+- Auto-renewal configuration
+- Payment history: Last payment date and amount
+
+**`SubscriptionHistory`** - Complete subscription change log:
+- Action: CREATED, RENEWED, UPGRADED, DOWNGRADED, CANCELLED, EXPIRED, REACTIVATED, PAYMENT_FAILED
+- Plan snapshot: planName, planPrice at time of change
+- Status transition: oldStatus → newStatus
+- Credits granted per event
+- Payment reference linkage
+
+#### Credit Models
+
+**`CreditAccount`** (1:1 with User) - Current credit balance:
+```prisma
+subscriptionCredits  Int  // Credits from subscription
+purchasedCredits     Int  // Credits bought separately
+bonusCredits         Int  // Promotional/bonus credits
+totalCredits         Int  // Sum of all types
+lastUsedAt           DateTime?
+```
+
+**`CreditTransaction`** - Complete transaction history:
+```prisma
+type              CreditTransactionType  // Transaction type
+amount            Int                    // Positive: grant, Negative: usage
+balanceBefore     Int                    // Balance before transaction
+balanceAfter      Int                    // Balance after transaction
+creditType        CreditType             // Which credit type affected
+referenceType     String?                // Related entity (subscription, payment, blog_post)
+referenceId       Int?                   // Related entity ID
+expiresAt         DateTime?              // For promotional credits
+```
+
+**Transaction Types**:
+- `SUBSCRIPTION_GRANT`: Credits from subscription renewal
+- `PURCHASE`: Credits bought with payment
+- `BONUS`: Bonus credits from promotions
+- `PROMO`: Promotional credits
+- `USAGE`: Credit consumption (negative amount)
+- `REFUND`: Credit refund
+- `EXPIRE`: Credit expiration
+- `ADMIN_ADJUSTMENT`: Manual admin changes
+
+#### Payment Models
+
+**`Payment`** - Payment transaction records:
+- Amount, currency, status (PENDING, COMPLETED, FAILED, REFUNDED)
+- Payment method and PG transaction ID
+- Refund tracking: refundedAt, refundAmount, refundReason
+- Metadata for additional payment information
+
+**`Card`** - Saved payment methods:
+- Integration with 나이스페이먼츠 (Nicepay)
+- Card information: company, type, masked number
+- Authentication status and default card flag
+
+**`NicepayResult`** - Payment gateway response logs:
+- Complete payment approval data from 나이스페이먼츠
+- Includes buyer info, card details, virtual account, bank transfer, cancellation info
+- All fields mapped to snake_case database columns
+
+### Business Logic Patterns
+
+#### 1. Credit Grant on Subscription
+
+```typescript
+async function grantSubscriptionCredits(
+  userId: number,
+  subscriptionId: number,
+  planId: number
+) {
+  const plan = await prisma.subscriptionPlan.findUnique({ where: { id: planId } })
+  const account = await prisma.creditAccount.findUnique({ where: { userId } })
+
+  // Create transaction
+  await prisma.creditTransaction.create({
+    data: {
+      accountId: account.id,
+      userId,
+      type: 'SUBSCRIPTION_GRANT',
+      amount: plan.monthlyCredits,
+      balanceBefore: account.totalCredits,
+      balanceAfter: account.totalCredits + plan.monthlyCredits,
+      creditType: 'SUBSCRIPTION',
+      referenceType: 'subscription',
+      referenceId: subscriptionId,
+    }
+  })
+
+  // Update account balance
+  await prisma.creditAccount.update({
+    where: { userId },
+    data: {
+      subscriptionCredits: { increment: plan.monthlyCredits },
+      totalCredits: { increment: plan.monthlyCredits },
+    }
+  })
+}
+```
+
+#### 2. Credit Usage
+
+```typescript
+async function useCreditForBlogPost(userId: number, postId: number, cost: number) {
+  const account = await prisma.creditAccount.findUnique({ where: { userId } })
+
+  if (account.totalCredits < cost) {
+    throw new Error('Insufficient credits')
+  }
+
+  // Deduct credits with priority: bonus → subscription → purchased
+  let remaining = cost
+  const updates = { totalCredits: -cost }
+
+  if (account.bonusCredits >= remaining) {
+    updates.bonusCredits = -remaining
+    remaining = 0
+  } else {
+    updates.bonusCredits = -account.bonusCredits
+    remaining -= account.bonusCredits
+  }
+
+  if (remaining > 0 && account.subscriptionCredits >= remaining) {
+    updates.subscriptionCredits = -remaining
+    remaining = 0
+  } else if (remaining > 0) {
+    updates.subscriptionCredits = -account.subscriptionCredits
+    remaining -= account.subscriptionCredits
+  }
+
+  if (remaining > 0) {
+    updates.purchasedCredits = -remaining
+  }
+
+  // Create transaction record
+  await prisma.creditTransaction.create({
+    data: {
+      accountId: account.id,
+      userId,
+      type: 'USAGE',
+      amount: -cost,
+      balanceBefore: account.totalCredits,
+      balanceAfter: account.totalCredits - cost,
+      creditType: determineUsedCreditType(updates),
+      referenceType: 'blog_post',
+      referenceId: postId,
+    }
+  })
+
+  // Update account
+  await prisma.creditAccount.update({
+    where: { userId },
+    data: { ...updates, lastUsedAt: new Date() }
+  })
+}
+```
+
+#### 3. Credit Purchase
+
+```typescript
+async function purchaseCredits(
+  userId: number,
+  amount: number,
+  paymentId: number
+) {
+  const account = await prisma.creditAccount.findUnique({ where: { userId } })
+
+  await prisma.creditTransaction.create({
+    data: {
+      accountId: account.id,
+      userId,
+      type: 'PURCHASE',
+      amount,
+      balanceBefore: account.totalCredits,
+      balanceAfter: account.totalCredits + amount,
+      creditType: 'PURCHASED',
+      referenceType: 'payment',
+      referenceId: paymentId,
+    }
+  })
+
+  await prisma.creditAccount.update({
+    where: { userId },
+    data: {
+      purchasedCredits: { increment: amount },
+      totalCredits: { increment: amount },
+    }
+  })
+}
+```
+
+#### 4. Subscription History Tracking
+
+```typescript
+async function recordSubscriptionChange(
+  userId: number,
+  subscriptionId: number,
+  action: SubscriptionAction,
+  oldStatus: SubscriptionStatus | null,
+  newStatus: SubscriptionStatus,
+  plan: SubscriptionPlan,
+  creditsGranted?: number,
+  paymentId?: number
+) {
+  await prisma.subscriptionHistory.create({
+    data: {
+      userId,
+      subscriptionId,
+      action,
+      oldStatus,
+      newStatus,
+      // Snapshot plan info
+      planId: plan.id,
+      planName: plan.displayName,
+      planPrice: plan.price,
+      creditsGranted,
+      paymentId,
+      startedAt: new Date(),
+      expiresAt: calculateExpiryDate(plan),
+    }
+  })
+}
+```
+
+### Usage Tracking
+
+**`SubscriptionUsageLog`** tracks resource consumption:
+- Resource types: `blog_post`, `keyword_tracking`, `persona`, `api_call`
+- Amount consumed per usage
+- Metadata for additional context
+- Indexed by userId and resource for analytics
+
+### Implementation Checklist
+
+To implement the credit system functionality:
+
+- [ ] Create `CreditService` in `backend/src/credit/`
+- [ ] Create `SubscriptionService` in `backend/src/subscription/`
+- [ ] Implement credit grant on subscription creation/renewal
+- [ ] Implement credit usage on blog post generation
+- [ ] Implement credit purchase flow with payment integration
+- [ ] Add credit balance check middleware/guard
+- [ ] Create subscription upgrade/downgrade logic
+- [ ] Add usage tracking hooks
+- [ ] Implement subscription history recording
+- [ ] Create API endpoints for credit/subscription management
+- [ ] Add frontend UI for credit balance display
+- [ ] Add frontend credit purchase flow
+- [ ] Add frontend subscription management page
+
+### Database Relationships
+
+```
+User (1) ──── (1) CreditAccount
+  │                    │
+  │                    │
+  │                    └──── (*) CreditTransaction
+  │
+  ├──── (*) UserSubscription ──── (1) SubscriptionPlan
+  ├──── (*) SubscriptionHistory
+  ├──── (*) SubscriptionUsageLog
+  ├──── (*) Payment
+  ├──── (*) Card
+  └──── (*) BlogPost, Persona, KeywordTracking
+```
+
+### Migration History
+
+**Latest Migration**: `20251112090829_add_credit_and_subscription_models`
+
+Created:
+- 5 new enums (SubscriptionStatus, PaymentStatus, CreditTransactionType, CreditType, SubscriptionAction)
+- 10 new tables (business_info, subscription_plans, user_subscriptions, subscription_usage_logs, payments, cards, nicepay_results, credit_accounts, credit_transactions, subscription_histories)
+- Proper indexes for query optimization
+- Foreign key constraints with CASCADE deletes

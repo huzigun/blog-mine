@@ -37,21 +37,21 @@ export default {
     size: {
       xs: {
         base: 'px-2 py-1 text-xs gap-1',
-        leadingIcon: 'size-4',
+        leadingIcon: 'size-2.5',
         leadingAvatarSize: '3xs',
-        trailingIcon: 'size-4',
+        trailingIcon: 'size-2.5',
       },
       sm: {
         base: 'px-2.5 py-1.5 text-xs gap-1.5',
-        leadingIcon: 'size-4',
+        leadingIcon: 'size-3',
         leadingAvatarSize: '3xs',
-        trailingIcon: 'size-4',
+        trailingIcon: 'size-3',
       },
       md: {
         base: 'px-2.5 py-1.5 text-sm gap-1.5',
-        leadingIcon: 'size-5',
+        leadingIcon: 'size-3.5',
         leadingAvatarSize: '2xs',
-        trailingIcon: 'size-5',
+        trailingIcon: 'size-3.5',
       },
       lg: {
         base: 'px-3 py-2 text-sm gap-2',
