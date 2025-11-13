@@ -78,6 +78,11 @@ const userMenuItems = [
       to: '/mypage/profile',
     },
     {
+      label: '카드 관리',
+      icon: 'i-heroicons-credit-card',
+      to: '/mypage/cards',
+    },
+    {
       label: '설정',
       icon: 'i-heroicons-cog-6-tooth',
       to: '/mypage/settings',

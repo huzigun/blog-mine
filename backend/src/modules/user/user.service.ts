@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { ConfigService } from '../config/config.service';
+import { PrismaService } from '../../lib/database/prisma.service';
+import { ConfigService } from '../../lib/config/config.service';
 import { UpdateBusinessInfoDto } from './dto';
 import * as bcrypt from 'bcrypt';
 

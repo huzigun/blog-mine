@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
-import { ConfigService } from '../config';
+import { ConfigService } from '../../../../lib/config';
 import { firstValueFrom, map } from 'rxjs';
 import * as cheerio from 'cheerio';
 

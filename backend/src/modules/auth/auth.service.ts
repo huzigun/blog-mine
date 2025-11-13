@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../lib/database/prisma.service';
 import { UserService } from '../user/user.service';
 import {
   RegisterDto,

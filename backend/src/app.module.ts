@@ -3,14 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { HttpModule } from '@nestjs/axios';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { configuration, ConfigServiceModule } from './config';
-import { PrismaModule } from './prisma';
-import { UserModule } from './user/user.module';
-import { AuthModule } from './auth/auth.module';
-import { PersonaModule } from './persona/persona.module';
-import { BlogPostModule } from './blog-post/blog-post.module';
-import { NaverApiModule } from './naver-api/naver-api.module';
-import { DateModule } from './date';
+import { configuration, ConfigServiceModule } from './lib/config';
+import { PrismaModule } from './lib/database';
+import { UserModule } from './modules/user/user.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PersonaModule } from './modules/persona/persona.module';
+import { BlogPostModule } from './modules/blog-post/blog-post.module';
+import { CardModule } from './modules/card/card.module';
+import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.module';
+import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
+import { DateModule } from './lib/date';
 
 @Module({
   imports: [
@@ -27,10 +29,12 @@ import { DateModule } from './date';
     ConfigServiceModule,
     DateModule,
     PrismaModule,
+    NicepayModule,
     UserModule,
     AuthModule,
     PersonaModule,
     BlogPostModule,
+    CardModule,
     NaverApiModule,
   ],
   controllers: [AppController],

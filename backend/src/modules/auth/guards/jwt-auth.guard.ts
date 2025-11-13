@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { TokenExpiredException } from '../../common/exceptions/token-expired.exception';
+import { TokenExpiredException } from '../../../common/exceptions/token-expired.exception';
 
 interface JwtError {
   name: string;

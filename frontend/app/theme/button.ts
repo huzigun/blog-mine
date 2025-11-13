@@ -1,7 +1,7 @@
 export default {
   slots: {
     base: [
-      'rounded-xl font-medium inline-flex items-center disabled:cursor-not-allowed aria-disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:opacity-75',
+      'rounded-lg font-medium inline-flex items-center disabled:cursor-not-allowed aria-disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:opacity-75',
       'transition-colors',
     ],
     label: 'truncate',
@@ -60,7 +60,7 @@ export default {
         trailingIcon: 'size-5',
       },
       xl: {
-        base: 'px-4 py-3 text-sm gap-2',
+        base: 'px-4 py-3 text-sm gap-2 rounded-xl',
         leadingIcon: 'size-5',
         leadingAvatarSize: 'xs',
         trailingIcon: 'size-5',

@@ -2,7 +2,7 @@ export default {
   slots: {
     root: 'relative inline-flex items-center',
     base: [
-      'w-full rounded-xl border-0 appearance-none placeholder:text-dimmed focus:outline-none disabled:cursor-not-allowed disabled:opacity-75',
+      'w-full rounded-lg border-0 appearance-none placeholder:text-dimmed focus:outline-none disabled:cursor-not-allowed disabled:opacity-75',
       'transition-colors',
     ],
     leading: 'absolute inset-y-0 start-0 flex items-center',
@@ -57,7 +57,7 @@ export default {
         trailingIcon: 'size-5',
       },
       xl: {
-        base: 'px-4 py-3 text-sm gap-2',
+        base: 'px-4 py-3 text-sm gap-2 rounded-xl',
         leading: 'ps-3',
         trailing: 'pe-3',
         leadingIcon: 'size-6',

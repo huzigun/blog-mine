@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { HttpModule } from '@nestjs/axios';
 import { NaverApiService } from './naver-api.service';
 import { BlogRankService } from './blog-rank.service';
-import { PrismaModule } from '../prisma/prisma.module';
+import { PrismaModule } from '../../../../lib/database/prisma.module';
 
 @Module({
   imports: [

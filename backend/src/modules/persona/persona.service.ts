@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../lib/database/prisma.service';
 import {
   CreatePersonaDto,
   UpdatePersonaDto,

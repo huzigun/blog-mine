@@ -1,8 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { OpenAIService } from '../openai/openai.service';
-import { BlogRankService } from '../naver-api/blog-rank.service';
-import { DateService } from '../date/date.service';
+import { PrismaService } from '../../lib/database/prisma.service';
+import { OpenAIService } from '../../lib/integrations/openai/openai/openai.service';
+import { BlogRankService } from '../../lib/integrations/naver/naver-api/blog-rank.service';
+import { DateService } from '../../lib/date/date.service';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 
 @Injectable()

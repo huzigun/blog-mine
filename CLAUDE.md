@@ -20,16 +20,51 @@ This is a pnpm workspace monorepo blog application with two main packages:
   - `.env` - common settings for all environments
   - `.env.development` - development-specific settings
   - `.env.production` - production-specific settings
-  - `src/config/` - typed configuration service and factory
-- **Module System**: Standard NestJS modular architecture
+  - `src/lib/config/` - typed configuration service and factory
+- **Module System**: Scalable categorized architecture
   - `AppModule` - root module in `src/app.module.ts`
   - Controllers handle HTTP requests
   - Services contain business logic
   - Follows dependency injection pattern
+- **Module Organization**: **IMPORTANT - Follow this structure for scalability**
+  ```
+  src/
+  ├── modules/                    # Business domain modules (with controllers)
+  │   ├── auth/                  # Authentication & authorization
+  │   ├── user/                  # User management
+  │   ├── persona/               # Persona management
+  │   └── blog-post/             # Blog post generation
+  │
+  ├── lib/                       # Infrastructure & utilities (no controllers)
+  │   ├── database/              # Prisma ORM (global module)
+  │   ├── config/                # Configuration service (global)
+  │   ├── date/                  # Date utilities (global)
+  │   ├── integrations/          # External API integrations
+  │   │   ├── nicepay/          # Payment gateway (Nicepay)
+  │   │   ├── naver/            # Naver Search API
+  │   │   └── openai/           # OpenAI API
+  │   ├── http/                  # HTTP client utilities
+  │   └── encrypt.ts             # Encryption utilities
+  │
+  ├── common/                    # Shared code
+  │   ├── exceptions/            # Custom exceptions
+  │   ├── filters/               # Exception filters
+  │   ├── guards/                # Guards (in auth module)
+  │   ├── interceptors/          # Interceptors
+  │   └── decorators/            # Custom decorators
+  │
+  ├── app.module.ts
+  └── main.ts
+  ```
+- **Import Path Aliases**: Configured in tsconfig.json for cleaner imports
+  - `@modules/*` → `src/modules/*`
+  - `@lib/*` → `src/lib/*`
+  - `@common/*` → `src/common/*`
+  - `@prisma/client` → `prisma/generated`
 - **Database**: Prisma ORM with PostgreSQL
   - **Schema**: `prisma/schema.prisma` - database models and configuration
   - **Generated Client**: `prisma/generated/` - auto-generated Prisma Client (not in src/)
-  - **Service**: `src/prisma/prisma.service.ts` - NestJS service wrapping PrismaClient
+  - **Service**: `src/lib/database/prisma.service.ts` - NestJS service wrapping PrismaClient
   - **TypeScript Paths**: `@prisma/client` mapped to `./prisma/generated` in tsconfig.json
   - **Important**: Run `pnpm prisma generate` after schema changes to regenerate client
   - **Build Safety**: Generated client is outside `src/` to avoid being affected by TypeScript compilation

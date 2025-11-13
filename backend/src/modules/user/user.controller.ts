@@ -1,4 +1,11 @@
-import { Controller, Get, Put, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Put,
+  Body,
+  UseGuards,
+  NotFoundException,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateBusinessInfoDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,6 +25,10 @@ export class UserController {
   async getMe(@GetRequestUser() user: RequestUser) {
     const userWithBusinessInfo =
       await this.userService.findByIdWithBusinessInfo(user.id);
+
+    if (!userWithBusinessInfo) {
+      throw new NotFoundException('User not found');
+    }
 
     return {
       id: userWithBusinessInfo.id,
