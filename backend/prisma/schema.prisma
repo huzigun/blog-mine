@@ -245,11 +245,11 @@ model SubscriptionPlan {
   // 크레딧 정보
   monthlyCredits Int @default(0) @map("monthly_credits") // 월별 지급 크레딧
 
-  // 기능 제한
-  maxBlogPostsPerMonth Int @map("max_blog_posts_per_month") // 월별 원고 생성 한도
-  maxPostLength        Int @map("max_post_length") // 원고당 최대 글자 수
-  maxKeywordTrackings  Int @map("max_keyword_trackings") // 키워드 추적 개수
-  maxPersonas          Int @map("max_personas") // 페르소나 개수
+  // 기능 제한 (null = 무제한)
+  maxBlogPostsPerMonth Int? @map("max_blog_posts_per_month") // 월별 원고 생성 한도 (null = 무제한)
+  maxPostLength        Int? @map("max_post_length") // 원고당 최대 글자 수 (null = 무제한)
+  maxKeywordTrackings  Int? @map("max_keyword_trackings") // 키워드 추적 개수 (null = 무제한)
+  maxPersonas          Int? @map("max_personas") // 페르소나 개수 (null = 무제한)
 
   // 기능 플래그
   allowPriorityQueue     Boolean @default(false) @map("allow_priority_queue") // 우선 처리

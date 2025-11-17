@@ -6,10 +6,12 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigService } from '../../lib/config/config.service';
 import { UserModule } from '../user/user.module';
+import { CreditModule } from '../credit/credit.module';
 
 @Module({
   imports: [
     UserModule,
+    CreditModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

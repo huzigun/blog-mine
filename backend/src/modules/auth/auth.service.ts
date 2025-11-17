@@ -3,10 +3,12 @@ import {
   UnauthorizedException,
   ConflictException,
   Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../lib/database/prisma.service';
 import { UserService } from '../user/user.service';
+import { CreditService } from '../credit/credit.service';
 import {
   RegisterDto,
   LoginDto,
@@ -14,6 +16,7 @@ import {
   RefreshTokenResponseDto,
 } from './dto';
 import { JwtPayload } from './strategies/jwt.strategy';
+import { SubscriptionStatus } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 
@@ -27,6 +30,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly creditService: CreditService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
@@ -41,28 +45,104 @@ export class AuthService {
     // 비밀번호 암호화
     const hashedPassword = await bcrypt.hash(password, this.SALT_ROUNDS);
 
-    // 사용자 생성
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: name || null,
-      },
+    // FREE 플랜 조회 (name으로 조회하여 ID 문제 해결)
+    const freePlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { name: 'FREE' },
     });
 
-    this.logger.log(`New user registered: ${user.email}`);
+    if (!freePlan) {
+      throw new InternalServerErrorException(
+        'Default subscription plan not found. Please run database seed.',
+      );
+    }
+
+    // 트랜잭션으로 사용자 생성 + 구독 + 크레딧 계정 생성
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. 사용자 생성
+      const user = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          name: name || null,
+        },
+      });
+
+      // 2. FREE 구독 생성 (체험 기간 7일)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7); // 7일 체험
+
+      const subscription = await tx.userSubscription.create({
+        data: {
+          userId: user.id,
+          planId: freePlan.id,
+          status: SubscriptionStatus.TRIAL,
+          startedAt: new Date(),
+          expiresAt,
+          autoRenewal: false, // FREE 플랜은 자동 갱신 안 함
+        },
+      });
+
+      // 3. 크레딧 계정 생성 및 초기 크레딧 지급
+      const creditAccount = await tx.creditAccount.create({
+        data: {
+          userId: user.id,
+          subscriptionCredits: freePlan.monthlyCredits,
+          purchasedCredits: 0,
+          bonusCredits: 0,
+          totalCredits: freePlan.monthlyCredits,
+        },
+      });
+
+      // 4. 크레딧 거래 내역 생성
+      await tx.creditTransaction.create({
+        data: {
+          accountId: creditAccount.id, // 올바른 accountId 사용
+          userId: user.id,
+          type: 'SUBSCRIPTION_GRANT',
+          amount: freePlan.monthlyCredits,
+          balanceBefore: 0,
+          balanceAfter: freePlan.monthlyCredits,
+          creditType: 'SUBSCRIPTION',
+          referenceType: 'subscription',
+          referenceId: subscription.id,
+        },
+      });
+
+      // 5. 구독 히스토리 생성
+      await tx.subscriptionHistory.create({
+        data: {
+          userId: user.id,
+          subscriptionId: subscription.id,
+          action: 'CREATED',
+          oldStatus: null,
+          newStatus: SubscriptionStatus.TRIAL,
+          planId: freePlan.id,
+          planName: freePlan.displayName,
+          planPrice: freePlan.price,
+          creditsGranted: freePlan.monthlyCredits,
+          startedAt: subscription.startedAt,
+          expiresAt: subscription.expiresAt,
+        },
+      });
+
+      return user;
+    });
+
+    this.logger.log(
+      `New user registered with FREE trial: ${result.email} (7 days, ${freePlan.monthlyCredits} credits)`,
+    );
 
     // JWT 토큰 생성
-    const accessToken = await this.generateAccessToken(user.id);
-    const refreshToken = await this.generateRefreshToken(user.id);
+    const accessToken = await this.generateAccessToken(result.id);
+    const refreshToken = await this.generateRefreshToken(result.id);
 
     return {
       accessToken,
       refreshToken,
       user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
+        id: result.id,
+        email: result.email,
+        name: result.name,
       },
     };
   }

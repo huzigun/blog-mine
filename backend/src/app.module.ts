@@ -10,6 +10,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PersonaModule } from './modules/persona/persona.module';
 import { BlogPostModule } from './modules/blog-post/blog-post.module';
 import { CardModule } from './modules/card/card.module';
+import { CreditModule } from './modules/credit/credit.module';
 import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.module';
 import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
 import { DateModule } from './lib/date';
@@ -35,6 +36,7 @@ import { DateModule } from './lib/date';
     PersonaModule,
     BlogPostModule,
     CardModule,
+    CreditModule,
     NaverApiModule,
   ],
   controllers: [AppController],
