@@ -2,10 +2,15 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
-import { CreditTransactionType, CreditType, Prisma } from '@prisma/client';
+import {
+  CreditTransactionType,
+  CreditType,
+  Prisma,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PurchaseCreditDto, CreditTransactionFilterDto } from './dto';
 
 @Injectable()
@@ -13,26 +18,58 @@ export class CreditService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * 사용자의 크레딧 계정 조회
-   * - 계정이 없으면 자동 생성
+   * 활성 구독 검증
+   * - 크레딧 사용 시 실시간으로 구독 상태 확인
+   * @param userId 사용자 ID
    */
-  async getCreditAccount(userId: number) {
-    let account = await this.prisma.creditAccount.findUnique({
-      where: { userId },
+  private async validateActiveSubscription(userId: number) {
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: {
+          in: [
+            SubscriptionStatus.TRIAL,
+            SubscriptionStatus.ACTIVE,
+            SubscriptionStatus.PAST_DUE,
+          ],
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
-    // 계정이 없으면 생성
-    if (!account) {
-      account = await this.prisma.creditAccount.create({
-        data: {
-          userId,
-          subscriptionCredits: 0,
-          purchasedCredits: 0,
-          bonusCredits: 0,
-          totalCredits: 0,
-        },
-      });
+    if (!subscription) {
+      throw new ForbiddenException(
+        '활성 구독을 찾을 수 없습니다. 플랜을 선택해주세요.',
+      );
     }
+
+    // 만료 날짜 실시간 체크
+    if (new Date() > subscription.expiresAt) {
+      throw new ForbiddenException(
+        '구독이 만료되었습니다. 구독을 갱신해주세요.',
+      );
+    }
+  }
+
+  /**
+   * 사용자의 크레딧 계정 조회
+   * - 계정이 없으면 자동 생성 (upsert로 race condition 방지)
+   */
+  async getCreditAccount(userId: number) {
+    // upsert를 사용하여 원자적으로 조회 또는 생성
+    const account = await this.prisma.creditAccount.upsert({
+      where: { userId },
+      update: {}, // 이미 존재하면 아무것도 업데이트하지 않음
+      create: {
+        userId,
+        subscriptionCredits: 0,
+        purchasedCredits: 0,
+        bonusCredits: 0,
+        totalCredits: 0,
+      },
+    });
 
     return account;
   }
@@ -113,6 +150,7 @@ export class CreditService {
   /**
    * 크레딧 사용
    * - 우선순위: bonusCredits → subscriptionCredits → purchasedCredits
+   * - 구독 상태 실시간 검증 (만료 시 차단)
    * @param userId 사용자 ID
    * @param amount 사용할 크레딧 수량
    * @param referenceType 참조 엔티티 타입 (예: 'blog_post', 'api_call')
@@ -129,6 +167,9 @@ export class CreditService {
     if (amount <= 0) {
       throw new BadRequestException('사용할 크레딧은 0보다 커야 합니다.');
     }
+
+    // 크레딧 사용 시 구독 상태 실시간 검증
+    await this.validateActiveSubscription(userId);
 
     const account = await this.getCreditAccount(userId);
 

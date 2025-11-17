@@ -4,9 +4,15 @@ export const useAuth = defineStore('auth', {
   state: () => ({
     user: null as null | { id: number; email: string; name: string | null },
     accessToken: null as null | string,
+    subscription: null as null | Subscription,
   }),
   getters: {
     isAuthenticated: (state) => !!state.accessToken && !!state.user,
+    hasActiveSubscription: (state) =>
+      state.subscription?.status === 'ACTIVE' ||
+      state.subscription?.status === 'TRIAL',
+    isCanceledSubscription: (state) =>
+      !state.subscription?.autoRenewal && !!state.subscription?.canceledAt,
   },
   actions: {
     setUser(user: { id: number; email: string; name: string | null }) {
@@ -15,9 +21,13 @@ export const useAuth = defineStore('auth', {
     setAccessToken(token: string) {
       this.accessToken = token;
     },
+    setSubscription(subscription: Subscription) {
+      this.subscription = subscription;
+    },
     clearAuth() {
       this.user = null;
       this.accessToken = null;
+      this.subscription = null;
     },
 
     // 로그인
@@ -30,6 +40,9 @@ export const useAuth = defineStore('auth', {
 
       this.setAccessToken(data.accessToken);
       this.setUser(data.user);
+
+      // 로그인 시 구독 정보 함께 로드
+      await this.fetchSubscription();
 
       return data;
     },
@@ -44,6 +57,9 @@ export const useAuth = defineStore('auth', {
 
       this.setAccessToken(data.accessToken);
       this.setUser(data.user);
+
+      // 회원가입 시 구독 정보 함께 로드 (FREE 플랜 자동 할당됨)
+      await this.fetchSubscription();
 
       return data;
     },
@@ -68,6 +84,20 @@ export const useAuth = defineStore('auth', {
       } catch (error) {
         console.error('Fetch user failed:', error);
         this.clearAuth();
+        return null;
+      }
+    },
+
+    // 구독 정보 조회
+    async fetchSubscription() {
+      if (!this.accessToken) return null;
+      try {
+        const subscription = await useApi<Subscription>('/subscriptions/me');
+        this.setSubscription(subscription);
+        return subscription;
+      } catch (error) {
+        console.error('Fetch subscription failed:', error);
+        // 구독 정보 조회 실패는 치명적이지 않으므로 null만 반환
         return null;
       }
     },

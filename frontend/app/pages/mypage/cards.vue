@@ -27,6 +27,17 @@ const {
 const isLoading = computed(() => pending.value);
 
 const openCardFormModal = async () => {
+  // 카드 개수 제한 체크 (최대 3개)
+  const MAX_CARDS = 3;
+  if (cards.value && cards.value.length >= MAX_CARDS) {
+    toast.add({
+      title: '카드 등록 제한',
+      description: `최대 ${MAX_CARDS}개의 카드만 등록할 수 있습니다.`,
+      color: 'warning',
+    });
+    return;
+  }
+
   const instance = cardFormModal.open({
     existingCardsCount: cards.value?.length || 0,
   });
@@ -179,7 +190,7 @@ function getCardTypeText(cardType: string | null) {
               <!-- prettier-ignore -->
               <p class="text-sm text-gray-500">
                 <span class="text-primary font-semibold">
-                  {{ cards?.length }}
+                  {{ cards?.length || 0 }}/3
                 </span>개의 카드가 등록되어 있습니다
               </p>
             </div>
@@ -188,6 +199,7 @@ function getCardTypeText(cardType: string | null) {
           <UButton
             size="sm"
             icon="i-heroicons-plus"
+            :disabled="cards && cards.length >= 3"
             @click="openCardFormModal"
             :loading="isPending || isLoading"
           >

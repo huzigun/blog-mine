@@ -6,6 +6,7 @@ definePageMeta({
 });
 
 const toast = useToast();
+const auth = useAuth();
 
 interface BusinessInfo {
   id: number;
@@ -37,6 +38,60 @@ const user = computed(() => ({
   createdAt: userData.value?.createdAt || '',
   businessInfo: userData.value?.businessInfo || null,
 }));
+
+// 크레딧 잔액 조회
+interface CreditBalance {
+  totalCredits: number;
+  subscriptionCredits: number;
+  purchasedCredits: number;
+  bonusCredits: number;
+  lastUsedAt: string | null;
+}
+
+const { data: creditBalance, refresh: refreshCredits } =
+  await useApiFetch<CreditBalance>('/credits/balance');
+
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+};
+
+const getSubscriptionStatusColor = (status: string) => {
+  switch (status) {
+    case 'TRIAL':
+      return 'info';
+    case 'ACTIVE':
+      return 'success';
+    case 'PAST_DUE':
+      return 'warning';
+    case 'CANCELED':
+    case 'EXPIRED':
+      return 'error';
+    default:
+      return 'neutral';
+  }
+};
+
+const getSubscriptionStatusLabel = (status: string) => {
+  switch (status) {
+    case 'TRIAL':
+      return '체험';
+    case 'ACTIVE':
+      return '활성';
+    case 'PAST_DUE':
+      return '결제 지연';
+    case 'CANCELED':
+      return '취소 예약';
+    case 'EXPIRED':
+      return '만료';
+    default:
+      return status;
+  }
+};
 
 // 모달 상태
 const isProfileModalOpen = ref(false);
@@ -185,15 +240,6 @@ const handleSaveBusinessInfo = async (
   }
 };
 
-const formatDate = (dateStr: string) => {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('ko-KR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-};
-
 // 회원 탈퇴
 const isDeleting = ref(false);
 const isDeleteModalOpen = ref(false);
@@ -306,6 +352,164 @@ const handleDeleteAccount = async () => {
             <span>가입일</span>
           </div>
           <div class="text-base font-medium">{{ formatDate(user.createdAt) }}</div>
+        </div>
+      </div>
+    </UCard>
+
+    <!-- 구독 및 크레딧 정보 -->
+    <UCard>
+      <template #header>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
+            >
+              <div class="i-heroicons-star text-primary text-2xl" />
+            </div>
+            <div>
+              <h3 class="text-lg font-semibold">구독 및 크레딧</h3>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5">
+                현재 플랜과 크레딧 잔액을 확인하세요
+              </p>
+            </div>
+          </div>
+          <UButton
+            size="sm"
+            variant="soft"
+            icon="i-heroicons-arrow-path"
+            to="/pricing"
+          >
+            플랜 관리
+          </UButton>
+        </div>
+      </template>
+
+      <div class="space-y-4">
+        <!-- 구독 정보 -->
+        <div v-if="auth.subscription" class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 space-y-3">
+              <div class="flex items-center gap-2">
+                <h4 class="text-base font-semibold">
+                  {{ auth.subscription.plan.displayName }}
+                </h4>
+                <UBadge
+                  :color="getSubscriptionStatusColor(auth.subscription.status)"
+                  variant="soft"
+                >
+                  {{ getSubscriptionStatusLabel(auth.subscription.status) }}
+                </UBadge>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
+                  <div class="i-heroicons-calendar-days text-base" />
+                  <span>시작일: {{ formatDate(auth.subscription.startedAt) }}</span>
+                </div>
+                <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
+                  <div class="i-heroicons-clock text-base" />
+                  <span>
+                    {{ auth.subscription.autoRenewal ? '다음 결제일' : '만료일' }}:
+                    {{ formatDate(auth.subscription.expiresAt) }}
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-if="auth.isCanceledSubscription"
+                class="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/20"
+              >
+                <div class="i-heroicons-exclamation-triangle text-warning text-lg flex-shrink-0 mt-0.5" />
+                <div class="text-sm text-neutral-700 dark:text-neutral-300">
+                  <p class="font-medium">구독 취소가 예약되었습니다</p>
+                  <p class="text-xs mt-1">
+                    {{ formatDate(auth.subscription.expiresAt) }}까지 서비스를 이용할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                v-if="!auth.subscription.autoRenewal && !auth.isCanceledSubscription"
+                class="flex items-start gap-2 p-3 rounded-md bg-info/10 border border-info/20"
+              >
+                <div class="i-heroicons-information-circle text-info text-lg flex-shrink-0 mt-0.5" />
+                <div class="text-sm text-neutral-700 dark:text-neutral-300">
+                  <p>자동 갱신이 비활성화되어 있습니다.</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="auth.subscription.plan.price" class="text-right flex-shrink-0">
+              <div class="text-2xl font-bold text-primary">
+                {{ auth.subscription.plan.price.toLocaleString() }}원
+              </div>
+              <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                /월
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 무료 플랜 안내 -->
+        <div v-else class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+          <div class="flex items-center gap-3">
+            <div class="i-heroicons-information-circle text-info text-2xl" />
+            <div>
+              <p class="font-medium">활성 구독이 없습니다</p>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                플랜을 선택하여 더 많은 기능을 이용하세요.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 크레딧 잔액 -->
+        <div v-if="creditBalance" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-primary/5 border-2 border-primary/20">
+            <div class="flex items-center gap-2 text-xs font-medium text-primary">
+              <div class="i-heroicons-star text-sm" />
+              <span>총 크레딧</span>
+            </div>
+            <div class="text-2xl font-bold text-primary">
+              {{ creditBalance.totalCredits.toLocaleString() }}
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+              <div class="i-heroicons-gift text-sm" />
+              <span>구독 크레딧</span>
+            </div>
+            <div class="text-xl font-semibold">
+              {{ creditBalance.subscriptionCredits.toLocaleString() }}
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+              <div class="i-heroicons-credit-card text-sm" />
+              <span>구매 크레딧</span>
+            </div>
+            <div class="text-xl font-semibold">
+              {{ creditBalance.purchasedCredits.toLocaleString() }}
+            </div>
+          </div>
+
+          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+              <div class="i-heroicons-sparkles text-sm" />
+              <span>보너스 크레딧</span>
+            </div>
+            <div class="text-xl font-semibold">
+              {{ creditBalance.bonusCredits.toLocaleString() }}
+            </div>
+          </div>
+        </div>
+
+        <!-- 크레딧 마지막 사용 시간 -->
+        <div v-if="creditBalance?.lastUsedAt" class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 px-4">
+          <div class="i-heroicons-clock text-base" />
+          <span>마지막 사용: {{ formatDate(creditBalance.lastUsedAt) }}</span>
         </div>
       </div>
     </UCard>

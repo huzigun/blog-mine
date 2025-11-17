@@ -90,10 +90,7 @@ export class UserService implements OnModuleInit {
   /**
    * 사용자의 사업자 정보 생성 또는 업데이트
    */
-  async upsertBusinessInfo(
-    userId: number,
-    dto: UpdateBusinessInfoDto,
-  ) {
+  async upsertBusinessInfo(userId: number, dto: UpdateBusinessInfoDto) {
     return this.prisma.businessInfo.upsert({
       where: { userId },
       create: {
