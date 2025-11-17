@@ -6,27 +6,9 @@ definePageMeta({
 const auth = useAuth();
 const toast = useToast();
 
-// 플랜 목록 조회
-interface Plan {
-  id: number;
-  name: string;
-  displayName: string;
-  description: string | null;
-  price: number;
-  yearlyPrice: number | null;
-  monthlyCredits: number;
-  maxBlogPostsPerMonth: number | null;
-  maxPostLength: number | null;
-  maxKeywordTrackings: number | null;
-  maxPersonas: number | null;
-  hasPriorityQueue: boolean;
-  hasAdvancedAnalytics: boolean;
-  hasApiAccess: boolean;
-  hasCustomPersonas: boolean;
-  isActive: boolean;
-}
-
-const { data: plans, pending: plansLoading } = await useApiFetch<Plan[]>('/subscriptions/plans');
+const { data: plans, pending: plansLoading } = await useApiFetch<Plan[]>(
+  '/subscriptions/plans',
+);
 
 // 현재 구독 정보 (auth store에서 가져옴)
 const currentSubscription = computed(() => auth.subscription);
@@ -81,7 +63,8 @@ const handleSelectPlan = async (plan: Plan) => {
     if (plan.name === 'FREE') {
       toast.add({
         title: '안내',
-        description: 'FREE 플랜으로는 다운그레이드할 수 없습니다. 현재 구독을 취소해주세요.',
+        description:
+          'FREE 플랜으로는 다운그레이드할 수 없습니다. 현재 구독을 취소해주세요.',
         color: 'warning',
       });
       return;
@@ -110,9 +93,9 @@ const handleSelectPlan = async (plan: Plan) => {
 const getPlanFeatures = (plan: Plan): string[] => {
   const features: string[] = [];
 
-  // 크레딧
+  // BloC
   if (plan.monthlyCredits > 0) {
-    features.push(`월 ${plan.monthlyCredits.toLocaleString()} 크레딧`);
+    features.push(`월 ${plan.monthlyCredits.toLocaleString()} BloC`);
   }
 
   // 원고 생성 한도
@@ -209,9 +192,11 @@ const getButtonText = (plan: Plan) => {
       <h1 class="text-4xl md:text-5xl font-bold">
         비즈니스에 맞는 플랜을 선택하세요
       </h1>
-      <p class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto">
-        AI 기반 블로그 원고 생성으로 콘텐츠 제작을 자동화하세요.
-        언제든지 플랜을 변경할 수 있습니다.
+      <p
+        class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
+      >
+        AI 기반 블로그 원고 생성으로 콘텐츠 제작을 자동화하세요. 언제든지 플랜을
+        변경할 수 있습니다.
       </p>
     </div>
 
@@ -231,7 +216,9 @@ const getButtonText = (plan: Plan) => {
         :model-value="billingPeriod === 'yearly'"
         on-icon="i-heroicons-calendar"
         off-icon="i-heroicons-calendar"
-        @update:model-value="(val: boolean) => (billingPeriod = val ? 'yearly' : 'monthly')"
+        @update:model-value="
+          (val: boolean) => (billingPeriod = val ? 'yearly' : 'monthly')
+        "
       />
       <div class="flex items-center gap-2">
         <span
@@ -244,18 +231,22 @@ const getButtonText = (plan: Plan) => {
         >
           연간 결제
         </span>
-        <UBadge color="success" variant="soft" size="sm">
-          최대 20% 할인
-        </UBadge>
+        <UBadge color="success" variant="soft" size="sm">최대 20% 할인</UBadge>
       </div>
     </div>
 
     <!-- 플랜 카드 그리드 -->
-    <div v-if="plansLoading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div
+      v-if="plansLoading"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+    >
       <USkeleton v-for="i in 4" :key="i" class="h-[600px]" />
     </div>
 
-    <div v-else-if="sortedPlans.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div
+      v-else-if="sortedPlans.length > 0"
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
+    >
       <UCard
         v-for="plan in sortedPlans"
         :key="plan.id"
@@ -342,7 +333,9 @@ const getButtonText = (plan: Plan) => {
             :key="index"
             class="flex items-start gap-2 text-sm"
           >
-            <div class="i-heroicons-check-circle-solid text-success flex-shrink-0 mt-0.5" />
+            <div
+              class="i-heroicons-check-circle-solid text-success flex-shrink-0 mt-0.5"
+            />
             <span>{{ feature }}</span>
           </div>
         </div>
@@ -375,9 +368,9 @@ const getButtonText = (plan: Plan) => {
               '네, 언제든지 플랜을 업그레이드하거나 다운그레이드할 수 있습니다. 업그레이드 시 즉시 적용되며, 다운그레이드는 현재 결제 주기가 끝난 후 적용됩니다.',
           },
           {
-            label: '크레딧은 어떻게 사용되나요?',
+            label: 'BloC은 어떻게 사용되나요?',
             content:
-              '크레딧은 AI 원고 생성 시 소모됩니다. 원고의 길이와 복잡도에 따라 사용되는 크레딧이 달라집니다. 사용하지 않은 크레딧은 다음 달로 이월되지 않습니다.',
+              'BloC은 AI 원고 생성 시 소모됩니다. 원고의 길이와 복잡도에 따라 사용되는 BloC이 달라집니다. 사용하지 않은 BloC은 다음 달로 이월되지 않습니다.',
           },
           {
             label: '무료 체험 기간이 있나요?',
@@ -397,7 +390,7 @@ const getButtonText = (plan: Plan) => {
           {
             label: '환불 정책은 어떻게 되나요?',
             content:
-              '서비스 이용 후 7일 이내에 환불을 요청하실 수 있습니다. 단, 크레딧을 사용한 경우 사용한 만큼을 차감한 금액이 환불됩니다.',
+              '서비스 이용 후 7일 이내에 환불을 요청하실 수 있습니다. 단, BloC을 사용한 경우 사용한 만큼을 차감한 금액이 환불됩니다.',
           },
         ]"
       />
@@ -405,7 +398,9 @@ const getButtonText = (plan: Plan) => {
 
     <!-- CTA 섹션 -->
     <div class="max-w-4xl mx-auto">
-      <UCard class="bg-gradient-to-r from-primary/10 to-success/10 border-2 border-primary/20">
+      <UCard
+        class="bg-gradient-to-r from-primary/10 to-success/10 border-2 border-primary/20"
+      >
         <div class="text-center space-y-6 py-8">
           <div class="space-y-3">
             <h2 class="text-3xl font-bold">아직 고민 중이신가요?</h2>
@@ -428,10 +423,12 @@ const getButtonText = (plan: Plan) => {
               color="primary"
               size="xl"
               icon="i-heroicons-arrow-up-circle"
-              @click="() => {
-                const proPlan = sortedPlans.find((p) => p.name === 'PRO');
-                if (proPlan) handleSelectPlan(proPlan);
-              }"
+              @click="
+                () => {
+                  const proPlan = sortedPlans.find((p) => p.name === 'PRO');
+                  if (proPlan) handleSelectPlan(proPlan);
+                }
+              "
             >
               PRO 플랜으로 업그레이드
             </UButton>

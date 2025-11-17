@@ -52,7 +52,7 @@ const goToProfile = () => {
               </div>
 
               <div class="flex items-center justify-between text-sm">
-                <span class="text-neutral-600 dark:text-neutral-400">월 크레딧</span>
+                <span class="text-neutral-600 dark:text-neutral-400">월 BloC</span>
                 <span class="font-semibold">{{ plan?.monthlyCredits?.toLocaleString() }}개</span>
               </div>
 

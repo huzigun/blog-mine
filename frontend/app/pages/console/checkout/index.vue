@@ -264,7 +264,7 @@ const openCardModal = async () => {
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div class="flex items-center gap-2">
                   <div class="i-heroicons-check-circle-solid text-success" />
-                  <span>월 {{ selectedPlan.monthlyCredits.toLocaleString() }} 크레딧</span>
+                  <span>월 {{ selectedPlan.monthlyCredits.toLocaleString() }} BloC</span>
                 </div>
                 <div v-if="selectedPlan.maxBlogPostsPerMonth" class="flex items-center gap-2">
                   <div class="i-heroicons-check-circle-solid text-success" />

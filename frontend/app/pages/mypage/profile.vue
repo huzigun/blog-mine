@@ -8,6 +8,78 @@ definePageMeta({
 const toast = useToast();
 const auth = useAuth();
 
+// 구독 취소 모달
+const isCancelModalOpen = ref(false);
+const cancelReason = ref('');
+const isCanceling = ref(false);
+
+// 구독 취소 처리
+const handleCancelSubscription = async () => {
+  if (!auth.subscription) return;
+
+  isCanceling.value = true;
+
+  try {
+    await useApi('/subscriptions/cancel', {
+      method: 'POST',
+      body: {
+        reason: cancelReason.value || undefined,
+      },
+    });
+
+    // 구독 정보 갱신
+    await auth.fetchSubscription();
+
+    toast.add({
+      title: '구독 취소 완료',
+      description: `${formatDate(auth.subscription.expiresAt)}까지 계속 이용하실 수 있습니다.`,
+      color: 'success',
+    });
+
+    isCancelModalOpen.value = false;
+    cancelReason.value = '';
+  } catch (error: any) {
+    toast.add({
+      title: '구독 취소 실패',
+      description: error?.data?.message || '구독 취소 중 오류가 발생했습니다.',
+      color: 'error',
+    });
+  } finally {
+    isCanceling.value = false;
+  }
+};
+
+// 구독 재활성화 처리
+const isReactivating = ref(false);
+
+const handleReactivateSubscription = async () => {
+  isReactivating.value = true;
+
+  try {
+    await useApi('/subscriptions/reactivate', {
+      method: 'POST',
+    });
+
+    // 구독 정보 갱신
+    await auth.fetchSubscription();
+
+    toast.add({
+      title: '구독 재활성화 완료',
+      description: '자동 갱신이 다시 시작됩니다.',
+      color: 'success',
+    });
+  } catch (error: any) {
+    toast.add({
+      title: '구독 재활성화 실패',
+      description:
+        error?.data?.message || '구독 재활성화 중 오류가 발생했습니다.',
+      color: 'error',
+    });
+  } finally {
+    isReactivating.value = false;
+  }
+};
+
 interface BusinessInfo {
   id: number;
   businessName: string | null;
@@ -29,7 +101,8 @@ interface UserResponse {
 }
 
 // 사용자 정보 조회
-const { data: userData, refresh: refreshUser } = await useApiFetch<UserResponse>('/user/me');
+const { data: userData, refresh: refreshUser } =
+  await useApiFetch<UserResponse>('/user/me');
 
 const user = computed(() => ({
   id: userData.value?.id || 0,
@@ -330,65 +403,77 @@ const handleDeleteAccount = async () => {
       </template>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-user text-sm" />
             <span>이름</span>
           </div>
           <div class="text-base font-medium">{{ user.name }}</div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-envelope text-sm" />
             <span>이메일</span>
           </div>
           <div class="text-base font-medium">{{ user.email }}</div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900 md:col-span-2">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900 md:col-span-2"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-calendar text-sm" />
             <span>가입일</span>
           </div>
-          <div class="text-base font-medium">{{ formatDate(user.createdAt) }}</div>
+          <div class="text-base font-medium">
+            {{ formatDate(user.createdAt) }}
+          </div>
         </div>
       </div>
     </UCard>
 
     <!-- 구독 및 크레딧 정보 -->
-    <UCard>
-      <template #header>
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-3">
-            <div
-              class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <!-- 구독 정보 -->
+      <UCard>
+        <template #header>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div
+                class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
+              >
+                <div
+                  class="i-heroicons-receipt-percent text-primary text-2xl"
+                />
+              </div>
+              <h3 class="text-lg font-semibold">구독 정보</h3>
+            </div>
+            <UButton
+              size="sm"
+              variant="soft"
+              icon="i-heroicons-arrow-path"
+              to="/pricing"
             >
-              <div class="i-heroicons-star text-primary text-2xl" />
-            </div>
-            <div>
-              <h3 class="text-lg font-semibold">구독 및 크레딧</h3>
-              <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5">
-                현재 플랜과 크레딧 잔액을 확인하세요
-              </p>
-            </div>
+              플랜 관리
+            </UButton>
           </div>
-          <UButton
-            size="sm"
-            variant="soft"
-            icon="i-heroicons-arrow-path"
-            to="/pricing"
-          >
-            플랜 관리
-          </UButton>
-        </div>
-      </template>
+        </template>
 
-      <div class="space-y-4">
-        <!-- 구독 정보 -->
-        <div v-if="auth.subscription" class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-start justify-between gap-4">
-            <div class="flex-1 space-y-3">
+        <div class="space-y-4">
+          <!-- 활성 구독 -->
+          <div v-if="auth.subscription" class="space-y-3">
+            <div class="flex items-center justify-between">
               <div class="flex items-center gap-2">
                 <h4 class="text-base font-semibold">
                   {{ auth.subscription.plan.displayName }}
@@ -400,119 +485,216 @@ const handleDeleteAccount = async () => {
                   {{ getSubscriptionStatusLabel(auth.subscription.status) }}
                 </UBadge>
               </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
-                  <div class="i-heroicons-calendar-days text-base" />
-                  <span>시작일: {{ formatDate(auth.subscription.startedAt) }}</span>
+              <div v-if="auth.subscription.plan.price" class="text-right">
+                <div class="text-2xl font-bold text-primary">
+                  {{ auth.subscription.plan.price.toLocaleString() }}원
                 </div>
-                <div class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400">
-                  <div class="i-heroicons-clock text-base" />
-                  <span>
-                    {{ auth.subscription.autoRenewal ? '다음 결제일' : '만료일' }}:
-                    {{ formatDate(auth.subscription.expiresAt) }}
-                  </span>
+                <div class="text-xs text-neutral-500 dark:text-neutral-400">
+                  /월
                 </div>
               </div>
+            </div>
 
+            <div class="grid grid-cols-1 gap-3 text-sm">
               <div
+                class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400"
+              >
+                <div class="i-heroicons-calendar-days text-base" />
+                <span>
+                  시작일: {{ formatDate(auth.subscription.startedAt) }}
+                </span>
+              </div>
+              <div
+                class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400"
+              >
+                <div class="i-heroicons-clock text-base" />
+                <span>
+                  {{
+                    auth.subscription.autoRenewal ? '다음 결제일' : '만료일'
+                  }}:
+                  {{ formatDate(auth.subscription.expiresAt) }}
+                </span>
+              </div>
+            </div>
+
+            <div
+              v-if="auth.isCanceledSubscription"
+              class="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/20"
+            >
+              <div
+                class="i-heroicons-exclamation-triangle text-warning text-lg flex-shrink-0 mt-0.5"
+              />
+              <div class="text-sm text-neutral-700 dark:text-neutral-300">
+                <p class="font-medium">구독 취소가 예약되었습니다</p>
+                <p class="text-xs mt-1">
+                  {{ formatDate(auth.subscription.expiresAt) }}까지 서비스를
+                  이용할 수 있습니다.
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-if="
+                !auth.subscription.autoRenewal && !auth.isCanceledSubscription
+              "
+              class="flex items-start gap-2 p-3 rounded-md bg-info/10 border border-info/20"
+            >
+              <div
+                class="i-heroicons-information-circle text-info text-lg flex-shrink-0 mt-0.5"
+              />
+              <div class="text-sm text-neutral-700 dark:text-neutral-300">
+                <p>자동 갱신이 비활성화되어 있습니다.</p>
+              </div>
+            </div>
+
+            <!-- 구독 관리 버튼 -->
+            <div
+              v-if="auth.subscription.plan.name !== 'FREE'"
+              class="flex gap-2 pt-2"
+            >
+              <!-- 재활성화 버튼 (취소된 구독만) -->
+              <UButton
                 v-if="auth.isCanceledSubscription"
-                class="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/20"
+                color="primary"
+                variant="outline"
+                size="sm"
+                block
+                :loading="isReactivating"
+                @click="handleReactivateSubscription"
               >
-                <div class="i-heroicons-exclamation-triangle text-warning text-lg flex-shrink-0 mt-0.5" />
-                <div class="text-sm text-neutral-700 dark:text-neutral-300">
-                  <p class="font-medium">구독 취소가 예약되었습니다</p>
-                  <p class="text-xs mt-1">
-                    {{ formatDate(auth.subscription.expiresAt) }}까지 서비스를 이용할 수 있습니다.
-                  </p>
-                </div>
-              </div>
+                구독 재활성화
+              </UButton>
 
-              <div
-                v-if="!auth.subscription.autoRenewal && !auth.isCanceledSubscription"
-                class="flex items-start gap-2 p-3 rounded-md bg-info/10 border border-info/20"
+              <!-- 취소 버튼 (활성 구독만) -->
+              <UButton
+                v-else
+                color="error"
+                variant="outline"
+                size="sm"
+                block
+                @click="isCancelModalOpen = true"
               >
-                <div class="i-heroicons-information-circle text-info text-lg flex-shrink-0 mt-0.5" />
-                <div class="text-sm text-neutral-700 dark:text-neutral-300">
-                  <p>자동 갱신이 비활성화되어 있습니다.</p>
-                </div>
-              </div>
+                구독 취소
+              </UButton>
             </div>
+          </div>
 
-            <div v-if="auth.subscription.plan.price" class="text-right flex-shrink-0">
-              <div class="text-2xl font-bold text-primary">
-                {{ auth.subscription.plan.price.toLocaleString() }}원
-              </div>
-              <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-                /월
+          <!-- 무료 플랜 안내 -->
+          <div v-else class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+            <div class="flex items-center gap-3">
+              <div class="i-heroicons-information-circle text-info text-2xl" />
+              <div>
+                <p class="font-medium">활성 구독이 없습니다</p>
+                <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                  플랜을 선택하여 더 많은 기능을 이용하세요.
+                </p>
               </div>
             </div>
           </div>
         </div>
+      </UCard>
 
-        <!-- 무료 플랜 안내 -->
-        <div v-else class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
+      <!-- BloC 정보 -->
+      <UCard>
+        <template #header>
           <div class="flex items-center gap-3">
-            <div class="i-heroicons-information-circle text-info text-2xl" />
-            <div>
-              <p class="font-medium">활성 구독이 없습니다</p>
-              <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                플랜을 선택하여 더 많은 기능을 이용하세요.
-              </p>
+            <div
+              class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
+            >
+              <div class="i-heroicons-star text-primary text-2xl" />
             </div>
+            <h3 class="text-lg font-semibold">BloC 잔액</h3>
+          </div>
+        </template>
+
+        <div v-if="creditBalance" class="space-y-4">
+          <!-- 총 BloC (강조) -->
+          <div
+            class="p-6 rounded-xl bg-gradient-to-br from-primary/10 to-primary/5 border-2 border-primary/30 shadow-sm"
+          >
+            <div class="flex items-center gap-3">
+              <div
+                class="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20"
+              >
+                <div class="i-heroicons-star-solid text-primary text-2xl" />
+              </div>
+              <div>
+                <div class="text-sm font-medium text-primary/80">총 BloC</div>
+                <div class="text-3xl font-bold text-primary mt-1">
+                  {{ creditBalance.totalCredits.toLocaleString() }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BloC 구성 내역 -->
+          <div class="space-y-2">
+            <div
+              class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            >
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex items-center justify-center w-8 h-8 rounded-lg bg-success/10"
+                >
+                  <div class="i-heroicons-gift text-success text-lg" />
+                </div>
+                <span class="text-sm text-neutral-600 dark:text-neutral-400">
+                  구독 BloC
+                </span>
+              </div>
+              <div class="text-lg font-semibold">
+                {{ creditBalance.subscriptionCredits.toLocaleString() }}
+              </div>
+            </div>
+
+            <div
+              class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            >
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex items-center justify-center w-8 h-8 rounded-lg bg-info/10"
+                >
+                  <div class="i-heroicons-credit-card text-info text-lg" />
+                </div>
+                <span class="text-sm text-neutral-600 dark:text-neutral-400">
+                  구매 BloC
+                </span>
+              </div>
+              <div class="text-lg font-semibold">
+                {{ creditBalance.purchasedCredits.toLocaleString() }}
+              </div>
+            </div>
+
+            <div
+              class="flex items-center justify-between p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+            >
+              <div class="flex items-center gap-2">
+                <div
+                  class="flex items-center justify-center w-8 h-8 rounded-lg bg-warning/10"
+                >
+                  <div class="i-heroicons-sparkles text-warning text-lg" />
+                </div>
+                <span class="text-sm text-neutral-600 dark:text-neutral-400">
+                  보너스 BloC
+                </span>
+              </div>
+              <div class="text-lg font-semibold">
+                {{ creditBalance.bonusCredits.toLocaleString() }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 마지막 사용 시간 -->
+          <div
+            v-if="creditBalance.lastUsedAt"
+            class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 pt-2 border-t border-neutral-200 dark:border-neutral-800"
+          >
+            <div class="i-heroicons-clock text-base" />
+            <span>마지막 사용: {{ formatDate(creditBalance.lastUsedAt) }}</span>
           </div>
         </div>
-
-        <!-- 크레딧 잔액 -->
-        <div v-if="creditBalance" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-primary/5 border-2 border-primary/20">
-            <div class="flex items-center gap-2 text-xs font-medium text-primary">
-              <div class="i-heroicons-star text-sm" />
-              <span>총 크레딧</span>
-            </div>
-            <div class="text-2xl font-bold text-primary">
-              {{ creditBalance.totalCredits.toLocaleString() }}
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              <div class="i-heroicons-gift text-sm" />
-              <span>구독 크레딧</span>
-            </div>
-            <div class="text-xl font-semibold">
-              {{ creditBalance.subscriptionCredits.toLocaleString() }}
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              <div class="i-heroicons-credit-card text-sm" />
-              <span>구매 크레딧</span>
-            </div>
-            <div class="text-xl font-semibold">
-              {{ creditBalance.purchasedCredits.toLocaleString() }}
-            </div>
-          </div>
-
-          <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-            <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
-              <div class="i-heroicons-sparkles text-sm" />
-              <span>보너스 크레딧</span>
-            </div>
-            <div class="text-xl font-semibold">
-              {{ creditBalance.bonusCredits.toLocaleString() }}
-            </div>
-          </div>
-        </div>
-
-        <!-- 크레딧 마지막 사용 시간 -->
-        <div v-if="creditBalance?.lastUsedAt" class="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400 px-4">
-          <div class="i-heroicons-clock text-base" />
-          <span>마지막 사용: {{ formatDate(creditBalance.lastUsedAt) }}</span>
-        </div>
-      </div>
-    </UCard>
+      </UCard>
+    </div>
 
     <!-- 사업자 정보 -->
     <UCard>
@@ -633,8 +815,12 @@ const handleDeleteAccount = async () => {
       </template>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-building-office text-sm" />
             <span>상호명</span>
           </div>
@@ -643,8 +829,12 @@ const handleDeleteAccount = async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-identification text-sm" />
             <span>사업자등록번호</span>
           </div>
@@ -653,8 +843,12 @@ const handleDeleteAccount = async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-user-circle text-sm" />
             <span>대표자명</span>
           </div>
@@ -663,8 +857,12 @@ const handleDeleteAccount = async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-briefcase text-sm" />
             <span>업태</span>
           </div>
@@ -673,8 +871,12 @@ const handleDeleteAccount = async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-tag text-sm" />
             <span>종목</span>
           </div>
@@ -683,8 +885,12 @@ const handleDeleteAccount = async () => {
           </div>
         </div>
 
-        <div class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900 md:col-span-2">
-          <div class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+        <div
+          class="flex flex-col gap-1.5 p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900 md:col-span-2"
+        >
+          <div
+            class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
+          >
             <div class="i-heroicons-map-pin text-sm" />
             <span>사업장 주소</span>
           </div>
@@ -708,23 +914,33 @@ const handleDeleteAccount = async () => {
         </div>
       </template>
 
-      <div class="p-5 rounded-lg border-2 border-error/20 bg-error/5 dark:bg-error/10">
+      <div
+        class="p-5 rounded-lg border-2 border-error/20 bg-error/5 dark:bg-error/10"
+      >
         <div class="flex items-start gap-4">
           <div class="flex-shrink-0">
-            <div class="flex items-center justify-center w-12 h-12 rounded-full bg-error/20">
+            <div
+              class="flex items-center justify-center w-12 h-12 rounded-full bg-error/20"
+            >
               <div class="i-heroicons-user-minus text-error text-2xl" />
             </div>
           </div>
           <div class="flex-1 space-y-3">
             <h4 class="font-semibold text-base">회원 탈퇴</h4>
-            <div class="text-sm text-neutral-600 dark:text-neutral-300 space-y-2">
+            <div
+              class="text-sm text-neutral-600 dark:text-neutral-300 space-y-2"
+            >
               <p>
-                회원 탈퇴 시 계정의 모든 개인 정보는 모두 익명 처리 되며, 복구가 불가능합니다.
+                회원 탈퇴 시 계정의 모든 개인 정보는 모두 익명 처리 되며, 복구가
+                불가능합니다.
               </p>
               <p>
-                탈퇴 후에도 동일한 이메일(ID)로 재가입이 불가하며, 이전 데이터는 복원되지 않습니다.
+                탈퇴 후에도 동일한 이메일(ID)로 재가입이 불가하며, 이전 데이터는
+                복원되지 않습니다.
               </p>
-              <p class="font-medium text-neutral-900 dark:text-neutral-100 pt-1">
+              <p
+                class="font-medium text-neutral-900 dark:text-neutral-100 pt-1"
+              >
                 계속 탈퇴를 진행하실 경우, 아래 버튼을 눌러주세요.
               </p>
             </div>
@@ -824,7 +1040,11 @@ const handleDeleteAccount = async () => {
               />
             </UFormField>
 
-            <UFormField label="새 비밀번호 확인" name="confirmPassword" required>
+            <UFormField
+              label="새 비밀번호 확인"
+              name="confirmPassword"
+              required
+            >
               <UInput
                 v-model="passwordForm.confirmPassword"
                 type="password"
@@ -872,9 +1092,13 @@ const handleDeleteAccount = async () => {
           <div class="p-4 rounded-lg bg-error/10 border border-error/20">
             <div class="flex items-start gap-3">
               <div class="flex-shrink-0">
-                <div class="i-heroicons-exclamation-triangle text-error text-2xl" />
+                <div
+                  class="i-heroicons-exclamation-triangle text-error text-2xl"
+                />
               </div>
-              <div class="space-y-2 text-sm text-neutral-700 dark:text-neutral-300">
+              <div
+                class="space-y-2 text-sm text-neutral-700 dark:text-neutral-300"
+              >
                 <p class="font-semibold">경고: 이 작업은 되돌릴 수 없습니다</p>
                 <ul class="list-disc list-inside space-y-1 pl-1">
                   <li>모든 개인 정보가 영구적으로 삭제됩니다</li>
@@ -889,7 +1113,11 @@ const handleDeleteAccount = async () => {
           <div class="space-y-3">
             <div class="space-y-1.5">
               <label class="text-sm font-medium">
-                계속하시려면 <span class="text-error font-semibold">"{{ REQUIRED_DELETE_TEXT }}"</span>를 입력하세요
+                계속하시려면
+                <span class="text-error font-semibold">
+                  "{{ REQUIRED_DELETE_TEXT }}"
+                </span>
+                를 입력하세요
               </label>
               <UInput
                 v-model="deleteConfirmText"
@@ -922,6 +1150,65 @@ const handleDeleteAccount = async () => {
               @click="handleDeleteAccount"
             >
               회원 탈퇴하기
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 구독 취소 확인 모달 -->
+    <UModal v-model:open="isCancelModalOpen" title="구독 취소 확인">
+      <template #body>
+        <div class="space-y-4">
+          <div class="flex items-start gap-3">
+            <div
+              class="flex items-center justify-center w-12 h-12 rounded-full bg-warning/10"
+            >
+              <div
+                class="i-heroicons-exclamation-triangle text-warning text-2xl"
+              />
+            </div>
+            <div class="flex-1">
+              <h3 class="text-lg font-semibold">구독을 취소하시겠습니까?</h3>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                구독을 취소하면
+                {{
+                  auth.subscription
+                    ? formatDate(auth.subscription.expiresAt)
+                    : ''
+                }}까지 계속 이용하실 수 있으며, 이후 자동 갱신되지 않습니다.
+              </p>
+            </div>
+          </div>
+
+          <!-- 취소 사유 입력 (선택) -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium">취소 사유 (선택)</label>
+            <UTextarea
+              v-model="cancelReason"
+              placeholder="취소 사유를 입력해주세요. (선택사항)"
+              :rows="3"
+            />
+            <p class="text-xs text-neutral-500 dark:text-neutral-400">
+              서비스 개선을 위해 취소 사유를 알려주시면 감사하겠습니다.
+            </p>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="flex gap-2 justify-end pt-2">
+            <UButton
+              color="neutral"
+              variant="outline"
+              @click="isCancelModalOpen = false"
+            >
+              돌아가기
+            </UButton>
+            <UButton
+              color="error"
+              :loading="isCanceling"
+              @click="handleCancelSubscription"
+            >
+              구독 취소
             </UButton>
           </div>
         </div>
