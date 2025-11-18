@@ -13,6 +13,7 @@ definePageMeta({
 });
 
 const [isPending, startTransition] = useTransition();
+const auth = useAuth();
 
 interface SimplePersona
   extends Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'> {}
@@ -33,9 +34,21 @@ const { data: personas } = await useApiFetch<
   },
 });
 
-const price = ref(10);
 const mainForm = useTemplateRef('mainForm');
 const infoForm = useTemplateRef('infoForm');
+
+// BloC 비용 계산 (원고당 고정 비용)
+const CREDIT_COST_PER_POST = 1; // 원고 1개당 1 BloC
+
+// 총 BloC 비용 계산
+const totalCost = computed(() => {
+  return CREDIT_COST_PER_POST * state.count;
+});
+
+// BloC 잔액 부족 여부
+const isInsufficientBalance = computed(() => {
+  return !!auth.creditBalance && auth.creditBalance.totalCredits < totalCost.value;
+});
 
 // 서브 키워드 입력 방식: true = AI 추천, false = 직접 입력
 const useAIRecommendation = ref(true);
@@ -66,7 +79,7 @@ const state = reactive<
   personaId: undefined,
   keyword: '',
   subKeywords: [],
-  length: 300,
+  length: 1500,
   count: 1,
   // 동적 필드 값들을 저장할 객체
   fields: {} as Record<string, string | number>,
@@ -135,6 +148,9 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
         description: `${finalData.count}개의 원고 생성이 시작되었습니다. 진행 상황은 목록에서 확인하실 수 있습니다.`,
         color: 'success',
       });
+
+      // BloC 잔액 새로고침
+      await auth.fetchCreditBalance();
 
       // 성공 후 폼 초기화
       state.personaId = undefined;
@@ -294,15 +310,16 @@ const onSubmit = () => {
             </div>
             <UFormField label="글자 수" name="length" required>
               <input type="hidden" name="length" :value="state.length" />
-              <div class="flex justify-between py-1">
+              <div class="flex justify-between py-1 gap-x-2.5">
                 <UButton
-                  v-for="len in [300, 500, 1000, 1500, 2000, 3000]"
+                  v-for="len in [1000, 1500, 2000]"
                   :key="`len-${len.toString()}`"
                   size="lg"
                   :color="state.length === len ? 'primary' : 'neutral'"
                   :variant="state.length === len ? 'solid' : 'soft'"
                   class="rounded-full"
                   @click="state.length = len"
+                  block
                 >
                   {{ len.toLocaleString() }}자
                 </UButton>
@@ -372,17 +389,97 @@ const onSubmit = () => {
             </div>
           </form>
         </div>
-        <div class="">
+        <div class="space-y-3">
+          <!-- BloC 잔액 표시 -->
+          <div
+            v-if="auth.creditBalance"
+            class="flex items-center justify-between p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900"
+          >
+            <div class="flex items-center gap-2">
+              <UIcon
+                name="i-heroicons-bolt"
+                class="w-5 h-5 text-primary-600"
+              />
+              <span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                보유 BloC
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span
+                class="text-lg font-bold"
+                :class="isInsufficientBalance ? 'text-error' : 'text-primary-600'"
+              >
+                {{ auth.creditBalance.totalCredits.toLocaleString() }}
+              </span>
+              <span class="text-sm text-neutral-500">BloC</span>
+            </div>
+          </div>
+
+          <!-- 예상 비용 표시 -->
+          <div class="flex items-center justify-between p-4 rounded-xl bg-primary-50 dark:bg-primary-950/20 border border-primary-200 dark:border-primary-800">
+            <div class="flex items-center gap-2">
+              <UIcon
+                name="i-heroicons-calculator"
+                class="w-5 h-5 text-primary-600"
+              />
+              <span class="text-sm font-medium text-primary-700 dark:text-primary-400">
+                예상 비용
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs text-primary-600 dark:text-primary-500">
+                {{ CREDIT_COST_PER_POST }} BloC × {{ state.count }}개 =
+              </span>
+              <span class="text-lg font-bold text-primary-600">
+                {{ totalCost.toLocaleString() }}
+              </span>
+              <span class="text-sm text-primary-500">BloC</span>
+            </div>
+          </div>
+
+          <!-- 잔액 부족 경고 -->
+          <div
+            v-if="isInsufficientBalance"
+            class="flex items-start gap-3 p-3 rounded-lg bg-error-50 dark:bg-error-950/20 border border-error-200 dark:border-error-800"
+          >
+            <UIcon
+              name="i-heroicons-exclamation-triangle"
+              class="w-5 h-5 text-error-600 shrink-0 mt-0.5"
+            />
+            <div class="flex-1">
+              <p class="text-sm font-semibold text-error-700 dark:text-error-400 mb-1">
+                BloC이 부족합니다
+              </p>
+              <p class="text-xs text-error-600 dark:text-error-500">
+                BloC을 충전하거나 원고 수를 줄여주세요.
+              </p>
+            </div>
+            <UButton
+              size="xs"
+              color="error"
+              variant="outline"
+              to="/pricing"
+            >
+              BloC 충전
+            </UButton>
+          </div>
+
           <UButton
             type="button"
             size="xl"
             block
             color="primary"
             :loading="isPending"
-            class="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 font-bold mt-6"
+            :disabled="isInsufficientBalance"
+            class="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 font-bold mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
             @click="onSubmit"
           >
-            스마트 원고 생성 시작 ({{ price }} BloC 사용)
+            <template v-if="isInsufficientBalance">
+              BloC 부족 - 충전 필요
+            </template>
+            <template v-else>
+              스마트 원고 생성 시작 ({{ totalCost.toLocaleString() }} BloC 사용)
+            </template>
           </UButton>
         </div>
       </article>

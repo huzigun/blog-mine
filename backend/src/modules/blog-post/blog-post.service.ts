@@ -1,8 +1,14 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '../../lib/database/prisma.service';
 import { OpenAIService } from '../../lib/integrations/openai/openai/openai.service';
 import { BlogRankService } from '../../lib/integrations/naver/naver-api/blog-rank.service';
 import { DateService } from '../../lib/date/date.service';
+import { CreditService } from '@modules/credit/credit.service';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 
 @Injectable()
@@ -12,11 +18,15 @@ export class BlogPostService {
   private readonly RETRY_DELAY = 2000; // 재시도 간격 (ms)
   private readonly BATCH_SIZE = 5; // 동시 생성할 원고 개수 (캐싱 효과 + Rate Limit 고려)
 
+  // BloC 비용 정의 (원고당 고정 비용)
+  private readonly CREDIT_COST_PER_POST = 1; // 원고 1개당 1 BloC
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly openaiService: OpenAIService,
     private readonly blogRankService: BlogRankService,
     private readonly dateService: DateService,
+    private readonly creditService: CreditService,
   ) {}
 
   /**
@@ -34,6 +44,21 @@ export class BlogPostService {
     if (!persona) {
       throw new NotFoundException(
         `Persona with id ${dto.personaId} not found or access denied`,
+      );
+    }
+
+    // 2. 필요한 BloC 계산 (원고 개수만으로 계산)
+    const totalCost = this.CREDIT_COST_PER_POST * dto.count;
+
+    this.logger.log(
+      `Credit cost: ${this.CREDIT_COST_PER_POST} BloC per post × ${dto.count} posts = ${totalCost} BloC`,
+    );
+
+    // 3. BloC 잔액 확인
+    const balance = await this.creditService.getBalance(userId);
+    if (balance.totalCredits < totalCost) {
+      throw new BadRequestException(
+        `BloC이 부족합니다. (필요: ${totalCost} BloC, 보유: ${balance.totalCredits} BloC)`,
       );
     }
 
@@ -68,6 +93,7 @@ export class BlogPostService {
         additionalFields: dto.additionalFields || {},
         status: 'IN_PROGRESS',
         persona: personaSnapshot,
+        // creditCost: totalCost, // TODO: 추가 예정 (Prisma migration 필요)
       },
     });
 
@@ -75,13 +101,38 @@ export class BlogPostService {
       `Created blog post request ${blogPost.id} for user ${userId}`,
     );
 
-    // 4. 백그라운드에서 원고 생성 시작 (비동기)
-    this.generatePostsWithRetry(blogPost.id, dto.count).catch((error) => {
-      this.logger.error(
-        `Failed to generate posts for blogPost ${blogPost.id}:`,
-        error.stack,
+    // 5. BloC 차감 (즉시 차감)
+    try {
+      await this.creditService.useCredits(
+        userId,
+        totalCost,
+        'blog_post', // referenceType
+        blogPost.id, // referenceId
+        JSON.stringify({
+          keyword: dto.keyword,
+          count: dto.count,
+          costPerPost: this.CREDIT_COST_PER_POST,
+        }),
       );
-    });
+
+      this.logger.log(
+        `Charged ${totalCost} BloC for user ${userId} (blogPost ${blogPost.id})`,
+      );
+    } catch (error) {
+      // BloC 차감 실패 시 BlogPost 삭제
+      await this.prisma.blogPost.delete({ where: { id: blogPost.id } });
+      throw error;
+    }
+
+    // 6. 백그라운드에서 원고 생성 시작 (비동기)
+    this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
+      (error) => {
+        this.logger.error(
+          `Failed to generate posts for blogPost ${blogPost.id}:`,
+          error.stack,
+        );
+      },
+    );
 
     return blogPost;
   }
@@ -218,10 +269,12 @@ export class BlogPostService {
    * 재시도 로직이 포함된 원고 생성 (준-배치 처리)
    * - BATCH_SIZE 단위로 병렬 처리하여 속도 향상
    * - 캐싱 효과 유지 및 Rate Limit 준수
+   * - 실패 시 부분 환불 처리
    */
   private async generatePostsWithRetry(
     blogPostId: number,
     targetCount: number,
+    userId: number,
   ) {
     let completedCount = 0;
 
@@ -308,6 +361,32 @@ export class BlogPostService {
             completedCount: actualCount,
           },
         });
+
+        // 실패한 원고에 대한 BloC 환불 (원고당 1 BloC)
+        if (actualCount < targetCount) {
+          const failedCount = targetCount - actualCount;
+          const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
+
+          if (refundAmount > 0) {
+            try {
+              await this.creditService.grantBonusCredits(
+                userId,
+                refundAmount,
+                `원고 생성 실패 환불 (${failedCount}/${targetCount}개 실패, BlogPost ${blogPostId})`,
+              );
+
+              this.logger.log(
+                `Refunded ${refundAmount} BloC to user ${userId} for ${failedCount} failed posts (blogPost ${blogPostId})`,
+              );
+            } catch (refundError) {
+              this.logger.error(
+                `Failed to refund ${refundAmount} BloC to user ${userId}`,
+                refundError.stack,
+              );
+              // 환불 실패해도 원본 에러는 그대로 throw
+            }
+          }
+        }
 
         throw error;
       }

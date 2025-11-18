@@ -105,6 +105,9 @@ model BlogPost {
   completedCount   Int        @default(0) @map("completed_count") // 완료된 원고 수
   targetCount      Int        @map("target_count") // 목표 원고 수 (원본 count 값)
 
+  // BloC 사용 내역
+  creditCost       Int?       @map("credit_cost") // 총 소비된 BloC (count × costPerPost)
+
   userId           Int        @map("user_id")
   user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 

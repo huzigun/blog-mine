@@ -5,6 +5,12 @@ export const useAuth = defineStore('auth', {
     user: null as null | { id: number; email: string; name: string | null },
     accessToken: null as null | string,
     subscription: null as null | Subscription,
+    creditBalance: null as null | {
+      totalCredits: number;
+      subscriptionCredits: number;
+      purchasedCredits: number;
+      bonusCredits: number;
+    },
   }),
   getters: {
     isAuthenticated: (state) => !!state.accessToken && !!state.user,
@@ -24,10 +30,19 @@ export const useAuth = defineStore('auth', {
     setSubscription(subscription: Subscription) {
       this.subscription = subscription;
     },
+    setCreditBalance(balance: {
+      totalCredits: number;
+      subscriptionCredits: number;
+      purchasedCredits: number;
+      bonusCredits: number;
+    }) {
+      this.creditBalance = balance;
+    },
     clearAuth() {
       this.user = null;
       this.accessToken = null;
       this.subscription = null;
+      this.creditBalance = null;
     },
 
     // 로그인
@@ -98,6 +113,24 @@ export const useAuth = defineStore('auth', {
       } catch (error) {
         console.error('Fetch subscription failed:', error);
         // 구독 정보 조회 실패는 치명적이지 않으므로 null만 반환
+        return null;
+      }
+    },
+
+    // BloC 잔액 조회
+    async fetchCreditBalance() {
+      if (!this.accessToken) return null;
+      try {
+        const balance = await useApi<{
+          totalCredits: number;
+          subscriptionCredits: number;
+          purchasedCredits: number;
+          bonusCredits: number;
+        }>('/credits/balance');
+        this.setCreditBalance(balance);
+        return balance;
+      } catch (error) {
+        console.error('Fetch credit balance failed:', error);
         return null;
       }
     },
