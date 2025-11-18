@@ -16,7 +16,6 @@ import { SubscriptionService } from './subscription.service';
 import { StartSubscriptionDto, CancelSubscriptionDto } from './dto';
 
 @Controller('subscriptions')
-@UseGuards(JwtAuthGuard)
 export class SubscriptionController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
@@ -25,12 +24,13 @@ export class SubscriptionController {
    * GET /subscriptions/me
    */
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   async getMySubscription(@GetRequestUser('id') userId: number) {
     return this.subscriptionService.getCurrentSubscription(userId);
   }
 
   /**
-   * 사용 가능한 플랜 목록 조회
+   * 사용 가능한 플랜 목록 조회 (공개 API)
    * GET /subscriptions/plans
    */
   @Get('plans')
@@ -39,7 +39,7 @@ export class SubscriptionController {
   }
 
   /**
-   * 특정 플랜 조회
+   * 특정 플랜 조회 (공개 API)
    * GET /subscriptions/plans/:id
    */
   @Get('plans/:id')
@@ -52,6 +52,7 @@ export class SubscriptionController {
    * GET /subscriptions/history
    */
   @Get('history')
+  @UseGuards(JwtAuthGuard)
   async getHistory(
     @GetRequestUser('id') userId: number,
     @Query('limit') limit?: number,
@@ -64,6 +65,7 @@ export class SubscriptionController {
    * POST /subscriptions/start
    */
   @Post('start')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async startSubscription(
     @GetRequestUser('id') userId: number,
@@ -77,6 +79,7 @@ export class SubscriptionController {
    * POST /subscriptions/cancel
    */
   @Post('cancel')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async cancelSubscription(
     @GetRequestUser('id') userId: number,
@@ -90,6 +93,7 @@ export class SubscriptionController {
    * POST /subscriptions/reactivate
    */
   @Post('reactivate')
+  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   async reactivateSubscription(@GetRequestUser('id') userId: number) {
     return this.subscriptionService.reactivateSubscription(userId);

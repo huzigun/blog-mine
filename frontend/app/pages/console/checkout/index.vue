@@ -6,7 +6,6 @@ definePageMeta({
 });
 
 const route = useRoute();
-const router = useRouter();
 const auth = useAuth();
 const toast = useToast();
 const overlay = useOverlay();
@@ -147,7 +146,7 @@ const handleCheckout = async () => {
     });
 
     // 성공 페이지로 이동
-    await router.push('/console/checkout/success');
+    await navigateTo('/console/checkout/success');
   } catch (error: any) {
     console.error('Checkout error:', error);
     toast.add({

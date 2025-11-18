@@ -4,14 +4,17 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { VerificationCodeService } from './verification-code.service';
 import { ConfigService } from '../../lib/config/config.service';
 import { UserModule } from '../user/user.module';
 import { CreditModule } from '../credit/credit.module';
+import { EmailModule } from '../../lib/integrations/email/email.module';
 
 @Module({
   imports: [
     UserModule,
     CreditModule,
+    EmailModule,
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -29,7 +32,7 @@ import { CreditModule } from '../credit/credit.module';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, VerificationCodeService],
   controllers: [AuthController],
   exports: [AuthService],
 })

@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # Backend (NestJS)
+  # NOTE: Uses external RDS PostgreSQL database
+  backend:
+    build:
+      context: .  # Build from project root for pnpm workspace
+      dockerfile: backend/Dockerfile
+      target: production  # Use production stage
+    container_name: blog-mine-backend
+    restart: unless-stopped
+    ports:
+      - "9706:9706"
+    environment:
+      # Application
+      - NODE_ENV=production
+      - APP_NAME=${APP_NAME:-blog-mine-backend}
+      - APP_VERSION=${APP_VERSION:-0.0.1}
+      - PORT=${PORT:-9706}
+
+      # RDS Database
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-5432}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DATABASE=${DB_DATABASE}
+      - DB_SYNCHRONIZE=${DB_SYNCHRONIZE:-false}
+      - DB_LOGGING=${DB_LOGGING:-false}
+      - DB_SSL=${DB_SSL:-true}
+
+      # Prisma Database URL
+      - DATABASE_URL=${DATABASE_URL}
+
+      # JWT
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+
+      # CORS (CloudFront domain)
+      - CORS_ORIGIN=${CORS_ORIGIN}
+
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-warn}
+
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_SUMMARY_MODEL=${OPENAI_SUMMARY_MODEL:-gpt-4o-mini}
+      - OPENAI_GENERATION_MODEL=${OPENAI_GENERATION_MODEL:-gpt-4o}
+
+      # Naver API
+      - NAVER_CLIENT_ID=${NAVER_CLIENT_ID}
+      - NAVER_CLIENT_SECRET=${NAVER_CLIENT_SECRET}
+
+      # Email
+      - EMAIL_SMTP=${EMAIL_SMTP}
+      - EMAIL_USER=${EMAIL_USER}
+      - EMAIL_PASS=${EMAIL_PASS}
+
+      # Nicepay
+      - NICEPAY_UNAUTH_MID=${NICEPAY_UNAUTH_MID}
+      - NICEPAY_UNAUTH_KEY=${NICEPAY_UNAUTH_KEY}
+
+      # Rate Limiting
+      - RATE_LIMIT_TTL=${RATE_LIMIT_TTL:-60}
+      - RATE_LIMIT_MAX=${RATE_LIMIT_MAX:-100}
+
+      # Swagger (disabled in production)
+      - SWAGGER_ENABLED=${SWAGGER_ENABLED:-false}
+    networks:
+      - blog-mine-network
+
+  # Frontend (Nuxt)
+  frontend:
+    build:
+      context: .  # Build from project root for pnpm workspace
+      dockerfile: frontend/Dockerfile
+      target: production  # Use production stage
+    container_name: blog-mine-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NUXT_PUBLIC_API_BASE_URL=http://backend:9706
+      - NUXT_PUBLIC_USE_DIRECT_API=false
+    depends_on:
+      - backend
+    networks:
+      - blog-mine-network
+
+  # Nginx (Reverse Proxy - HTTP only, CloudFront handles HTTPS)
+  nginx:
+    image: nginx:alpine
+    container_name: blog-mine-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - blog-mine-network
+
+networks:
+  blog-mine-network:
+    driver: bridge

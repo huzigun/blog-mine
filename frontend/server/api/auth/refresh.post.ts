@@ -1,3 +1,8 @@
+import {
+  clearAuthCookies,
+  setAccessTokenCookie,
+} from '~~/server/utils/cookies';
+
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
 
@@ -24,22 +29,15 @@ export default defineEventHandler(async (event) => {
       },
     });
 
-    // 새로운 access token을 쿠키에 저장
-    setCookie(event, 'access_token', response.accessToken, {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 15, // 15 minutes
-      path: '/',
-    });
+    // 새로운 access token을 쿠키에 저장 (헬퍼 함수 사용)
+    setAccessTokenCookie(event, response.accessToken);
 
     return {
       accessToken: response.accessToken,
     };
   } catch (error: any) {
     // Refresh token이 만료되었거나 유효하지 않으면 쿠키 삭제
-    deleteCookie(event, 'access_token');
-    deleteCookie(event, 'refresh_token');
+    clearAuthCookies(event);
 
     throw createError({
       statusCode: 401,

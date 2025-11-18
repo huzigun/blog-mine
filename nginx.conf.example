@@ -1,0 +1,76 @@
+# Nginx Configuration for EC2 + CloudFront + ACM
+# CloudFront에서 HTTPS를 처리하므로 EC2 Nginx는 HTTP만 처리합니다.
+
+# HTTP server (CloudFront에서 오리진으로 사용)
+server {
+    listen 80;
+    server_name _;  # CloudFront에서 접근하므로 server_name은 중요하지 않음
+
+    # CloudFront 헬스체크용 엔드포인트
+    location /health {
+        access_log off;
+        return 200 "healthy\n";
+        add_header Content-Type text/plain;
+    }
+
+    # Security Headers (CloudFront에서도 설정 가능)
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+
+    # Gzip Compression
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/javascript application/json;
+
+    # 방안 1: Nuxt Server API 사용 (권장)
+    # 프론트엔드 (Nuxt SSR)로 모든 요청 프록시
+    location / {
+        proxy_pass http://frontend:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        # CloudFront에서 전달하는 헤더 보존
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_set_header CloudFront-Viewer-Country $http_cloudfront_viewer_country;
+        proxy_cache_bypass $http_upgrade;
+
+        # 타임아웃 설정 (SSR은 시간이 걸릴 수 있음)
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # 방안 2: 직접 백엔드 호출 (선택사항)
+    # /api 경로만 백엔드로 프록시
+    # location /api {
+    #     # /api 제거하고 백엔드로 전달
+    #     rewrite ^/api/(.*) /$1 break;
+    #
+    #     proxy_pass http://backend:9706;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Upgrade $http_upgrade;
+    #     proxy_set_header Connection 'upgrade';
+    #     proxy_set_header Host $host;
+    #     proxy_set_header X-Real-IP $remote_addr;
+    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    #     proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+    #     proxy_cache_bypass $http_upgrade;
+    #
+    #     # 쿠키 프록시 (중요!)
+    #     proxy_set_header Cookie $http_cookie;
+    #     proxy_cookie_path / /;
+    # }
+
+    # Static files caching (optional)
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2)$ {
+        proxy_pass http://frontend:3000;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+    }
+}

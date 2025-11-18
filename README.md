@@ -22,6 +22,8 @@ AI 기반 블로그 콘텐츠 생성 및 SEO 최적화 플랫폼. NestJS와 Nuxt
 
 ## 빠른 시작
 
+### 로컬 개발 (권장)
+
 ```bash
 # 모든 의존성 설치
 pnpm install
@@ -29,12 +31,29 @@ pnpm install
 # 백엔드와 프론트엔드를 동시에 개발 모드로 실행
 pnpm dev
 
-# 백엔드만 실행 (http://localhost:3000)
+# 백엔드만 실행 (http://localhost:9706)
 pnpm dev:backend
 
-# 프론트엔드만 실행 (http://localhost:3000)
+# 프론트엔드만 실행 (http://localhost:8706)
 pnpm dev:frontend
 ```
+
+### Docker 개발 환경
+
+```bash
+# RDS 연결 정보를 .env 파일에 설정
+cp .env.example .env
+# .env 파일 편집 (DB_HOST, DB_USERNAME 등)
+
+# 개발 컨테이너 실행 (Nginx 없음, Frontend + Backend만)
+docker-compose -f docker-compose.dev.yml up -d
+
+# 로그 확인
+docker-compose -f docker-compose.dev.yml logs -f
+```
+
+- **Frontend**: http://localhost:8706
+- **Backend**: http://localhost:9706
 
 ## 프로젝트 구조
 
@@ -110,11 +129,12 @@ pnpm --parallel [명령어]      # 병렬 실행
 
 ## 개발 시 참고사항
 
-- 백엔드와 프론트엔드 모두 기본적으로 3000 포트를 사용합니다. 동시 실행 시 포트를 다르게 설정해야 합니다.
+- **포트 설정**: Backend(9706), Frontend(8706)
+- **데이터베이스**: RDS PostgreSQL 사용 (로컬 PostgreSQL 컨테이너 없음)
 - 백엔드는 CommonJS 모듈을 사용합니다 (`"module": "commonjs"`)
 - 프론트엔드는 ES 모듈을 사용합니다 (`"type": "module"`)
 - Workspace 의존성은 가능한 경우 루트 `node_modules/`로 호이스팅됩니다
-- **환경 변수 설정 필수**: `.env.development` 파일에 `DATABASE_URL` 등 필수 환경 변수 설정 필요
+- **환경 변수 설정 필수**: `.env` 파일에 RDS 연결 정보 등 필수 환경 변수 설정 필요
 
 ## 데이터베이스 관리
 
@@ -137,11 +157,32 @@ DATABASE_URL="postgresql://..." pnpm --filter backend prisma studio
 
 자세한 스키마 정보: [backend/DATABASE-SCHEMA.md](backend/DATABASE-SCHEMA.md)
 
+## 배포
+
+### 프로덕션 배포
+
+상세한 배포 가이드는 [DEPLOYMENT.md](DEPLOYMENT.md)를 참고하세요.
+
+```bash
+# 환경 변수 설정 (.env 파일)
+DB_HOST=your-rds-instance.rds.amazonaws.com
+DB_USERNAME=postgres
+DB_PASSWORD=your-password
+CORS_ORIGIN=https://yourdomain.com
+# ... 기타 환경 변수
+
+# 프로덕션 빌드 및 실행
+docker-compose -f docker-compose.prod.yml up -d --build
+```
+
+**아키텍처**: CloudFront (HTTPS) → EC2 Nginx (HTTP) → Frontend + Backend → RDS PostgreSQL
+
 ## 문서
 
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - 배포 가이드 (EC2 + CloudFront + ACM + RDS)
+- **[COOKIE-STRATEGY.md](COOKIE-STRATEGY.md)** - 쿠키 관리 전략
 - **[CLAUDE.md](CLAUDE.md)** - 프로젝트 개요 및 개발 가이드 (AI 개발자용)
-- **[backend/DATABASE-SCHEMA.md](backend/DATABASE-SCHEMA.md)** - 데이터베이스 스키마 전체 문서
-- **[IMPLEMENTATION-SUMMARY.md](IMPLEMENTATION-SUMMARY.md)** - JWT 토큰 만료 처리 구현 요약
+- **[DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)** - 데이터베이스 스키마 전체 문서
 - **[frontend/VALIDATION.md](frontend/VALIDATION.md)** - Zod 스키마 검증 가이드
 - **[frontend/NUXT-UI-V4-MIGRATION.md](frontend/NUXT-UI-V4-MIGRATION.md)** - Nuxt UI v4 마이그레이션 가이드
 

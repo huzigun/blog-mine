@@ -4,7 +4,6 @@ definePageMeta({
 });
 
 const auth = useAuth();
-const router = useRouter();
 
 // 구독 정보 가져오기
 const subscription = computed(() => auth.subscription);
@@ -12,12 +11,12 @@ const plan = computed(() => subscription.value?.plan);
 
 // 대시보드로 이동
 const goToDashboard = () => {
-  router.push('/console/dashboard');
+  navigateTo('/console/dashboard');
 };
 
 // 마이페이지로 이동
 const goToProfile = () => {
-  router.push('/mypage/profile');
+  navigateTo('/mypage/profile');
 };
 </script>
 

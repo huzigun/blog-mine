@@ -19,7 +19,6 @@ interface Props {
 defineProps<Props>();
 
 const { user, logout } = useAuth();
-const router = useRouter();
 const toast = useToast();
 const route = useRoute();
 
@@ -103,12 +102,12 @@ const userMenuItems = [
     {
       label: '프로필',
       icon: 'i-heroicons-user',
-      click: () => router.push('/console/profile'),
+      click: () => navigateTo('/console/profile'),
     },
     {
       label: '설정',
       icon: 'i-heroicons-cog-6-tooth',
-      click: () => router.push('/console/settings'),
+      click: () => navigateTo('/console/settings'),
     },
   ],
   [
@@ -123,7 +122,7 @@ const userMenuItems = [
             description: '성공적으로 로그아웃되었습니다.',
             color: 'success',
           });
-          router.push('/auth/login');
+          navigateTo('/auth/login');
         } catch (error) {
           toast.add({
             title: '로그아웃 실패',

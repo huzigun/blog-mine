@@ -8,9 +8,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
 
-  // Enable CORS for frontend
+  // Enable CORS for frontend (환경변수 기반)
+  const corsOrigin = configService.corsOrigin;
+  const allowedOrigins = corsOrigin.includes(',')
+    ? corsOrigin.split(',').map((origin) => origin.trim())
+    : [corsOrigin];
+
   app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3000'],
+    origin: allowedOrigins,
     credentials: true,
   });
 

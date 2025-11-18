@@ -1,8 +1,10 @@
+import { clearAuthCookies } from '~~/server/utils/cookies';
+
 export default defineEventHandler(async (event) => {
-  const config = useRuntimeConfig()
+  const config = useRuntimeConfig();
 
   // Access token 가져오기
-  const accessToken = getCookie(event, 'access_token')
+  const accessToken = getCookie(event, 'access_token');
 
   if (accessToken) {
     try {
@@ -12,18 +14,17 @@ export default defineEventHandler(async (event) => {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-      })
+      });
     } catch (error) {
       // 에러가 발생해도 쿠키는 삭제
-      console.error('Logout error:', error)
+      console.error('Logout error:', error);
     }
   }
 
-  // 쿠키 삭제
-  deleteCookie(event, 'access_token')
-  deleteCookie(event, 'refresh_token')
+  // 쿠키 삭제 (헬퍼 함수 사용)
+  clearAuthCookies(event);
 
   return {
     message: 'Successfully logged out',
-  }
-})
+  };
+});

@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 This is a pnpm workspace monorepo blog application with two main packages:
-- **backend**: NestJS REST API (port 3000)
-- **frontend**: Nuxt 4 SSR application with @nuxt/ui component library
+- **backend**: NestJS REST API (port 9706)
+- **frontend**: Nuxt 4 SSR application with @nuxt/ui component library (port 8706)
 
 **Package Manager**: pnpm workspace (required)
 **Workspace Root**: All commands should be run from the root directory unless targeting a specific package
@@ -15,7 +15,7 @@ This is a pnpm workspace monorepo blog application with two main packages:
 
 ### Backend (NestJS)
 - **Framework**: NestJS v11 with TypeScript
-- **Entry Point**: `src/main.ts` - bootstraps the app on port 3000 (configurable via PORT env var)
+- **Entry Point**: `src/main.ts` - bootstraps the app on port 9706 (configurable via PORT env var)
 - **Configuration**: @nestjs/config with environment-based .env files
   - `.env` - common settings for all environments
   - `.env.development` - development-specific settings
@@ -174,7 +174,7 @@ pnpm --parallel [command]   # Parallel execution
 - **Environment Variables**: Backend uses @nestjs/config with `.env` files (NOT committed to git)
   - `.env.example` is the template - copy and configure for your environment
   - Environment-specific files: `.env.development`, `.env.production`
-- **Port Conflict**: Both applications default to port 3000 - adjust as needed for concurrent development
+- **Port Configuration**: Backend runs on port 9706, Frontend runs on port 8706
 - **Module Systems**: Backend uses CommonJS modules, frontend uses ESM
 - **Auto-generated**: The `.nuxt/` directory is auto-generated - do not edit directly
 - **Test Root**: Backend tests run from `src/` as root directory for module resolution

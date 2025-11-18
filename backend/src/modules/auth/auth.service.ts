@@ -4,11 +4,14 @@ import {
   ConflictException,
   Logger,
   InternalServerErrorException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../lib/database/prisma.service';
 import { UserService } from '../user/user.service';
 import { CreditService } from '../credit/credit.service';
+import { EmailService } from '../../lib/integrations/email/email.service';
+import { VerificationCodeService } from './verification-code.service';
 import {
   RegisterDto,
   LoginDto,
@@ -31,10 +34,19 @@ export class AuthService {
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
     private readonly creditService: CreditService,
+    private readonly emailService: EmailService,
+    private readonly verificationCodeService: VerificationCodeService,
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { email, password, name } = registerDto;
+    const { email, password, name, emailVerified } = registerDto;
+
+    // 이메일 인증 확인
+    if (!emailVerified) {
+      throw new BadRequestException(
+        '이메일 인증이 필요합니다. 먼저 인증 코드를 확인해주세요.',
+      );
+    }
 
     // 이미 존재하는 이메일인지 확인
     const existingUser = await this.userService.findByEmail(email);
@@ -256,5 +268,55 @@ export class AuthService {
     });
 
     return token;
+  }
+
+  /**
+   * 이메일 인증 코드 발송
+   */
+  async sendVerificationCode(email: string): Promise<{ message: string }> {
+    // 이미 가입된 이메일인지 확인
+    const existingUser = await this.userService.findByEmail(email);
+    if (existingUser) {
+      throw new ConflictException('이미 가입된 이메일입니다.');
+    }
+
+    // 인증 코드 생성
+    const code = await this.verificationCodeService.createVerificationCode(
+      email,
+    );
+
+    // 이메일 전송
+    await this.emailService.sendVerificationCode(email, code);
+
+    this.logger.log(`✅ 인증 코드 발송 완료: ${email}`);
+
+    return {
+      message: '인증 코드가 이메일로 전송되었습니다. 5분 이내에 입력해주세요.',
+    };
+  }
+
+  /**
+   * 이메일 인증 코드 확인
+   */
+  async verifyCode(
+    email: string,
+    code: string,
+  ): Promise<{ message: string; verified: boolean }> {
+    const isValid = await this.verificationCodeService.verifyCode(email, code);
+
+    if (!isValid) {
+      // 실패 시 시도 횟수 증가
+      await this.verificationCodeService.incrementAttempts(email);
+      throw new BadRequestException(
+        '인증 코드가 올바르지 않거나 만료되었습니다.',
+      );
+    }
+
+    this.logger.log(`✅ 이메일 인증 성공: ${email}`);
+
+    return {
+      message: '이메일 인증이 완료되었습니다.',
+      verified: true,
+    };
   }
 }

@@ -12,6 +12,8 @@ import {
   LoginDto,
   AuthResponseDto,
   RefreshTokenResponseDto,
+  SendVerificationCodeDto,
+  VerifyCodeDto,
 } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GetRequestUser } from './decorators/request-user.decorator';
@@ -48,5 +50,29 @@ export class AuthController {
     @Body('refreshToken') refreshToken: string,
   ): Promise<RefreshTokenResponseDto> {
     return await this.authService.refreshAccessToken(refreshToken);
+  }
+
+  /**
+   * 이메일 인증 코드 발송
+   * POST /auth/send-verification-code
+   */
+  @Post('send-verification-code')
+  @HttpCode(HttpStatus.OK)
+  async sendVerificationCode(
+    @Body() dto: SendVerificationCodeDto,
+  ): Promise<{ message: string }> {
+    return this.authService.sendVerificationCode(dto.email);
+  }
+
+  /**
+   * 이메일 인증 코드 확인
+   * POST /auth/verify-code
+   */
+  @Post('verify-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyCode(
+    @Body() dto: VerifyCodeDto,
+  ): Promise<{ message: string; verified: boolean }> {
+    return this.authService.verifyCode(dto.email, dto.code);
   }
 }

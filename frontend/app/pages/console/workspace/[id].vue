@@ -14,7 +14,6 @@ definePageMeta({
 });
 
 const route = useRoute();
-const router = useRouter();
 const blogPostId = computed(() => Number(route.params.id));
 
 // Fetch blog post detail with generated posts
@@ -191,7 +190,7 @@ const totalPages = computed(() => {
         icon="i-heroicons-arrow-left"
         variant="ghost"
         color="neutral"
-        @click="router.push('/console/workspace')"
+        @click="navigateTo('/console/workspace')"
       >
         목록으로
       </UButton>
@@ -228,7 +227,7 @@ const totalPages = computed(() => {
       <p class="text-sm text-neutral-500 mb-6">
         존재하지 않거나 접근 권한이 없는 원고입니다.
       </p>
-      <UButton color="primary" @click="router.push('/console/workspace')">
+      <UButton color="primary" @click="navigateTo('/console/workspace')">
         목록으로 돌아가기
       </UButton>
     </div>

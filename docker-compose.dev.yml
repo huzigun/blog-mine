@@ -1,0 +1,69 @@
+version: '3.8'
+
+# Development Docker Compose - Frontend + Backend only (no Nginx, no PostgreSQL)
+# Uses external RDS PostgreSQL database
+# Frontend and Backend run on separate ports
+
+services:
+  # Backend (NestJS) - Development mode with watch
+  backend:
+    build:
+      context: .  # Build from project root for pnpm workspace
+      dockerfile: backend/Dockerfile
+      target: development  # Use development stage
+    container_name: blog-mine-backend-dev
+    restart: unless-stopped
+    ports:
+      - "9706:9706"
+    volumes:
+      # Mount source code for hot reload
+      - ./backend/src:/app/backend/src:cached
+      - ./backend/prisma:/app/backend/prisma:cached
+      - ./backend/package.json:/app/backend/package.json:ro
+      - ./backend/tsconfig.json:/app/backend/tsconfig.json:ro
+      - ./backend/nest-cli.json:/app/backend/nest-cli.json:ro
+      # Exclude node_modules from volume
+      - /app/node_modules
+      - /app/backend/node_modules
+    env_file:
+      - ./backend/.env.development  # 개발 환경 변수 파일 사용
+    networks:
+      - blog-mine-network
+    command: pnpm run start:dev
+
+  # Frontend (Nuxt) - Development mode with HMR
+  frontend:
+    build:
+      context: .  # Build from project root for pnpm workspace
+      dockerfile: frontend/Dockerfile
+      target: development  # Use development stage
+    container_name: blog-mine-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "8706:8706"
+      - "24678:24678"  # Nuxt DevTools
+    volumes:
+      # Mount source code for hot reload
+      - ./frontend/app:/app/frontend/app:cached
+      - ./frontend/server:/app/frontend/server:cached
+      - ./frontend/public:/app/frontend/public:cached
+      - ./frontend/package.json:/app/frontend/package.json:ro
+      - ./frontend/nuxt.config.ts:/app/frontend/nuxt.config.ts:ro
+      - ./frontend/tsconfig.json:/app/frontend/tsconfig.json:ro
+      # Exclude node_modules and .nuxt from volume
+      - /app/node_modules
+      - /app/frontend/node_modules
+      - /app/frontend/.nuxt
+    environment:
+      - NODE_ENV=development
+      - NUXT_PUBLIC_API_BASE_URL=${NUXT_PUBLIC_API_BASE_URL:-http://localhost:9706}
+      - NUXT_PUBLIC_USE_DIRECT_API=false
+    depends_on:
+      - backend
+    networks:
+      - blog-mine-network
+    command: pnpm run dev
+
+networks:
+  blog-mine-network:
+    driver: bridge

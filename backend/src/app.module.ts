@@ -14,6 +14,7 @@ import { CreditModule } from './modules/credit/credit.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.module';
 import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
+import { EmailModule } from './lib/integrations/email/email.module';
 import { DateModule } from './lib/date';
 
 @Module({
@@ -21,7 +22,10 @@ import { DateModule } from './lib/date';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: [`.env.${process.env.NODE_ENV || 'development'}`, '.env'],
+      envFilePath:
+        process.env.NODE_ENV === 'production'
+          ? '.env' // Production: backend/.env
+          : '.env.development', // Development: backend/.env.development
       cache: true,
     }),
     HttpModule.register({
@@ -32,6 +36,7 @@ import { DateModule } from './lib/date';
     DateModule,
     PrismaModule,
     NicepayModule,
+    EmailModule,
     UserModule,
     AuthModule,
     PersonaModule,

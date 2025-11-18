@@ -18,6 +18,7 @@ interface RegisterCredentials {
   email: string;
   password: string;
   name: string;
+  emailVerified: boolean;
 }
 
 interface RegisterData {
