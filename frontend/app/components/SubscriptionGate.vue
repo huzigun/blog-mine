@@ -1,10 +1,10 @@
 <script setup lang="ts">
 interface Props {
   /**
-   * 필요한 구독 상태 (기본값: ACTIVE)
-   * TRIAL 포함 여부를 제어할 수 있음
+   * 필요한 구독 상태 (기본값: ACTIVE, TRIAL)
+   * 구독이 활성화된 상태만 허용
    */
-  requiredStatus?: ('ACTIVE' | 'TRIAL' | 'PAST_DUE')[];
+  requiredStatus?: ('TRIAL' | 'ACTIVE' | 'PAST_DUE')[];
 
   /**
    * 블러 강도
@@ -45,7 +45,8 @@ const auth = useAuth();
 // 구독 상태 확인
 const hasRequiredSubscription = computed(() => {
   if (!auth.subscription) return false;
-  return props.requiredStatus.includes(auth.subscription.status);
+  const status = auth.subscription.status;
+  return props.requiredStatus.includes(status as 'TRIAL' | 'ACTIVE' | 'PAST_DUE');
 });
 
 // 블러 클래스 계산
@@ -107,9 +108,9 @@ const blurClass = computed(() => {
               class="p-3 rounded-lg bg-neutral-50 dark:bg-neutral-900"
             >
               <div class="flex items-center justify-between text-sm">
-                <span class="text-neutral-600 dark:text-neutral-400"
-                  >현재 플랜</span
-                >
+                <span class="text-neutral-600 dark:text-neutral-400">
+                  현재 플랜
+                </span>
                 <UBadge variant="soft" color="neutral">
                   {{ auth.subscription.plan.displayName }}
                 </UBadge>
@@ -130,24 +131,36 @@ const blurClass = computed(() => {
 
             <!-- 혜택 목록 -->
             <div class="space-y-2">
-              <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <p
+                class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 프리미엄 플랜 혜택:
               </p>
-              <ul class="space-y-1.5 text-sm text-neutral-600 dark:text-neutral-400">
+              <ul
+                class="space-y-1.5 text-sm text-neutral-600 dark:text-neutral-400"
+              >
                 <li class="flex items-center gap-2">
-                  <div class="i-heroicons-check-circle-solid text-success text-base" />
+                  <div
+                    class="i-heroicons-check-circle-solid text-success text-base"
+                  />
                   무제한 원고 생성
                 </li>
                 <li class="flex items-center gap-2">
-                  <div class="i-heroicons-check-circle-solid text-success text-base" />
+                  <div
+                    class="i-heroicons-check-circle-solid text-success text-base"
+                  />
                   고급 분석 기능
                 </li>
                 <li class="flex items-center gap-2">
-                  <div class="i-heroicons-check-circle-solid text-success text-base" />
+                  <div
+                    class="i-heroicons-check-circle-solid text-success text-base"
+                  />
                   우선 처리 큐
                 </li>
                 <li class="flex items-center gap-2">
-                  <div class="i-heroicons-check-circle-solid text-success text-base" />
+                  <div
+                    class="i-heroicons-check-circle-solid text-success text-base"
+                  />
                   API 액세스
                 </li>
               </ul>
