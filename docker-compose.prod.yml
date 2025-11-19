@@ -81,22 +81,22 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - NUXT_PUBLIC_API_BASE_URL=http://backend:9706
+      - NUXT_PUBLIC_API_BASE_URL=https://api.blogmine.ai.kr
       - NUXT_PUBLIC_USE_DIRECT_API=false
     depends_on:
       - backend
     networks:
       - blog-mine-network
 
-  # Nginx (Reverse Proxy - HTTP only, CloudFront handles HTTPS)
+  # Nginx (통합 리버스 프록시 - 도메인 기반 라우팅)
   nginx:
     image: nginx:alpine
     container_name: blog-mine-nginx
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "80:80"  # CloudFront → Nginx → 도메인별 라우팅
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-unified.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - frontend
       - backend

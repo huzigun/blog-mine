@@ -81,7 +81,8 @@ export const useAuth = defineStore('auth', {
 
     async logout() {
       try {
-        await useApi('/auth/logout', { method: 'POST' });
+        // Nuxt API를 통해 로그아웃 (httpOnly 쿠키 삭제)
+        await $fetch('/api/auth/logout', { method: 'POST' });
       } catch (error) {
         console.error('Logout failed:', error);
       } finally {

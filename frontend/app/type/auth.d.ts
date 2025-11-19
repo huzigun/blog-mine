@@ -6,6 +6,7 @@ interface User {
 
 interface AuthResponse {
   accessToken: string;
+  refreshToken: string;
   user: User;
 }
 

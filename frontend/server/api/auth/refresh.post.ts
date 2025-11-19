@@ -6,10 +6,8 @@ import {
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
 
-  // // httpOnly 쿠키에서 refresh token 가져오기
-  // const refreshToken = getCookie(event, 'refresh_token')
-  const body = await readBody<{ refreshToken?: string }>(event);
-  const refreshToken = body.refreshToken;
+  // httpOnly 쿠키에서 refresh token 읽기
+  const refreshToken = getCookie(event, 'refresh_token');
 
   if (!refreshToken) {
     throw createError({
@@ -19,7 +17,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    // Backend API 호출
+    // Backend API 호출 (body로 refreshToken 전달)
     const response = await $fetch<{
       accessToken: string;
     }>(`${config.public.apiBaseUrl}/auth/refresh`, {

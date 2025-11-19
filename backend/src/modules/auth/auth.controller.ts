@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import {
@@ -24,15 +25,20 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
-    return this.authService.register(registerDto);
+  async register(
+    @Body() registerDto: RegisterDto,
+  ): Promise<AuthResponseDto> {
+    // Nuxt Server API가 쿠키를 설정하므로 여기서는 refreshToken 포함하여 반환
+    return await this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
-    console.log('Login attempt for:', loginDto.email);
-    return this.authService.login(loginDto);
+  async login(
+    @Body() loginDto: LoginDto,
+  ): Promise<AuthResponseDto> {
+    // Nuxt Server API가 쿠키를 설정하므로 여기서는 refreshToken 포함하여 반환
+    return await this.authService.login(loginDto);
   }
 
   @Post('logout')
@@ -41,15 +47,21 @@ export class AuthController {
   async logout(
     @GetRequestUser() user: RequestUser,
   ): Promise<{ message: string }> {
+    // Nuxt Server API가 쿠키를 삭제하므로 여기서는 로그아웃 처리만
     return this.authService.logout(user.id);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refresh(
-    @Body('refreshToken') refreshToken: string,
+    @Body() body: { refreshToken: string },
   ): Promise<RefreshTokenResponseDto> {
-    return await this.authService.refreshAccessToken(refreshToken);
+    // Nuxt Server API가 body로 refreshToken을 전달
+    if (!body.refreshToken) {
+      throw new UnauthorizedException('Refresh token not found');
+    }
+
+    return await this.authService.refreshAccessToken(body.refreshToken);
   }
 
   /**

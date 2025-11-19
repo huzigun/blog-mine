@@ -6,7 +6,8 @@ import {
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
   const body = await readBody(event);
-
+  const isDev = import.meta.dev;
+  const apiUrl = isDev ? 'http://localhost:9706' : config.public.apiBaseUrl;
   try {
     // Backend API 호출
     const response = await $fetch<{
@@ -17,7 +18,7 @@ export default defineEventHandler(async (event) => {
         email: string;
         name: string | null;
       };
-    }>(`${config.public.apiBaseUrl}/auth/login`, {
+    }>(`${apiUrl}/auth/login`, {
       method: 'POST',
       body,
     });
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
   } catch (error: any) {
     throw createError({
       statusCode: error.response?.status || 500,
-      statusMessage: error.data?.message || 'Login failed',
+      statusMessage: error.response?._data?.message || 'Login failed',
     });
   }
 });

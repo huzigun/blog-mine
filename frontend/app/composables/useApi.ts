@@ -1,15 +1,11 @@
 import type { UseFetchOptions } from '#app';
 import type { FetchContext, FetchResponse } from 'ofetch';
 
-export const useRefreshToken = async (
-  token?: string,
-): Promise<string | null> => {
-  const refreshToken = token || useCookie('refresh_token').value;
-
+export const useRefreshToken = async (): Promise<string | null> => {
   try {
+    // Nuxt API를 통해 refresh (httpOnly 쿠키 자동 전송)
     const data = await $fetch<{ accessToken: string }>('/api/auth/refresh', {
       method: 'POST',
-      body: { refreshToken },
     });
     return data.accessToken;
   } catch (error) {
@@ -19,7 +15,9 @@ export const useRefreshToken = async (
 
 async function onRequest({ options }: FetchContext<any>) {
   const config = useRuntimeConfig();
-  options.baseURL = config.public.apiBaseUrl;
+  const isDev = import.meta.dev;
+  // 배포 환경일때는 실제 도메인으로 요청
+  options.baseURL = isDev ? 'http://localhost:9706' : config.public.apiBaseUrl;
 
   const auth = useAuth();
   const accessToken = auth.accessToken;
@@ -40,26 +38,13 @@ async function onResponseError({
 }): Promise<void> {
   // 토큰 만료 에러 (498)
   if (response.status === 498 && response._data?.message === 'Token expired') {
-    const config = useRuntimeConfig();
-    const refreshToken = useCookie('refresh_token');
     const auth = useAuth();
 
-    // refresh token이 없으면 로그인 페이지로 이동
-    if (!refreshToken.value) {
-      auth.logout();
-      navigateTo('/auth/login');
-      return;
-    }
-
     try {
-      // 토큰 재발급 시도
-      const data = await $fetch<{ accessToken: string }>(
-        `${config.public.apiBaseUrl}/auth/refresh`,
-        {
-          method: 'POST',
-          body: { refreshToken: refreshToken.value },
-        },
-      );
+      // Nuxt API를 통해 토큰 재발급 (httpOnly 쿠키 자동 전송)
+      const data = await $fetch<{ accessToken: string }>('/api/auth/refresh', {
+        method: 'POST',
+      });
 
       // 새로운 access token 저장
       auth.setAccessToken(data.accessToken);
