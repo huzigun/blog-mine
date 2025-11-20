@@ -147,9 +147,12 @@ scp -i your-key.pem .env ec2-user@<EC2-IP>:~/blog-mine/
 
 ### A. .env 파일 생성
 
+**중요**: `.env` 파일은 `backend/` 디렉토리에 생성해야 합니다.
+
 ```bash
 cd ~/blog-mine
-nano .env
+mkdir -p backend
+nano backend/.env
 ```
 
 ```bash
@@ -239,14 +242,14 @@ docker ps
 ### C. 헬스체크
 
 ```bash
-# Nginx 헬스체크
-curl http://localhost/health
+# Nginx 헬스체크 (루트 경로)
+curl http://localhost/
 
 # 백엔드 헬스체크 (호스트 헤더 지정)
 curl -H "Host: api.blogmine.ai.kr" http://localhost/health
 
-# 프론트엔드 헬스체크
-curl -H "Host: blogmine.ai.kr" http://localhost/health
+# 프론트엔드 헬스체크 (기본 도메인)
+curl http://localhost/
 ```
 
 ## 6. Prisma 마이그레이션 실행
@@ -362,8 +365,9 @@ docker exec blog-mine-nginx tail -f /var/log/nginx/access.log
 - [ ] Docker 이미지 정기 업데이트
 
 ```bash
-# .env 파일 권한
-chmod 600 ~/blog-mine/.env
+# .env 파일 소유자 및 권한 설정
+sudo chown ec2-user:docker ~/blog-mine/backend/.env
+chmod 600 ~/blog-mine/backend/.env
 
 # 보안 업데이트
 sudo dnf update -y

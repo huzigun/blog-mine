@@ -127,9 +127,17 @@ pnpm -r [명령어]              # 순차 실행
 pnpm --parallel [명령어]      # 병렬 실행
 ```
 
+## 라이브 서비스
+
+- **프론트엔드**: https://blogmine.ai.kr
+- **백엔드 API**: https://api.blogmine.ai.kr
+- **인프라**: AWS CloudFront + EC2 Graviton + RDS PostgreSQL
+
 ## 개발 시 참고사항
 
-- **포트 설정**: Backend(9706), Frontend(8706)
+- **포트 설정**:
+  - 로컬 개발: Backend(9706), Frontend(8706)
+  - 프로덕션: Backend(9706), Frontend(3000), Nginx(80)
 - **데이터베이스**: RDS PostgreSQL 사용 (로컬 PostgreSQL 컨테이너 없음)
 - 백엔드는 CommonJS 모듈을 사용합니다 (`"module": "commonjs"`)
 - 프론트엔드는 ES 모듈을 사용합니다 (`"type": "module"`)
@@ -159,28 +167,74 @@ DATABASE_URL="postgresql://..." pnpm --filter backend prisma studio
 
 ## 배포
 
-### 프로덕션 배포
+### 프로덕션 아키텍처
 
-상세한 배포 가이드는 [DEPLOYMENT.md](DEPLOYMENT.md)를 참고하세요.
-
-```bash
-# 환경 변수 설정 (.env 파일)
-DB_HOST=your-rds-instance.rds.amazonaws.com
-DB_USERNAME=postgres
-DB_PASSWORD=your-password
-CORS_ORIGIN=https://yourdomain.com
-# ... 기타 환경 변수
-
-# 프로덕션 빌드 및 실행
-docker-compose -f docker-compose.prod.yml up -d --build
+```
+사용자 → CloudFront (HTTPS) → EC2 Nginx (HTTP:80) → Docker 컨테이너 → RDS PostgreSQL
+        ├─ blogmine.ai.kr (프론트엔드)
+        └─ api.blogmine.ai.kr (백엔드)
 ```
 
-**아키텍처**: CloudFront (HTTPS) → EC2 Nginx (HTTP) → Frontend + Backend → RDS PostgreSQL
+**인프라스트럭처**:
+- **CDN**: AWS CloudFront (단일 배포본, Price Class 200)
+- **컴퓨팅**: EC2 Graviton ARM64 (t4g.medium)
+- **컨테이너**: Docker Compose + Docker Hub
+- **데이터베이스**: RDS PostgreSQL
+- **DNS**: Route53
+
+### 배포 방법
+
+#### 1. Docker 이미지 빌드 및 푸시
+
+```bash
+# Docker Hub 로그인
+docker login
+
+# ARM64 이미지 빌드 및 푸시
+./docker-build-arm.sh
+
+# 버전 태그 지정 (선택)
+./docker-build-arm.sh v1.0.0
+```
+
+#### 2. EC2에서 컨테이너 실행
+
+```bash
+# EC2 접속
+ssh -i your-key.pem ec2-user@<EC2-IP>
+
+# 환경 변수 설정
+cd ~/blog-mine
+nano backend/.env  # 환경 변수 설정
+sudo chown ec2-user:docker backend/.env
+chmod 600 backend/.env
+
+# Docker Hub에서 이미지 Pull
+docker pull atmsads/blog-mine-backend:latest
+docker pull atmsads/blog-mine-frontend:latest
+
+# 컨테이너 실행
+docker-compose -f docker-compose.prod-hub.yml up -d
+
+# 상태 확인
+docker ps
+```
+
+### 배포 가이드
+
+- **[DEPLOY-ARM-EC2.md](DEPLOY-ARM-EC2.md)** - EC2 Graviton 배포 상세 가이드
+- **[CLOUDFRONT-UNIFIED-DEPLOYMENT.md](CLOUDFRONT-UNIFIED-DEPLOYMENT.md)** - CloudFront 단일 배포본 설정
+- **[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md)** - 배포 완료 체크리스트
 
 ## 문서
 
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - 배포 가이드 (EC2 + CloudFront + ACM + RDS)
+### 배포 관련
+- **[DEPLOY-ARM-EC2.md](DEPLOY-ARM-EC2.md)** - EC2 Graviton ARM64 배포 가이드
+- **[CLOUDFRONT-UNIFIED-DEPLOYMENT.md](CLOUDFRONT-UNIFIED-DEPLOYMENT.md)** - CloudFront 단일 배포본 설정
+- **[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md)** - 배포 완료 체크리스트
 - **[COOKIE-STRATEGY.md](COOKIE-STRATEGY.md)** - 쿠키 관리 전략
+
+### 개발 가이드
 - **[CLAUDE.md](CLAUDE.md)** - 프로젝트 개요 및 개발 가이드 (AI 개발자용)
 - **[DATABASE-SCHEMA.md](DATABASE-SCHEMA.md)** - 데이터베이스 스키마 전체 문서
 - **[frontend/VALIDATION.md](frontend/VALIDATION.md)** - Zod 스키마 검증 가이드

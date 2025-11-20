@@ -174,7 +174,10 @@ pnpm --parallel [command]   # Parallel execution
 - **Environment Variables**: Backend uses @nestjs/config with `.env` files (NOT committed to git)
   - `.env.example` is the template - copy and configure for your environment
   - Environment-specific files: `.env.development`, `.env.production`
-- **Port Configuration**: Backend runs on port 9706, Frontend runs on port 8706
+  - **Production**: `backend/.env` file required on EC2 with proper permissions (chmod 600, chown ec2-user:docker)
+- **Port Configuration**:
+  - Local Development: Backend (9706), Frontend (8706)
+  - Production: Backend (9706), Frontend (3000), Nginx (80)
 - **Module Systems**: Backend uses CommonJS modules, frontend uses ESM
 - **Auto-generated**: The `.nuxt/` directory is auto-generated - do not edit directly
 - **Test Root**: Backend tests run from `src/` as root directory for module resolution
@@ -795,3 +798,56 @@ Created:
 - 10 new tables (business_info, subscription_plans, user_subscriptions, subscription_usage_logs, payments, cards, nicepay_results, credit_accounts, credit_transactions, subscription_histories)
 - Proper indexes for query optimization
 - Foreign key constraints with CASCADE deletes
+
+## Deployment
+
+### Production Architecture
+
+```
+User → CloudFront (HTTPS) → EC2 Nginx (HTTP:80) → Docker Containers → RDS PostgreSQL
+       ├─ blogmine.ai.kr (Frontend)
+       └─ api.blogmine.ai.kr (Backend)
+```
+
+**Infrastructure**:
+- **CDN**: CloudFront single distribution (Price Class 200)
+- **Compute**: EC2 Graviton (ARM64) - t4g.medium
+- **Containers**: Docker Compose with Docker Hub images
+- **Database**: RDS PostgreSQL
+- **DNS**: Route53
+
+### Deployment Guides
+
+- **[DEPLOY-ARM-EC2.md](DEPLOY-ARM-EC2.md)** - EC2 Graviton ARM64 deployment guide
+- **[CLOUDFRONT-UNIFIED-DEPLOYMENT.md](CLOUDFRONT-UNIFIED-DEPLOYMENT.md)** - CloudFront setup with domain routing
+- **[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md)** - Complete deployment verification checklist
+
+### Docker Build & Deploy
+
+```bash
+# Local: Build ARM64 images and push to Docker Hub
+./docker-build-arm.sh
+
+# EC2: Pull and run containers
+docker pull atmsads/blog-mine-backend:latest
+docker pull atmsads/blog-mine-frontend:latest
+docker-compose -f docker-compose.prod-hub.yml up -d
+```
+
+### Key Configuration Files
+
+- `docker-compose.prod-hub.yml` - Production container orchestration
+- `nginx-unified.conf` - Domain-based routing (blogmine.ai.kr, api.blogmine.ai.kr)
+- `backend/.env` - Environment variables (must have 600 permissions)
+- `docker-build-arm.sh` - ARM64 multi-stage Docker build script
+
+### Environment Variable Requirements
+
+Production deployment requires `backend/.env` with:
+- Database connection (RDS PostgreSQL)
+- JWT secrets
+- API keys (OpenAI, Naver)
+- CORS origin
+- Payment gateway credentials (Nicepay)
+
+See [DEPLOY-ARM-EC2.md](DEPLOY-ARM-EC2.md#4-환경-변수-설정) for complete environment variable setup.

@@ -78,11 +78,14 @@ Route 53 자동 레코드 생성:
 
 ```yaml
 Origin Domain: <EC2-Public-IP>
+Origin Type: Custom Origin (기타)
 Protocol: HTTP only
 HTTP Port: 80
 Origin Path: (비워둠)
 Custom Headers: (필요 없음 - Nginx가 Host 헤더로 구분)
 ```
+
+**중요**: Origin Type은 "기타(Custom Origin)"를 선택하세요. EC2 Public IP를 직접 입력합니다.
 
 ### Default Cache Behavior (API 및 SSR 기본)
 
@@ -128,6 +131,10 @@ Compress Objects: Yes
 ### General Settings
 
 ```yaml
+Price Class: Use Only North America, Europe, Asia, Middle East, and Africa (권장)
+  - 한국 사용자 대상 서비스에 적합
+  - 남미/오세아니아 제외로 비용 절감
+
 Alternate Domain Names (CNAMEs):
   - blogmine.ai.kr
   - api.blogmine.ai.kr
@@ -140,6 +147,11 @@ Default Root Object: (비워둠 - Nuxt SSR이 처리)
 
 IPv6: Enabled (권장)
 ```
+
+**Price Class 설명**:
+- **Use All Edge Locations (Best Performance)**: 전 세계 모든 엣지 로케이션 사용 (최고가)
+- **Use Only North America, Europe, Asia, Middle East, and Africa**: 남미/오세아니아 제외 (권장)
+- **Use Only North America and Europe**: 북미/유럽만 (저가)
 
 ### Custom Error Responses (선택사항)
 
@@ -216,33 +228,50 @@ JWT_SECRET=your-strong-secret-min-32-chars
 
 ## 6. Docker 배포
 
-### A. 컨테이너 실행
+### A. 컨테이너 실행 (Docker Hub 이미지 사용)
 
 ```bash
 # EC2 인스턴스 접속
 ssh -i your-key.pem ec2-user@<EC2-Public-IP>
 
 # 프로젝트 디렉토리
-cd /path/to/blog-mine
+cd ~/blog-mine
 
-# 프로덕션 빌드 및 실행
-docker-compose -f docker-compose.prod.yml up -d
+# 환경 변수 파일 확인 (중요!)
+ls -l backend/.env
+# backend/.env 파일이 존재하고 설정되어 있어야 함
+
+# 파일 권한 설정
+sudo chown ec2-user:docker backend/.env
+chmod 600 backend/.env
+
+# Docker Hub에서 최신 이미지 pull
+docker pull atmsads/blog-mine-backend:latest
+docker pull atmsads/blog-mine-frontend:latest
+
+# 프로덕션 컨테이너 실행
+docker-compose -f docker-compose.prod-hub.yml up -d
 
 # 로그 확인
-docker-compose -f docker-compose.prod.yml logs -f
+docker-compose -f docker-compose.prod-hub.yml logs -f
 
 # 컨테이너 상태
 docker ps
 ```
 
+**중요 설정 파일**:
+- `docker-compose.prod-hub.yml`: Docker Hub 이미지 사용하는 프로덕션 설정
+- `backend/.env`: 백엔드 환경 변수 (DB, JWT, API 키 등)
+- `nginx-unified.conf`: 도메인 기반 라우팅 설정
+
 ### B. 실행 중인 컨테이너 확인
 
 ```bash
-# 4개의 컨테이너가 실행되어야 함
-CONTAINER ID   IMAGE                    STATUS
-xxxxxxxxxx     blog-mine-backend        Up
-xxxxxxxxxx     blog-mine-frontend       Up
-xxxxxxxxxx     nginx:alpine             Up
+# 3개의 컨테이너가 실행되어야 함
+CONTAINER ID   IMAGE                              STATUS
+xxxxxxxxxx     atmsads/blog-mine-backend:latest   Up (healthy)
+xxxxxxxxxx     atmsads/blog-mine-frontend:latest  Up (healthy)
+xxxxxxxxxx     nginx:alpine                       Up (healthy)
 ```
 
 ## 7. 동작 확인
@@ -250,14 +279,22 @@ xxxxxxxxxx     nginx:alpine             Up
 ### A. 로컬 테스트 (EC2 직접 접속)
 
 ```bash
-# 프론트엔드 헬스체크
-curl -H "Host: blogmine.ai.kr" http://<EC2-IP>/health
-# 응답: healthy - frontend
+# 프론트엔드 헬스체크 (루트 경로)
+curl -H "Host: blogmine.ai.kr" http://localhost/
+# 응답: Nuxt 페이지 HTML
 
 # 백엔드 헬스체크
-curl -H "Host: api.blogmine.ai.kr" http://<EC2-IP>/health
-# 응답: healthy - backend
+curl -H "Host: api.blogmine.ai.kr" http://localhost/health
+# 응답: {"status":"ok"}
+
+# localhost로 직접 접속 (default_server)
+curl http://localhost/
+# 응답: Nuxt 페이지 HTML (프론트엔드가 default)
 ```
+
+**참고**:
+- Nuxt 프론트엔드는 `/health` 엔드포인트가 없으므로 루트 경로(`/`)를 사용합니다.
+- Nginx 설정에서 프론트엔드가 `default_server`이므로 도메인 없이 접속하면 프론트엔드로 라우팅됩니다.
 
 ### B. CloudFront 테스트
 
@@ -365,19 +402,34 @@ docker-compose -f docker-compose.prod.yml restart nginx
 
 ### 도메인 라우팅 실패
 
-**증상**: 모든 도메인이 같은 응답 반환
+**증상**: 모든 도메인이 같은 응답 반환 또는 444 상태 코드
+
+**원인**: Nginx `server_name`이 요청 도메인과 매칭되지 않음
 
 **확인**:
 ```bash
 # Host 헤더 확인
-curl -H "Host: blogmine.ai.kr" http://<EC2-IP>/health
-curl -H "Host: api.blogmine.ai.kr" http://<EC2-IP>/health
+curl -H "Host: blogmine.ai.kr" http://localhost/
+curl -H "Host: api.blogmine.ai.kr" http://localhost/health
 
 # Nginx 설정 테스트
 docker exec blog-mine-nginx nginx -t
 
-# Nginx 로그
-docker logs blog-mine-nginx
+# Nginx 로그 (444는 매칭 실패)
+docker logs blog-mine-nginx | grep "444"
+
+# nginx-unified.conf 확인
+cat nginx-unified.conf | grep "server_name"
+```
+
+**해결**:
+```nginx
+# 프론트엔드 서버 블록에 default_server와 와일드카드 추가
+server {
+    listen 80 default_server;
+    server_name blogmine.ai.kr localhost _;
+    # ...
+}
 ```
 
 ### CloudFront 헤더 전달 실패
