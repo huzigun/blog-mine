@@ -7,7 +7,9 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
 
   // httpOnly 쿠키에서 refresh token 읽기
-  const refreshToken = getCookie(event, 'refresh_token');
+  // const refreshToken = getCookie(event, 'refresh_token');
+  const data = await readBody<{ token?: string }>(event);
+  const refreshToken = data.token;
 
   if (!refreshToken) {
     throw createError({
@@ -16,11 +18,14 @@ export default defineEventHandler(async (event) => {
     });
   }
 
+  const isDev = import.meta.dev;
+  const apiUrl = isDev ? 'http://localhost:9706' : config.public.apiBaseUrl;
+
   try {
     // Backend API 호출 (body로 refreshToken 전달)
     const response = await $fetch<{
       accessToken: string;
-    }>(`${config.public.apiBaseUrl}/auth/refresh`, {
+    }>(`${apiUrl}/auth/refresh`, {
       method: 'POST',
       body: {
         refreshToken,

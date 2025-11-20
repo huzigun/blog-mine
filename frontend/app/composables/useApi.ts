@@ -1,14 +1,27 @@
 import type { UseFetchOptions } from '#app';
 import type { FetchContext, FetchResponse } from 'ofetch';
 
-export const useRefreshToken = async (): Promise<string | null> => {
+export const useRefreshToken = async (
+  token?: string,
+): Promise<string | null> => {
+  if (!token) {
+    // 토큰을 전달받지 않았으면 쿠키에서 가져오기
+    token = useCookie('refresh_token').value ?? undefined;
+  }
+
+  if (!token) {
+    // 토큰이 없으면 null 반환
+    return null;
+  }
+
   try {
-    // Nuxt API를 통해 refresh (httpOnly 쿠키 자동 전송)
     const data = await $fetch<{ accessToken: string }>('/api/auth/refresh', {
       method: 'POST',
+      body: { token },
     });
     return data.accessToken;
   } catch (error) {
+    console.error('Failed to refresh token:', error);
     return null;
   }
 };
