@@ -50,12 +50,16 @@ export class OpenAIService {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
 
     if (!apiKey) {
-      throw new Error('OPENAI_API_KEY is not configured');
+      this.logger.warn(
+        'OPENAI_API_KEY is not configured - OpenAI features will be disabled',
+      );
+      // OpenAI 기능 없이도 서버는 시작되도록 null 허용
+      this.openai = null as any;
+    } else {
+      this.openai = new OpenAI({
+        apiKey,
+      });
     }
-
-    this.openai = new OpenAI({
-      apiKey,
-    });
 
     // 모델 설정 (환경변수 또는 기본값)
     this.summaryModel =
@@ -85,6 +89,10 @@ export class OpenAIService {
   async generatePost(
     request: GeneratePostRequest,
   ): Promise<GeneratePostResponse> {
+    if (!this.openai) {
+      throw new Error('OpenAI service is not configured. Please set OPENAI_API_KEY environment variable.');
+    }
+
     const systemPrompt = this.getSystemPrompt(request.persona);
     const referencePrompt = this.buildReferencePrompt(
       request.referenceContents,

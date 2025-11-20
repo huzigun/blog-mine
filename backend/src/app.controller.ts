@@ -18,4 +18,9 @@ export class AppController {
     const content = await this.appService.getBlogContent(url);
     return { content };
   }
+
+  @Get('/health')
+  healthCheck() {
+    return { status: 'ok' };
+  }
 }

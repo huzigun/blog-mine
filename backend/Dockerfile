@@ -57,9 +57,12 @@ RUN pnpm prisma generate
 # Build the application
 RUN pnpm run build
 
-# Prune devDependencies
-WORKDIR /app
-RUN pnpm prune --prod
+# 빌드 결과 확인 (디버깅용)
+RUN ls -la dist/ && ls -la dist/
+
+# Note: pnpm prune --prod 제거
+# pnpm workspace에서 prune하면 Prisma 클라이언트가 삭제될 수 있음
+# 대신 production 스테이지에서 필요한 파일만 복사
 
 
 # Stage 3: Production
@@ -86,8 +89,8 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/backend/node_modules ./backend/node_modules
 
 # Copy Prisma schema and generated client
+# Prisma 클라이언트는 node_modules 내부에 포함되어 있음
 COPY --from=build /app/backend/prisma ./backend/prisma
-COPY --from=build /app/backend/node_modules/.prisma ./backend/node_modules/.prisma
 
 # Copy compiled application
 COPY --from=build /app/backend/dist ./backend/dist
@@ -112,4 +115,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
-CMD ["node", "dist/main"]
+CMD ["node", "dist/src/main"]
