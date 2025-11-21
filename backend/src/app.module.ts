@@ -12,6 +12,7 @@ import { BlogPostModule } from './modules/blog-post/blog-post.module';
 import { CardModule } from './modules/card/card.module';
 import { CreditModule } from './modules/credit/credit.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
+import { KeywordTrackingModule } from './modules/keyword-tracking/keyword-tracking.module';
 import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.module';
 import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
 import { EmailModule } from './lib/integrations/email/email.module';
@@ -44,6 +45,7 @@ import { DateModule } from './lib/date';
     CardModule,
     CreditModule,
     SubscriptionModule,
+    KeywordTrackingModule,
     NaverApiModule,
   ],
   controllers: [AppController],

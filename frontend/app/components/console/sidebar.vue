@@ -45,8 +45,8 @@ const navigationGroups: NavigationGroup[] = [
         icon: 'i-heroicons-chart-bar',
       },
       {
-        name: '연관 키워드 조회',
-        to: '/console/keywords',
+        name: '블로그 순위 추적',
+        to: '/console/blogs',
         icon: 'i-heroicons-magnifying-glass',
       },
       {

@@ -122,9 +122,13 @@ export class NaverApiService {
    * @param url - 블로그 게시글 URL
    * @returns 파싱된 블로그 콘텐츠 및 실제 URL
    */
-  private async getBlogContent(
-    url: string,
-  ): Promise<{ content: string; url: string }> {
+  async getBlogContent(url: string): Promise<{
+    success: boolean;
+    nickname: string;
+    title: string;
+    content: string;
+    url: string;
+  }> {
     try {
       const mainFrameUrl = this.extractNaverBlogFrameUrl(url);
 
@@ -170,11 +174,28 @@ export class NaverApiService {
         content = content.substring(0, 5000) + '...';
       }
 
-      return { content, url: mainFrameUrl || url };
+      const title = $$('.se-title-text')?.text().trim() || 'No Title';
+      // const nickname = $$('.nick')?.text().trim() || 'Unknown';
+      const finalNickname =
+        $$('meta[property="naverblog:nickname"]').attr('content') || 'Unknown';
+
+      return {
+        success: true,
+        nickname: finalNickname,
+        title,
+        content,
+        url: mainFrameUrl || url,
+      };
     } catch (error) {
       this.logger.warn(`Failed to fetch content from ${url}: ${error.message}`);
       // 콘텐츠 수집 실패 시 빈 문자열 반환 (순위 수집은 계속 진행)
-      return { content: '', url };
+      return {
+        success: false,
+        nickname: 'Unknown',
+        title: 'No Title',
+        content: '',
+        url,
+      };
     }
   }
 

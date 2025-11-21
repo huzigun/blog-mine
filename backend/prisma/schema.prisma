@@ -6,6 +6,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  output   = "./generated"
 }
 
 datasource db {
@@ -217,7 +218,9 @@ model KeywordTracking {
   userId      Int      @map("user_id")
   keyword     String   // 추적할 키워드
   myBlogUrl   String   @map("my_blog_url") // 사용자의 블로그 URL (추적 대상)
-
+  bloggerName String   @map("blogger_name") // 블로거 이름 (추적 대상)
+  title       String?  // 블로그 제목 (사용자 확인용)
+  
   // 수집 설정
   isActive    Boolean  @default(true) @map("is_active") // 활성화 여부 (스케줄링 on/off)
   displayCount Int     @default(40) @map("display_count") // 검색 결과 수 (기본 40)

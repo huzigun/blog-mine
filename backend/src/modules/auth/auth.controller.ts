@@ -25,18 +25,14 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(
-    @Body() registerDto: RegisterDto,
-  ): Promise<AuthResponseDto> {
+  async register(@Body() registerDto: RegisterDto): Promise<AuthResponseDto> {
     // Nuxt Server API가 쿠키를 설정하므로 여기서는 refreshToken 포함하여 반환
     return await this.authService.register(registerDto);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() loginDto: LoginDto,
-  ): Promise<AuthResponseDto> {
+  async login(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     // Nuxt Server API가 쿠키를 설정하므로 여기서는 refreshToken 포함하여 반환
     return await this.authService.login(loginDto);
   }

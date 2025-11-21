@@ -90,7 +90,9 @@ export class OpenAIService {
     request: GeneratePostRequest,
   ): Promise<GeneratePostResponse> {
     if (!this.openai) {
-      throw new Error('OpenAI service is not configured. Please set OPENAI_API_KEY environment variable.');
+      throw new Error(
+        'OpenAI service is not configured. Please set OPENAI_API_KEY environment variable.',
+      );
     }
 
     const systemPrompt = this.getSystemPrompt(request.persona);

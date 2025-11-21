@@ -41,7 +41,9 @@ export class VerificationCodeService {
       },
     });
 
-    this.logger.log(`✅ 인증 코드 생성: ${email} (만료: ${expiresAt.toISOString()})`);
+    this.logger.log(
+      `✅ 인증 코드 생성: ${email} (만료: ${expiresAt.toISOString()})`,
+    );
     return code;
   }
 

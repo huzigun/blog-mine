@@ -281,9 +281,8 @@ export class AuthService {
     }
 
     // 인증 코드 생성
-    const code = await this.verificationCodeService.createVerificationCode(
-      email,
-    );
+    const code =
+      await this.verificationCodeService.createVerificationCode(email);
 
     // 이메일 전송
     await this.emailService.sendVerificationCode(email, code);
