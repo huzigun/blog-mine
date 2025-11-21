@@ -17,6 +17,7 @@ import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.mod
 import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
 import { EmailModule } from './lib/integrations/email/email.module';
 import { DateModule } from './lib/date';
+import { SchedulerModule } from './lib/scheduler';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { DateModule } from './lib/date';
     ConfigServiceModule,
     DateModule,
     PrismaModule,
+    SchedulerModule,
     NicepayModule,
     EmailModule,
     UserModule,
