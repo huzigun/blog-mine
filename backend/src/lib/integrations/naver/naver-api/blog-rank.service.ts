@@ -153,9 +153,9 @@ export class BlogRankService {
           },
         });
 
-        this.logger.debug(
-          `Saved blog rank ${result.rank} for "${result.title}" (blog_id: ${blog.id})`,
-        );
+        // this.logger.debug(
+        //   `Saved blog rank ${result.rank} for "${result.title}" (blog_id: ${blog.id})`,
+        // );
       }
     });
   }

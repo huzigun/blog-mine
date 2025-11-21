@@ -11,6 +11,7 @@ import {
   HttpStatus,
   Query,
   ParseIntPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import { KeywordTrackingService } from './keyword-tracking.service';
 import {
@@ -37,11 +38,25 @@ export class KeywordTrackingController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(
+  async create(
     @GetRequestUser() user: RequestUser,
     @Body() createDto: CreateKeywordTrackingDto,
   ) {
-    return this.keywordTrackingService.create(user.id, createDto);
+    // 한도 체크
+    const { trackingLimit } =
+      await this.keywordTrackingService.getTrackingLimitStatus(user.id);
+
+    if (!trackingLimit.canAddMore) {
+      throw new BadRequestException(
+        `키워드 추적 한도를 초과했습니다. 현재 한도: ${trackingLimit.max}개`,
+      );
+    }
+
+    await this.keywordTrackingService.create(user.id, createDto);
+
+    return {
+      message: '키워드 추적이 성공적으로 생성되었습니다.',
+    };
   }
 
   /**
@@ -49,11 +64,20 @@ export class KeywordTrackingController {
    * GET /keyword-tracking?page=1&limit=10&search=키워드&isActive=true
    */
   @Get()
-  findAll(
+  async findAll(
     @GetRequestUser() user: RequestUser,
     @Query() query: QueryKeywordTrackingDto,
   ) {
-    return this.keywordTrackingService.findAll(user.id, query);
+    const { trackingLimit } =
+      await this.keywordTrackingService.getTrackingLimitStatus(user.id);
+    const allTrackings = await this.keywordTrackingService.findAll(
+      user.id,
+      query,
+    );
+    return {
+      ...allTrackings,
+      trackingLimit,
+    };
   }
 
   /**
@@ -99,11 +123,27 @@ export class KeywordTrackingController {
    * PATCH /keyword-tracking/:id/toggle
    */
   @Patch(':id/toggle')
-  toggleActive(
+  async toggleActive(
     @GetRequestUser() user: RequestUser,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: { isActive: boolean },
   ) {
+    if (typeof body.isActive !== 'boolean') {
+      throw new BadRequestException('isActive 필드는 boolean 값이어야 합니다.');
+    }
+
+    // 활성화 요청 시 한도 체크
+    if (body.isActive) {
+      const { trackingLimit } =
+        await this.keywordTrackingService.getTrackingLimitStatus(user.id);
+
+      if (!trackingLimit.canAddMore) {
+        throw new BadRequestException(
+          `키워드 추적 한도를 초과했습니다. 현재 한도: ${trackingLimit.max}개`,
+        );
+      }
+    }
+
     return this.keywordTrackingService.toggleActive(id, user.id, body.isActive);
   }
 

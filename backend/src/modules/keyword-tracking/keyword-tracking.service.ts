@@ -10,10 +10,16 @@ import {
   UpdateKeywordTrackingDto,
   QueryKeywordTrackingDto,
 } from './dto';
+import { DateService } from '@lib/date';
+import { BlogRankService } from '@lib/integrations/naver/naver-api/blog-rank.service';
 
 @Injectable()
 export class KeywordTrackingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private dateService: DateService,
+    private blogRankService: BlogRankService,
+  ) {}
 
   /**
    * 키워드 추적 생성
@@ -22,7 +28,14 @@ export class KeywordTrackingService {
    * @returns 생성된 키워드 추적
    */
   async create(userId: number, dto: CreateKeywordTrackingDto) {
-    console.log('Creating keyword tracking with DTO:', dto);
+    const now = this.dateService.now().format('YYYY-MM-DD');
+    const isExisting = await this.hasTrackingRecordOnDate(dto.keyword, now);
+
+    if (!isExisting) {
+      // 신규 키워드에 대해 오늘 날짜로 기본 기록 생성
+      await this.blogRankService.collectBlogRanks(dto.keyword, 40);
+    }
+
     // 중복 체크: 동일 사용자-키워드-블로그 조합
     const existing = await this.prisma.keywordTracking.findUnique({
       where: {
@@ -231,5 +244,101 @@ export class KeywordTrackingService {
       where: { id },
       data: { lastCollectedAt: new Date() },
     });
+  }
+
+  /**
+   * 사용자의 블로그 추적 제한 및 현재 사용량 조회
+   * @param userId 사용자 ID
+   * @returns 추적 제한, 현재 사용량, 활성 구독 정보
+   */
+  async getTrackingLimitStatus(userId: number) {
+    // 1. 사용자 존재 확인 (최소 컬럼만 조회)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다.');
+    }
+
+    // 2. 활성화된 구독 조회 (필요한 컬럼만 선택)
+    const activeSubscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: 'ACTIVE',
+        expiresAt: { gte: new Date() }, // 만료되지 않은 구독만
+      },
+      select: {
+        id: true,
+        planId: true,
+        status: true,
+        expiresAt: true,
+        plan: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            maxKeywordTrackings: true, // 키워드 추적 제한
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' }, // 최신 구독 우선
+    });
+
+    if (!activeSubscription) {
+      throw new NotFoundException(
+        '활성화된 구독을 찾을 수 없습니다. 구독 플랜을 확인해주세요.',
+      );
+    }
+
+    // 3. 현재 추적 중인 블로그 개수 조회
+    const currentTrackingCount = await this.prisma.keywordTracking.count({
+      where: { userId },
+    });
+
+    // 4. 제한 및 사용량 정보 반환
+    const maxTrackings = activeSubscription.plan.maxKeywordTrackings;
+    const hasLimit = maxTrackings !== null;
+    const canAddMore = !hasLimit || currentTrackingCount < maxTrackings;
+
+    return {
+      subscription: {
+        id: activeSubscription.id,
+        planId: activeSubscription.planId,
+        planName: activeSubscription.plan.name,
+        planDisplayName: activeSubscription.plan.displayName,
+        status: activeSubscription.status,
+        expiresAt: activeSubscription.expiresAt,
+      },
+      trackingLimit: {
+        max: maxTrackings, // null이면 무제한
+        current: currentTrackingCount,
+        remaining: hasLimit ? maxTrackings - currentTrackingCount : null, // null이면 무제한
+        hasLimit,
+        canAddMore,
+        isLimitReached: hasLimit && currentTrackingCount >= maxTrackings,
+      },
+    };
+  }
+
+  /**
+   * 특정 키워드가 특정 날짜에 순위 추적한 기록이 있는지 확인
+   * @param keyword 키워드
+   * @param date 날짜 (YYYY-MM-DD)
+   * @returns 존재 여부 (있음: true, 없음: false)
+   */
+  async hasTrackingRecordOnDate(keyword: string, date: string) {
+    const keywordDateId = await this.prisma.keywordDate.findFirst({
+      where: {
+        keyword,
+        dateStr: date,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return keywordDateId !== null;
   }
 }

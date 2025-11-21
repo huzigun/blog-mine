@@ -43,12 +43,12 @@ export class NaverApiService {
   /**
    * 네이버 블로그 검색
    * @param keyword - 검색 키워드
-   * @param display - 검색 결과 수 (기본 20, 최대 100)
+   * @param display - 검색 결과 수 (기본 40, 최대 100)
    * @returns 검색 결과 및 총 결과 수
    */
   async searchBlogsByKeyword(
     keyword: string,
-    display: number = 20,
+    display: number = 40,
   ): Promise<{
     total: number;
     results: BlogSearchResult[];

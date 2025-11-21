@@ -208,16 +208,46 @@ const columns: ColumnDef<KeywordTracking>[] = [
 
 <template>
   <section class="container mx-auto max-w-6xl">
-    <!-- Page Header -->
-    <div class="flex items-center justify-between">
-      <div>
-        <h1 class="text-3xl font-bold text-gray-900 dark:text-white">
-          블로그 순위 추적
-        </h1>
-        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          키워드별 블로그 순위를 추적하고 관리하세요
-        </p>
+    <ConsoleTitle
+      title="블로그 순위 추적"
+      description="키워드별 블로그 순위를 추적하고 관리하세요"
+    />
+
+    <!-- Help Section (Collapsible) -->
+    <UAccordion
+      :items="[
+        {
+          label: '추적 기능 안내',
+          icon: 'i-heroicons-information-circle',
+          slot: 'help-content',
+        },
+      ]"
+      color="primary"
+      variant="subtle"
+      class="mb-4 border border-primary/10 bg-primary/3 rounded-lg px-4"
+    >
+      <template #help-content>
+        <ul
+          class="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300 pb-4"
+        >
+          <li>
+            등록된 블로그 중 활성화된 블로그의 순위 데이터를 매일 자동으로
+            수집합니다.
+          </li>
+          <li>등록된 기간 동안 최신 순위 변화를 확인할 수 있습니다.</li>
+          <li>
+            필요할 경우 언제든지 추적을 중지해 보관함으로 이동할 수 있습니다.
+          </li>
+        </ul>
+      </template>
+    </UAccordion>
+
+    <div class="flex justify-between items-center py-4">
+      <!-- prettier-ignore -->
+      <div class="text-[13px]">
+        총 <span class="text-primary font-semibold">{{ (result?.meta.total || 0).toLocaleString() }}</span>개의 블로그
       </div>
+
       <UButton
         icon="i-heroicons-plus"
         size="lg"
