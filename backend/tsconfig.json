@@ -20,8 +20,7 @@
     "paths": {
       "@modules/*": ["src/modules/*"],
       "@lib/*": ["src/lib/*"],
-      "@common/*": ["src/common/*"],
-      "@prisma/client": ["prisma/generated"]
+      "@common/*": ["src/common/*"]
     }
   }
 }

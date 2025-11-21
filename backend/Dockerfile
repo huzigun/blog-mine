@@ -70,7 +70,7 @@ FROM node:20-alpine AS production
 
 # Install pnpm and dumb-init
 RUN corepack enable && corepack prepare pnpm@latest --activate && \
-    apk add --no-cache dumb-init
+    apk add --no-cache dumb-init openssl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
@@ -88,21 +88,23 @@ COPY --from=build /app/backend/package.json ./backend/
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/backend/node_modules ./backend/node_modules
 
-# Copy Prisma schema and generated client
-# Prisma 클라이언트는 node_modules 내부에 포함되어 있음
+# Copy Prisma schema and migrations
 COPY --from=build /app/backend/prisma ./backend/prisma
 
 # Copy compiled application
 COPY --from=build /app/backend/dist ./backend/dist
+
+# Set working directory to backend for Prisma generation
+WORKDIR /app/backend
+
+# Generate Prisma Client in production (important for custom output path)
+RUN pnpm prisma generate
 
 # Change ownership to non-root user
 RUN chown -R nestjs:nodejs /app
 
 # Switch to non-root user
 USER nestjs
-
-# Set working directory to backend
-WORKDIR /app/backend
 
 # Expose port
 EXPOSE 9706

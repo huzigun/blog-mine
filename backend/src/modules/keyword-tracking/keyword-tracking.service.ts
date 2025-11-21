@@ -5,7 +5,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
-import { CreateKeywordTrackingDto, UpdateKeywordTrackingDto } from './dto';
+import {
+  CreateKeywordTrackingDto,
+  UpdateKeywordTrackingDto,
+  QueryKeywordTrackingDto,
+} from './dto';
 
 @Injectable()
 export class KeywordTrackingService {
@@ -50,22 +54,54 @@ export class KeywordTrackingService {
   }
 
   /**
-   * 사용자의 모든 키워드 추적 조회
+   * 사용자의 모든 키워드 추적 조회 (페이지네이션 및 검색 지원)
    * @param userId 사용자 ID
-   * @param isActive 활성화 여부 필터 (선택)
-   * @returns 키워드 추적 목록
+   * @param query 쿼리 파라미터 (페이지, 검색어, 필터 등)
+   * @returns 페이지네이션된 키워드 추적 목록
    */
-  async findAll(userId: number, isActive?: boolean) {
-    return this.prisma.keywordTracking.findMany({
-      where: {
-        userId,
-        ...(isActive !== undefined && { isActive }),
+  async findAll(userId: number, query: QueryKeywordTrackingDto) {
+    const { page = 1, limit = 10, search, isActive } = query;
+    const skip = (page - 1) * limit;
+
+    // 검색 조건 구성
+    const where = {
+      userId,
+      ...(isActive !== undefined && { isActive }),
+      ...(search && {
+        OR: [
+          { keyword: { contains: search, mode: 'insensitive' as const } },
+          { bloggerName: { contains: search, mode: 'insensitive' as const } },
+          { myBlogUrl: { contains: search, mode: 'insensitive' as const } },
+          { title: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }),
+    };
+
+    // 데이터 조회 및 총 개수 조회를 병렬로 실행
+    const [data, total] = await Promise.all([
+      this.prisma.keywordTracking.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [
+          { isActive: 'desc' }, // 활성화된 것 먼저
+          { createdAt: 'desc' }, // 최신순
+        ],
+      }),
+      this.prisma.keywordTracking.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasNextPage: page * limit < total,
+        hasPreviousPage: page > 1,
       },
-      orderBy: [
-        { isActive: 'desc' }, // 활성화된 것 먼저
-        { createdAt: 'desc' }, // 최신순
-      ],
-    });
+    };
   }
 
   /**
@@ -148,13 +184,22 @@ export class KeywordTrackingService {
    * @param userId 사용자 ID
    * @returns 수정된 키워드 추적
    */
-  async toggleActive(id: number, userId: number) {
+  async toggleActive(id: number, userId: number, isActive: boolean) {
     const tracking = await this.findOne(id, userId);
 
-    return this.prisma.keywordTracking.update({
+    if (tracking.isActive === isActive) {
+      return {
+        newActive: tracking.isActive,
+      };
+    }
+    await this.prisma.keywordTracking.update({
       where: { id },
-      data: { isActive: !tracking.isActive },
+      data: { isActive },
     });
+
+    return {
+      newActive: isActive,
+    };
   }
 
   /**

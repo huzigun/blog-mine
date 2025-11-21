@@ -11,10 +11,13 @@ import {
   HttpStatus,
   Query,
   ParseIntPipe,
-  ParseBoolPipe,
 } from '@nestjs/common';
 import { KeywordTrackingService } from './keyword-tracking.service';
-import { CreateKeywordTrackingDto, UpdateKeywordTrackingDto } from './dto';
+import {
+  CreateKeywordTrackingDto,
+  UpdateKeywordTrackingDto,
+  QueryKeywordTrackingDto,
+} from './dto';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '@modules/auth/decorators/request-user.decorator';
 import { RequestUser } from '@modules/auth';
@@ -42,16 +45,15 @@ export class KeywordTrackingController {
   }
 
   /**
-   * 사용자의 모든 키워드 추적 조회
-   * GET /keyword-tracking?isActive=true
+   * 사용자의 모든 키워드 추적 조회 (페이지네이션 및 검색 지원)
+   * GET /keyword-tracking?page=1&limit=10&search=키워드&isActive=true
    */
   @Get()
   findAll(
     @GetRequestUser() user: RequestUser,
-    @Query('isActive', new ParseBoolPipe({ optional: true }))
-    isActive?: boolean,
+    @Query() query: QueryKeywordTrackingDto,
   ) {
-    return this.keywordTrackingService.findAll(user.id, isActive);
+    return this.keywordTrackingService.findAll(user.id, query);
   }
 
   /**
@@ -100,8 +102,9 @@ export class KeywordTrackingController {
   toggleActive(
     @GetRequestUser() user: RequestUser,
     @Param('id', ParseIntPipe) id: number,
+    @Body() body: { isActive: boolean },
   ) {
-    return this.keywordTrackingService.toggleActive(id, user.id);
+    return this.keywordTrackingService.toggleActive(id, user.id, body.isActive);
   }
 
   @Get('search/blog-details')

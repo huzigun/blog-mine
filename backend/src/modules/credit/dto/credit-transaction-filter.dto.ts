@@ -6,7 +6,24 @@ import {
   IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreditTransactionType, CreditType } from '@prisma/client';
+
+// Prisma enum을 직접 정의하여 런타임 에러 방지
+export enum CreditTransactionType {
+  SUBSCRIPTION_GRANT = 'SUBSCRIPTION_GRANT',
+  PURCHASE = 'PURCHASE',
+  BONUS = 'BONUS',
+  PROMO = 'PROMO',
+  USAGE = 'USAGE',
+  REFUND = 'REFUND',
+  EXPIRE = 'EXPIRE',
+  ADMIN_ADJUSTMENT = 'ADMIN_ADJUSTMENT',
+}
+
+export enum CreditType {
+  SUBSCRIPTION = 'SUBSCRIPTION',
+  PURCHASED = 'PURCHASED',
+  BONUS = 'BONUS',
+}
 
 /**
  * 크레딧 거래 내역 조회 필터 DTO
