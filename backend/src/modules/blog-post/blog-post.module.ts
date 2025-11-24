@@ -5,9 +5,16 @@ import { PrismaModule } from '../../lib/database/prisma.module';
 import { OpenAIModule } from '../../lib/integrations/openai/openai/openai.module';
 import { NaverApiModule } from '../../lib/integrations/naver/naver-api/naver-api.module';
 import { CreditModule } from '../credit/credit.module';
+import { PromptLogModule } from '@lib/integrations/openai/prompt-log';
 
 @Module({
-  imports: [PrismaModule, OpenAIModule, NaverApiModule, CreditModule],
+  imports: [
+    PrismaModule,
+    OpenAIModule,
+    NaverApiModule,
+    CreditModule,
+    PromptLogModule,
+  ],
   controllers: [BlogPostController],
   providers: [BlogPostService],
   exports: [BlogPostService],

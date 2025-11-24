@@ -9,6 +9,7 @@ import { OpenAIService } from '../../lib/integrations/openai/openai/openai.servi
 import { BlogRankService } from '../../lib/integrations/naver/naver-api/blog-rank.service';
 import { DateService } from '../../lib/date/date.service';
 import { CreditService } from '@modules/credit/credit.service';
+import { PromptLogService } from '@lib/integrations/openai/prompt-log';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 
 @Injectable()
@@ -27,6 +28,7 @@ export class BlogPostService {
     private readonly blogRankService: BlogRankService,
     private readonly dateService: DateService,
     private readonly creditService: CreditService,
+    private readonly promptLogService: PromptLogService,
   ) {}
 
   /**
@@ -439,6 +441,8 @@ export class BlogPostService {
           `Generating post ${postIndex}/${totalCount} with diversity strategy (existing titles: ${existingTitles.length})`,
         );
 
+        const startTime = Date.now();
+
         // LLM 호출 (다양성 전략 적용)
         const result = await this.openaiService.generatePost({
           keyword: post.keyword,
@@ -452,6 +456,8 @@ export class BlogPostService {
           totalCount, // 전체 원고 개수
           existingTitles, // 이미 생성된 제목들 (중복 방지)
         });
+
+        const responseTime = Date.now() - startTime;
 
         // JSON 파싱 (title과 content 분리)
         let title: string | null = null;
@@ -472,7 +478,7 @@ export class BlogPostService {
         }
 
         // 성공 시 AIPost 생성 (title과 content 분리 저장, 토큰 사용량 포함)
-        await this.prisma.aIPost.create({
+        const aiPost = await this.prisma.aIPost.create({
           data: {
             blogPostId,
             title,
@@ -483,6 +489,40 @@ export class BlogPostService {
             totalTokens: result.usage.totalTokens,
           },
         });
+
+        // 프롬프트 로깅 (백그라운드 처리 - 실패해도 메인 로직에 영향 없음)
+        if (result.prompts) {
+          this.promptLogService
+            .logPrompt({
+              userId: post.userId,
+              blogPostId,
+              aiPostId: aiPost.id,
+              systemPrompt: result.prompts.systemPrompt,
+              userPrompt: result.prompts.userPrompt,
+              fullPrompt: result.prompts.fullPrompt,
+              model: 'gpt-4o', // generationModel 사용 (환경변수에서 가져옴)
+              promptTokens: result.usage.promptTokens,
+              completionTokens: result.usage.completionTokens,
+              totalTokens: result.usage.totalTokens,
+              response: result.content,
+              responseTime,
+              success: true,
+              purpose: 'blog_generation',
+              metadata: {
+                keyword: post.keyword,
+                postType: post.postType,
+                length: post.length,
+                postIndex,
+                totalCount,
+                retryCount,
+              },
+            })
+            .catch((error) => {
+              this.logger.warn(
+                `Failed to log prompt for aiPost ${aiPost.id}: ${error.message}`,
+              );
+            });
+        }
 
         this.logger.log(
           `Post generated successfully after ${retryCount} retries for blogPost ${blogPostId}`,

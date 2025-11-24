@@ -15,6 +15,10 @@ export interface GeneratePostRequest {
   postIndex?: number; // 현재 원고 번호 (1부터 시작)
   totalCount?: number; // 전체 원고 개수
   existingTitles?: string[]; // 이미 생성된 원고 제목들
+  // 프롬프트 로깅을 위한 추가 필드
+  userId?: number;
+  blogPostId?: number;
+  aiPostId?: number;
 }
 
 export interface GeneratePostResponse {
@@ -23,6 +27,12 @@ export interface GeneratePostResponse {
     promptTokens: number; // 입력 토큰 수
     completionTokens: number; // 출력 토큰 수
     totalTokens: number; // 총 토큰 수
+  };
+  // 프롬프트 로깅을 위한 추가 필드
+  prompts?: {
+    systemPrompt: string;
+    userPrompt: string;
+    fullPrompt: string;
   };
 }
 
@@ -103,6 +113,8 @@ export class OpenAIService {
     const userPrompt = this.buildPrompt(request);
     const fullPrompt =
       systemPrompt + '\n\n' + referencePrompt + '\n\n' + userPrompt;
+
+    const startTime = Date.now();
 
     try {
       this.logger.debug(
@@ -211,6 +223,11 @@ export class OpenAIService {
         return {
           content: JSON.stringify(parsed),
           usage: tokenUsage,
+          prompts: {
+            systemPrompt,
+            userPrompt,
+            fullPrompt,
+          },
         };
       } catch (parseError: any) {
         this.logger.error(
@@ -221,11 +238,19 @@ export class OpenAIService {
         return {
           content,
           usage: tokenUsage,
+          prompts: {
+            systemPrompt,
+            userPrompt,
+            fullPrompt,
+          },
         };
       }
-    } catch (error) {
+    } catch (error: any) {
+      const responseTime = Date.now() - startTime;
       this.logger.error(
-        `Failed to generate post: ${error.message}`,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+        `Failed to generate post after ${responseTime}ms: ${error.message}`,
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         error.stack,
       );
       throw error;

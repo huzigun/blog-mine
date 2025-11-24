@@ -615,3 +615,42 @@ model EmailVerification {
   @@index([expiresAt])
   @@map("email_verifications")
 }
+
+// OpenAI 프롬프트 로그 (프롬프트 최적화 분석용)
+model PromptLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id") // 요청한 사용자 ID
+  blogPostId Int?     @map("blog_post_id") // 연관된 블로그 포스트 ID (nullable)
+  aiPostId   Int?     @map("ai_post_id") // 연관된 AI 포스트 ID (nullable)
+
+  // 프롬프트 정보
+  systemPrompt String  @db.Text @map("system_prompt") // 시스템 프롬프트
+  userPrompt   String  @db.Text @map("user_prompt") // 사용자 프롬프트
+  fullPrompt   String? @db.Text @map("full_prompt") // 전체 프롬프트 (필요시)
+
+  // OpenAI 요청/응답 정보
+  model            String  @default("gpt-4") // 사용된 모델
+  temperature      Float? // 온도 설정
+  maxTokens        Int?    @map("max_tokens") // 최대 토큰 수
+  promptTokens     Int?    @map("prompt_tokens") // 프롬프트 토큰 수
+  completionTokens Int?    @map("completion_tokens") // 완성 토큰 수
+  totalTokens      Int?    @map("total_tokens") // 총 토큰 수
+
+  // 응답 정보
+  response     String?  @db.Text // OpenAI 응답
+  responseTime Int?     @map("response_time") // 응답 시간 (ms)
+  success      Boolean  @default(true) // 성공 여부
+  errorMessage String?  @db.Text @map("error_message") // 에러 메시지
+
+  // 메타데이터
+  purpose  String? // 프롬프트 목적 (blog_generation, content_optimization 등)
+  metadata Json? // 추가 메타데이터
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([blogPostId])
+  @@index([aiPostId])
+  @@index([createdAt])
+  @@map("prompt_logs")
+}
