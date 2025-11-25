@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import type { ColumnDef } from '@tanstack/vue-table';
-import { BlogAddForm, UTooltip, UButton, USwitch } from '#components';
+import { BlogAddForm, UTooltip, UButton, USwitch, BlogRank } from '#components';
 
 definePageMeta({
   middleware: ['auth'],
@@ -23,6 +23,7 @@ const confirm = useConfirm();
 const toast = useToast();
 const overlay = useOverlay();
 const addFormModal = overlay.create(BlogAddForm);
+const rankModal = overlay.create(BlogRank);
 const [isLoading, startTransition] = useTransition();
 
 // Pagination state
@@ -34,6 +35,12 @@ const openAddForm = async () => {
   if (result === true) {
     await refresh();
   }
+};
+
+const openRankModal = async (track: KeywordTracking) => {
+  await rankModal.open({
+    blogId: track.id,
+  });
 };
 
 const { data: result, refresh } = await useApiFetch<{
@@ -195,6 +202,15 @@ const columns: ColumnDef<KeywordTracking>[] = [
             },
           }),
         ),
+        h(UButton, {
+          icon: 'i-heroicons-chart-bar-solid',
+          color: 'info',
+          variant: 'ghost',
+          size: 'sm',
+          onClick: () => {
+            openRankModal(row.original);
+          },
+        }),
       ]);
     },
     meta: {

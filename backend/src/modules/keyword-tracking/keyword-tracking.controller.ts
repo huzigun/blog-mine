@@ -18,6 +18,7 @@ import {
   CreateKeywordTrackingDto,
   UpdateKeywordTrackingDto,
   QueryKeywordTrackingDto,
+  KeywordTrackingRanksResponseDto,
 } from './dto';
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '@modules/auth/decorators/request-user.decorator';
@@ -145,6 +146,18 @@ export class KeywordTrackingController {
     }
 
     return this.keywordTrackingService.toggleActive(id, user.id, body.isActive);
+  }
+
+  /**
+   * 키워드 추적의 블로그 순위 히스토리 조회
+   * GET /keyword-tracking/:id/ranks
+   */
+  @Get(':id/ranks')
+  async findBlogRanks(
+    @GetRequestUser() user: RequestUser,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<KeywordTrackingRanksResponseDto> {
+    return this.keywordTrackingService.findBlogRanks(id, user.id);
   }
 
   @Get('search/blog-details')

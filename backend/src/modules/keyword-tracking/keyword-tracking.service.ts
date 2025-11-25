@@ -341,4 +341,121 @@ export class KeywordTrackingService {
 
     return keywordDateId !== null;
   }
+
+  /**
+   * 키워드 추적의 블로그 순위 히스토리 조회
+   * @param id 키워드 추적 ID
+   * @param userId 사용자 ID
+   * @returns 순위 히스토리 및 블로그 정보
+   */
+  async findBlogRanks(id: number, userId: number) {
+    // 1. 키워드 추적 조회 (소유권 확인)
+    const tracking = await this.findOne(id, userId);
+
+    // 2. myBlogUrl과 일치하는 Blog 찾기
+    const blog = await this.prisma.blog.findUnique({
+      where: {
+        link: tracking.myBlogUrl,
+      },
+      select: {
+        id: true,
+        link: true,
+        title: true,
+        bloggerName: true,
+        bloggerLink: true,
+      },
+    });
+
+    // 3. Blog가 없으면 순위 데이터도 없음
+    if (!blog) {
+      return {
+        trackingId: tracking.id,
+        keyword: tracking.keyword,
+        myBlogUrl: tracking.myBlogUrl,
+        blog: null,
+        rankHistory: [],
+        latestRank: null,
+        rankChange: null,
+      };
+    }
+
+    // 4. 최근 일주일 날짜 문자열 생성 (Asia/Seoul 타임존 기준)
+    const today = this.dateService.now();
+    const last7Days: string[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = this.dateService.subtract(today, i, 'day');
+      last7Days.push(date.format('YYYY-MM-DD'));
+    }
+
+    // 5. 해당 블로그의 순위 히스토리 조회 (해당 키워드만, 최근 일주일)
+    const rankHistory = await this.prisma.blogRank.findMany({
+      where: {
+        blogId: blog.id,
+        keywordDate: {
+          keyword: tracking.keyword,
+          dateStr: {
+            in: last7Days, // 최근 7일 날짜 문자열로 조회
+          },
+        },
+      },
+      include: {
+        keywordDate: {
+          select: {
+            dateStr: true,
+          },
+        },
+      },
+      orderBy: [
+        { keywordDate: { dateStr: 'desc' } }, // 최신 날짜 순
+        { createdAt: 'desc' },
+      ],
+    });
+
+    // 6. 날짜별 순위 맵 생성
+    const rankMap = new Map<string, number>();
+    rankHistory.forEach((rank) => {
+      const dateStr = rank.keywordDate.dateStr;
+      // 같은 날짜에 여러 순위가 있을 경우 첫 번째 것만 사용
+      if (!rankMap.has(dateStr)) {
+        rankMap.set(dateStr, rank.rank);
+      }
+    });
+
+    // 7. 최근 7일 전체 날짜에 대해 순위 데이터 생성 (빈 날짜는 null)
+    const formattedHistory = last7Days.map((dateStr) => ({
+      dateStr,
+      rank: rankMap.get(dateStr) || null,
+    }));
+
+    // 8. 순위 변동 계산 (실제 순위가 있는 데이터만 사용)
+    let latestRank: number | null = null;
+    let rankChange: number | null = null;
+
+    const ranksWithData = formattedHistory.filter((item) => item.rank !== null);
+    if (ranksWithData.length > 0) {
+      latestRank = ranksWithData[0].rank;
+
+      if (ranksWithData.length > 1) {
+        const previousRank = ranksWithData[1].rank;
+        // 순위가 낮아지면 음수 (하락), 높아지면 양수 (상승)
+        rankChange = previousRank! - latestRank!;
+      }
+    }
+
+    return {
+      trackingId: tracking.id,
+      keyword: tracking.keyword,
+      myBlogUrl: tracking.myBlogUrl,
+      blog: {
+        id: blog.id,
+        link: blog.link,
+        title: blog.title,
+        bloggerName: blog.bloggerName,
+        bloggerLink: blog.bloggerLink,
+      },
+      rankHistory: formattedHistory,
+      latestRank,
+      rankChange,
+    };
+  }
 }
