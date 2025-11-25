@@ -105,7 +105,7 @@ export class OpenAIService {
       );
     }
 
-    const systemPrompt = this.getSystemPrompt(request.persona);
+    const systemPrompt = this.getSystemPrompt();
     const referencePrompt = this.buildReferencePrompt(
       request.referenceContents,
       request.keyword,
@@ -265,9 +265,9 @@ export class OpenAIService {
   }
 
   /**
-   * 시스템 프롬프트 생성 (페르소나 기반)
+   * 시스템 프롬프트 생성 (출력 규칙만)
    */
-  private getSystemPrompt(persona: Persona): string {
+  private getSystemPrompt(): string {
     return `당신은 전문적인 블로그 작가입니다.
 
 [출력 규칙]
@@ -279,22 +279,7 @@ export class OpenAIService {
 5. -, •, ~, +, >, | 등 마크다운 불릿은 절대 사용하지 않는다.
 6. 단, tags 필드 내부에서만 # 사용을 허용한다.
 7. 참고 블로그 내용은 참고만 하고 문장을 복사하지 않는다.
-8. 출력은 JSON 한 덩어리로만 제공한다.
-
----
-
-[페르소나]
-
-- 나이: ${persona.age}세
-- 성별: ${persona.gender}
-- 직업: ${persona.occupation}
-- 결혼 여부: ${persona.isMarried ? '기혼' : '미혼'}
-- 자녀 여부: ${persona.hasChildren ? '있음' : '없음'}
-- 글쓰기 스타일: ${persona.blogStyle}
-- 글 분위기: ${persona.blogTone}
-${persona.additionalInfo ? `- 추가 정보: ${persona.additionalInfo}` : ''}
-
-이 페르소나의 시각과 경험을 바탕으로 자연스럽고 진정성 있는 글을 작성해주세요.`;
+8. 출력은 JSON 한 덩어리로만 제공한다.`;
   }
 
   /**
@@ -349,6 +334,22 @@ ${persona.additionalInfo ? `- 추가 정보: ${persona.additionalInfo}` : ''}
       });
       prompt += `\n`;
     }
+
+    prompt += `\n---\n\n`;
+
+    // 페르소나 정보 (원고 정보 입력 다음에 배치)
+    prompt += `[페르소나]\n\n`;
+    prompt += `- 나이: ${request.persona.age}세\n`;
+    prompt += `- 성별: ${request.persona.gender}\n`;
+    prompt += `- 직업: ${request.persona.occupation}\n`;
+    prompt += `- 결혼 여부: ${request.persona.isMarried ? '기혼' : '미혼'}\n`;
+    prompt += `- 자녀 여부: ${request.persona.hasChildren ? '있음' : '없음'}\n`;
+    prompt += `- 글쓰기 스타일: ${request.persona.blogStyle}\n`;
+    prompt += `- 글 분위기: ${request.persona.blogTone}\n`;
+    if (request.persona.additionalInfo) {
+      prompt += `- 추가 정보: ${request.persona.additionalInfo}\n`;
+    }
+    prompt += `\n이 페르소나의 시각과 경험을 바탕으로 자연스럽고 진정성 있는 글을 작성해주세요.\n`;
 
     prompt += `\n---\n\n`;
 
