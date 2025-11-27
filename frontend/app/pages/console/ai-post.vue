@@ -38,7 +38,7 @@ const mainForm = useTemplateRef('mainForm');
 const infoForm = useTemplateRef('infoForm');
 
 // BloC 비용 계산 (원고당 고정 비용)
-const CREDIT_COST_PER_POST = 1; // 원고 1개당 1 BloC
+const CREDIT_COST_PER_POST = 5; // 원고 1개당 5 BloC
 
 // 총 BloC 비용 계산
 const totalCost = computed(() => {
@@ -47,7 +47,9 @@ const totalCost = computed(() => {
 
 // BloC 잔액 부족 여부
 const isInsufficientBalance = computed(() => {
-  return !!auth.creditBalance && auth.creditBalance.totalCredits < totalCost.value;
+  return (
+    !!auth.creditBalance && auth.creditBalance.totalCredits < totalCost.value
+  );
 });
 
 // 서브 키워드 입력 방식: true = AI 추천, false = 직접 입력
@@ -396,18 +398,19 @@ const onSubmit = () => {
             class="flex items-center justify-between p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900"
           >
             <div class="flex items-center gap-2">
-              <UIcon
-                name="i-heroicons-bolt"
-                class="w-5 h-5 text-primary-600"
-              />
-              <span class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              <UIcon name="i-heroicons-bolt" class="w-5 h-5 text-primary-600" />
+              <span
+                class="text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
                 보유 BloC
               </span>
             </div>
             <div class="flex items-center gap-2">
               <span
                 class="text-lg font-bold"
-                :class="isInsufficientBalance ? 'text-error' : 'text-primary-600'"
+                :class="
+                  isInsufficientBalance ? 'text-error' : 'text-primary-600'
+                "
               >
                 {{ auth.creditBalance.totalCredits.toLocaleString() }}
               </span>
@@ -416,13 +419,17 @@ const onSubmit = () => {
           </div>
 
           <!-- 예상 비용 표시 -->
-          <div class="flex items-center justify-between p-4 rounded-xl bg-primary-50 dark:bg-primary-950/20 border border-primary-200 dark:border-primary-800">
+          <div
+            class="flex items-center justify-between p-4 rounded-xl bg-primary-50 dark:bg-primary-950/20 border border-primary-200 dark:border-primary-800"
+          >
             <div class="flex items-center gap-2">
               <UIcon
                 name="i-heroicons-calculator"
                 class="w-5 h-5 text-primary-600"
               />
-              <span class="text-sm font-medium text-primary-700 dark:text-primary-400">
+              <span
+                class="text-sm font-medium text-primary-700 dark:text-primary-400"
+              >
                 예상 비용
               </span>
             </div>
@@ -447,19 +454,16 @@ const onSubmit = () => {
               class="w-5 h-5 text-error-600 shrink-0 mt-0.5"
             />
             <div class="flex-1">
-              <p class="text-sm font-semibold text-error-700 dark:text-error-400 mb-1">
+              <p
+                class="text-sm font-semibold text-error-700 dark:text-error-400 mb-1"
+              >
                 BloC이 부족합니다
               </p>
               <p class="text-xs text-error-600 dark:text-error-500">
                 BloC을 충전하거나 원고 수를 줄여주세요.
               </p>
             </div>
-            <UButton
-              size="xs"
-              color="error"
-              variant="outline"
-              to="/pricing"
-            >
+            <UButton size="xs" color="error" variant="outline" to="/pricing">
               BloC 충전
             </UButton>
           </div>

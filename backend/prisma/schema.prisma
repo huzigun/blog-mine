@@ -654,3 +654,46 @@ model PromptLog {
   @@index([createdAt])
   @@map("prompt_logs")
 }
+
+// 문의하기 모델 (비회원 포함)
+model Contact {
+  id          Int           @id @default(autoincrement())
+  name        String // 문의자 이름
+  email       String // 문의자 이메일
+  phone       String? // 문의자 전화번호 (선택)
+  subject     String // 문의 제목
+  message     String        @db.Text // 문의 내용
+  category    ContactCategory @default(GENERAL) // 문의 유형
+  status      ContactStatus @default(PENDING) // 처리 상태
+
+  // 관리자 처리 정보
+  adminNote   String?       @db.Text @map("admin_note") // 관리자 메모
+  respondedAt DateTime?     @map("responded_at") // 응답 일시
+
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  @@index([email])
+  @@index([status, createdAt])
+  @@index([category])
+  @@map("contacts")
+}
+
+// 문의 유형
+enum ContactCategory {
+  GENERAL     // 일반 문의
+  TECHNICAL   // 기술 지원
+  BILLING     // 결제/구독 문의
+  FEATURE     // 기능 제안
+  BUG         // 버그 신고
+  PARTNERSHIP // 제휴 문의
+  OTHER       // 기타
+}
+
+// 문의 처리 상태
+enum ContactStatus {
+  PENDING     // 대기 중
+  IN_PROGRESS // 처리 중
+  RESOLVED    // 해결됨
+  CLOSED      // 종료됨
+}

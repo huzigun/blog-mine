@@ -4,7 +4,9 @@ const isSidebarHovered = ref(false);
 
 // Detect mobile screen size
 const checkMobile = () => {
-  uiStore.setMobile(window.innerWidth < 1024);
+  if (import.meta.client) {
+    uiStore.setMobile(window.innerWidth < 1024);
+  }
 };
 
 const closeSidebar = () => {
@@ -86,7 +88,9 @@ onUnmounted(() => {
           boxShadow: '0 -3px 6px rgba(0, 0, 0, 0.05)',
         }"
       >
-        &copy; {{ new Date().getFullYear() }} Blog Mine. All rights reserved.
+        <ClientOnly>
+          &copy; {{ new Date().getFullYear() }} Blog Mine. All rights reserved.
+        </ClientOnly>
       </footer>
     </div>
   </div>

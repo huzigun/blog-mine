@@ -17,7 +17,9 @@ const navItems = [
 const isScrolled = ref(false);
 
 const handleScroll = () => {
-  isScrolled.value = window.scrollY > 10;
+  if (import.meta.client) {
+    isScrolled.value = window.scrollY > 10;
+  }
 };
 
 onMounted(() => {
@@ -388,20 +390,24 @@ const closeMobileMenu = () => {
           <div
             class="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-600 dark:text-neutral-400"
           >
-            <p>
-              &copy; {{ new Date().getFullYear() }} Blog Mine. All rights
-              reserved.
-            </p>
+            <ClientOnly>
+              <p>
+                &copy; {{ new Date().getFullYear() }} Blog Mine. All rights
+                reserved.
+              </p>
+            </ClientOnly>
             <div class="flex items-center gap-6">
               <NuxtLink
-                to="/terms"
+                to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088166aaebcae54bd460f4"
                 class="hover:text-primary transition-colors"
+                target="_blank"
               >
                 이용약관
               </NuxtLink>
               <NuxtLink
-                to="/privacy"
+                to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088178a1aeef9df3fbab5b?pvs=74"
                 class="hover:text-primary transition-colors"
+                target="_blank"
               >
                 개인정보처리방침
               </NuxtLink>
