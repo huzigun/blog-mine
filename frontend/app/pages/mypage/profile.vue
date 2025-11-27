@@ -100,19 +100,6 @@ interface UserResponse {
   businessInfo: BusinessInfo | null;
 }
 
-// 사용자 정보 조회
-const { data: userData, refresh: refreshUser } =
-  await useApiFetch<UserResponse>('/user/me');
-
-const user = computed(() => ({
-  id: userData.value?.id || 0,
-  email: userData.value?.email || '',
-  name: userData.value?.name || '',
-  createdAt: userData.value?.createdAt || '',
-  businessInfo: userData.value?.businessInfo || null,
-}));
-
-// 크레딧 잔액 조회
 interface CreditBalance {
   totalCredits: number;
   subscriptionCredits: number;
@@ -121,8 +108,21 @@ interface CreditBalance {
   lastUsedAt: string | null;
 }
 
-const { data: creditBalance, refresh: refreshCredits } =
-  await useApiFetch<CreditBalance>('/credits/balance');
+const [
+  { data: creditBalance, refresh: refreshCredits },
+  { data: userData, refresh: refreshUser },
+] = await Promise.all([
+  useApiFetch<CreditBalance>('/credits/balance'),
+  useApiFetch<UserResponse>('/user/me'),
+]);
+
+const user = computed(() => ({
+  id: userData.value?.id || 0,
+  email: userData.value?.email || '',
+  name: userData.value?.name || '',
+  createdAt: userData.value?.createdAt || '',
+  businessInfo: userData.value?.businessInfo || null,
+}));
 
 const formatDate = (dateStr: string) => {
   const date = new Date(dateStr);
@@ -241,18 +241,31 @@ const handleChangePassword = async (
 
   isPasswordSaving.value = true;
   try {
-    // TODO: API 호출
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await useApi('/user/change-password', {
+      method: 'POST',
+      body: {
+        currentPassword: event.data.currentPassword,
+        newPassword: event.data.newPassword,
+      },
+    });
+
     toast.add({
       title: '성공',
       description: '비밀번호가 변경되었습니다.',
       color: 'success',
     });
     isPasswordModalOpen.value = false;
-  } catch (error) {
+
+    // 폼 초기화
+    passwordForm.currentPassword = '';
+    passwordForm.newPassword = '';
+    passwordForm.confirmPassword = '';
+  } catch (error: any) {
+    const errorMessage =
+      error?.data?.message || '비밀번호 변경에 실패했습니다.';
     toast.add({
       title: '오류',
-      description: '비밀번호 변경에 실패했습니다.',
+      description: errorMessage,
       color: 'error',
     });
   } finally {
@@ -377,7 +390,11 @@ const handleDeleteAccount = async () => {
             <div
               class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
             >
-              <div class="i-heroicons-user-circle text-primary text-2xl" />
+              <UIcon
+                name="i-heroicons-user-circle"
+                class="text-primary"
+                :size="24"
+              />
             </div>
             <h3 class="text-lg font-semibold">프로필 정보</h3>
           </div>
@@ -409,7 +426,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-user text-sm" />
+            <UIcon name="i-heroicons-user" class="w-3.5 h-3.5" />
             <span>이름</span>
           </div>
           <div class="text-base font-medium">{{ user.name }}</div>
@@ -421,7 +438,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-envelope text-sm" />
+            <UIcon name="i-heroicons-envelope" class="w-3.5 h-3.5" />
             <span>이메일</span>
           </div>
           <div class="text-base font-medium">{{ user.email }}</div>
@@ -433,7 +450,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-calendar text-sm" />
+            <UIcon name="i-heroicons-calendar" class="w-3.5 h-3.5" />
             <span>가입일</span>
           </div>
           <div class="text-base font-medium">
@@ -453,8 +470,10 @@ const handleDeleteAccount = async () => {
               <div
                 class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
               >
-                <div
-                  class="i-heroicons-receipt-percent text-primary text-2xl"
+                <UIcon
+                  name="i-heroicons-receipt-percent"
+                  class="text-primary"
+                  :size="24"
                 />
               </div>
               <h3 class="text-lg font-semibold">구독 정보</h3>
@@ -499,7 +518,7 @@ const handleDeleteAccount = async () => {
               <div
                 class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400"
               >
-                <div class="i-heroicons-calendar-days text-base" />
+                <UIcon name="i-heroicons-calendar-days" class="w-4 h-4" />
                 <span>
                   시작일: {{ formatDate(auth.subscription.startedAt) }}
                 </span>
@@ -507,7 +526,7 @@ const handleDeleteAccount = async () => {
               <div
                 class="flex items-center gap-2 text-neutral-600 dark:text-neutral-400"
               >
-                <div class="i-heroicons-clock text-base" />
+                <UIcon name="i-heroicons-clock" class="w-4 h-4" />
                 <span>
                   {{
                     auth.subscription.autoRenewal ? '다음 결제일' : '만료일'
@@ -521,8 +540,9 @@ const handleDeleteAccount = async () => {
               v-if="auth.isCanceledSubscription"
               class="flex items-start gap-2 p-3 rounded-md bg-warning/10 border border-warning/20"
             >
-              <div
-                class="i-heroicons-exclamation-triangle text-warning text-lg flex-shrink-0 mt-0.5"
+              <UIcon
+                name="i-heroicons-exclamation-triangle"
+                class="w-5 h-5 text-warning flex-shrink-0 mt-0.5"
               />
               <div class="text-sm text-neutral-700 dark:text-neutral-300">
                 <p class="font-medium">구독 취소가 예약되었습니다</p>
@@ -539,8 +559,9 @@ const handleDeleteAccount = async () => {
               "
               class="flex items-start gap-2 p-3 rounded-md bg-info/10 border border-info/20"
             >
-              <div
-                class="i-heroicons-information-circle text-info text-lg flex-shrink-0 mt-0.5"
+              <UIcon
+                name="i-heroicons-information-circle"
+                class="w-5 h-5 text-info flex-shrink-0 mt-0.5"
               />
               <div class="text-sm text-neutral-700 dark:text-neutral-300">
                 <p>자동 갱신이 비활성화되어 있습니다.</p>
@@ -582,7 +603,10 @@ const handleDeleteAccount = async () => {
           <!-- 무료 플랜 안내 -->
           <div v-else class="p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900">
             <div class="flex items-center gap-3">
-              <div class="i-heroicons-information-circle text-info text-2xl" />
+              <UIcon
+                name="i-heroicons-information-circle"
+                class="w-6 h-6 text-info"
+              />
               <div>
                 <p class="font-medium">활성 구독이 없습니다</p>
                 <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
@@ -601,7 +625,7 @@ const handleDeleteAccount = async () => {
             <div
               class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
             >
-              <div class="i-heroicons-star text-primary text-2xl" />
+              <UIcon name="i-heroicons-star" class="text-primary" :size="24" />
             </div>
             <h3 class="text-lg font-semibold">BloC 잔액</h3>
           </div>
@@ -616,7 +640,11 @@ const handleDeleteAccount = async () => {
               <div
                 class="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/20"
               >
-                <div class="i-heroicons-star-solid text-primary text-2xl" />
+                <UIcon
+                  name="i-heroicons-star-solid"
+                  class="text-primary"
+                  :size="24"
+                />
               </div>
               <div>
                 <div class="text-sm font-medium text-primary/80">총 BloC</div>
@@ -636,7 +664,11 @@ const handleDeleteAccount = async () => {
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-success/10"
                 >
-                  <div class="i-heroicons-gift text-success text-lg" />
+                  <UIcon
+                    name="i-heroicons-gift"
+                    class="text-success"
+                    :size="18"
+                  />
                 </div>
                 <span class="text-sm text-neutral-600 dark:text-neutral-400">
                   구독 BloC
@@ -654,7 +686,11 @@ const handleDeleteAccount = async () => {
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-info/10"
                 >
-                  <div class="i-heroicons-credit-card text-info text-lg" />
+                  <UIcon
+                    name="i-heroicons-credit-card"
+                    class="text-info"
+                    :size="18"
+                  />
                 </div>
                 <span class="text-sm text-neutral-600 dark:text-neutral-400">
                   구매 BloC
@@ -672,7 +708,11 @@ const handleDeleteAccount = async () => {
                 <div
                   class="flex items-center justify-center w-8 h-8 rounded-lg bg-warning/10"
                 >
-                  <div class="i-heroicons-sparkles text-warning text-lg" />
+                  <UIcon
+                    name="i-heroicons-sparkles"
+                    class="text-warning"
+                    :size="18"
+                  />
                 </div>
                 <span class="text-sm text-neutral-600 dark:text-neutral-400">
                   보너스 BloC
@@ -689,7 +729,7 @@ const handleDeleteAccount = async () => {
             v-if="creditBalance.lastUsedAt"
             class="flex items-center gap-2 text-sm text-neutral-500 dark:text-neutral-400 pt-2 border-t border-neutral-200 dark:border-neutral-800"
           >
-            <div class="i-heroicons-clock text-base" />
+            <UIcon name="i-heroicons-clock" class="w-4 h-4" />
             <span>마지막 사용: {{ formatDate(creditBalance.lastUsedAt) }}</span>
           </div>
         </div>
@@ -704,7 +744,11 @@ const handleDeleteAccount = async () => {
             <div
               class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
             >
-              <div class="i-heroicons-building-office text-primary text-2xl" />
+              <UIcon
+                name="i-heroicons-building-office"
+                class="text-primary"
+                :size="24"
+              />
             </div>
             <div>
               <h3 class="text-lg font-semibold">사업자 정보</h3>
@@ -821,7 +865,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-building-office text-sm" />
+            <UIcon name="i-heroicons-building-office" class="w-3.5 h-3.5" />
             <span>상호명</span>
           </div>
           <div class="text-base font-medium">
@@ -835,7 +879,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-identification text-sm" />
+            <UIcon name="i-heroicons-identification" class="w-3.5 h-3.5" />
             <span>사업자등록번호</span>
           </div>
           <div class="text-base font-medium">
@@ -849,7 +893,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-user-circle text-sm" />
+            <UIcon name="i-heroicons-user-circle" class="w-3.5 h-3.5" />
             <span>대표자명</span>
           </div>
           <div class="text-base font-medium">
@@ -863,7 +907,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-briefcase text-sm" />
+            <UIcon name="i-heroicons-briefcase" class="w-3.5 h-3.5" />
             <span>업태</span>
           </div>
           <div class="text-base font-medium">
@@ -877,7 +921,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-tag text-sm" />
+            <UIcon name="i-heroicons-tag" class="w-3.5 h-3.5" />
             <span>종목</span>
           </div>
           <div class="text-base font-medium">
@@ -891,7 +935,7 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400"
           >
-            <div class="i-heroicons-map-pin text-sm" />
+            <UIcon name="i-heroicons-map-pin" class="w-3.5 h-3.5" />
             <span>사업장 주소</span>
           </div>
           <div class="text-base font-medium">
@@ -908,7 +952,11 @@ const handleDeleteAccount = async () => {
           <div
             class="flex items-center justify-center w-10 h-10 rounded-full bg-error/10"
           >
-            <div class="i-heroicons-exclamation-triangle text-error text-2xl" />
+            <UIcon
+              name="i-heroicons-exclamation-triangle"
+              class="text-error"
+              :size="24"
+            />
           </div>
           <h3 class="text-lg font-semibold text-error">위험 영역</h3>
         </div>
@@ -918,11 +966,15 @@ const handleDeleteAccount = async () => {
         class="p-5 rounded-lg border-2 border-error/20 bg-error/5 dark:bg-error/10"
       >
         <div class="flex items-start gap-4">
-          <div class="flex-shrink-0">
+          <div class="shrink-0">
             <div
               class="flex items-center justify-center w-12 h-12 rounded-full bg-error/20"
             >
-              <div class="i-heroicons-user-minus text-error text-2xl" />
+              <UIcon
+                name="i-heroicons-user-minus"
+                class="text-error"
+                :size="24"
+              />
             </div>
           </div>
           <div class="flex-1 space-y-3">
@@ -1091,9 +1143,10 @@ const handleDeleteAccount = async () => {
         <div class="space-y-5 p-6">
           <div class="p-4 rounded-lg bg-error/10 border border-error/20">
             <div class="flex items-start gap-3">
-              <div class="flex-shrink-0">
-                <div
-                  class="i-heroicons-exclamation-triangle text-error text-2xl"
+              <div class="shrink-0">
+                <UIcon
+                  name="i-heroicons-exclamation-triangle"
+                  class="w-6 h-6 text-error"
                 />
               </div>
               <div
@@ -1164,8 +1217,9 @@ const handleDeleteAccount = async () => {
             <div
               class="flex items-center justify-center w-12 h-12 rounded-full bg-warning/10"
             >
-              <div
-                class="i-heroicons-exclamation-triangle text-warning text-2xl"
+              <UIcon
+                name="i-heroicons-exclamation-triangle"
+                class="w-6 h-6 text-warning"
               />
             </div>
             <div class="flex-1">

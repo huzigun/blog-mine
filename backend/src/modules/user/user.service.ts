@@ -1,7 +1,13 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../lib/database/prisma.service';
 import { ConfigService } from '../../lib/config/config.service';
-import { UpdateBusinessInfoDto } from './dto';
+import { UpdateBusinessInfoDto, ChangePasswordDto } from './dto';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -111,5 +117,57 @@ export class UserService implements OnModuleInit {
         businessInfo: true,
       },
     });
+  }
+
+  /**
+   * 비밀번호 변경
+   */
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    // 사용자 조회
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다.');
+    }
+
+    // 현재 비밀번호 확인
+    const isCurrentPasswordValid = await this.validatePassword(
+      dto.currentPassword,
+      user.password,
+    );
+
+    if (!isCurrentPasswordValid) {
+      throw new BadRequestException('현재 비밀번호가 일치하지 않습니다.');
+    }
+
+    // 새 비밀번호가 현재 비밀번호와 같은지 확인
+    const isSameAsOld = await this.validatePassword(
+      dto.newPassword,
+      user.password,
+    );
+
+    if (isSameAsOld) {
+      throw new BadRequestException(
+        '새 비밀번호는 현재 비밀번호와 달라야 합니다.',
+      );
+    }
+
+    // 새 비밀번호 암호화
+    const hashedNewPassword = await bcrypt.hash(
+      dto.newPassword,
+      this.SALT_ROUNDS,
+    );
+
+    // 비밀번호 업데이트
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNewPassword,
+      },
+    });
+
+    return { success: true, message: '비밀번호가 성공적으로 변경되었습니다.' };
   }
 }

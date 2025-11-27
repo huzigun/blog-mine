@@ -66,7 +66,13 @@ const quickActions = [
     label: '새 게시글',
     icon: 'i-heroicons-plus',
     color: 'neutral' as const,
-    click: () => navigateTo('/console/posts/new'),
+    click: () => navigateTo('/console/ai-post'),
+  },
+  {
+    label: 'BloC 충전',
+    icon: 'i-heroicons-plus',
+    color: 'primary' as const,
+    click: () => navigateTo('/console/ai-post'),
   },
 ];
 
@@ -82,11 +88,11 @@ const userMenuItems = [
       icon: 'i-heroicons-credit-card',
       to: '/mypage/cards',
     },
-    {
-      label: '설정',
-      icon: 'i-heroicons-cog-6-tooth',
-      to: '/mypage/settings',
-    },
+    // {
+    //   label: '설정',
+    //   icon: 'i-heroicons-cog-6-tooth',
+    //   to: '/mypage/settings',
+    // },
   ],
   [
     {
@@ -141,7 +147,7 @@ onMounted(() => {
   >
     <!-- Main Header -->
     <div
-      class="flex h-16 items-center gap-4 px-4 dark:border-neutral-800 sm:px-6"
+      class="flex h-16 items-center gap-6 px-4 dark:border-neutral-800 sm:px-6"
     >
       <!-- Sidebar Toggle (Always Visible) -->
       <UButton
@@ -154,42 +160,8 @@ onMounted(() => {
         <UIcon name="i-heroicons-bars-3" class="h-5 w-5" />
       </UButton>
 
-      <!-- Search Bar -->
-      <div class="flex flex-1 items-center justify-end gap-3">
-        <div class="hidden w-full max-w-md sm:block">
-          <UInput
-            v-model="searchQuery"
-            type="search"
-            placeholder="검색... (⌘K)"
-            icon="i-heroicons-magnifying-glass"
-            size="md"
-            variant="soft"
-          >
-            <template #trailing>
-              <kbd
-                v-if="!searchQuery"
-                class="hidden rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-500 dark:bg-neutral-800 dark:text-neutral-400 lg:inline-block"
-              >
-                ⌘K
-              </kbd>
-            </template>
-          </UInput>
-        </div>
-
-        <!-- Mobile Search Icon -->
-        <UButton
-          color="neutral"
-          variant="ghost"
-          size="sm"
-          square
-          class="sm:hidden"
-        >
-          <UIcon name="i-heroicons-magnifying-glass" class="h-5 w-5" />
-        </UButton>
-      </div>
-
       <!-- Right Actions -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 ml-auto">
         <!-- Quick Actions -->
         <UButton
           v-for="action in quickActions"
@@ -202,14 +174,20 @@ onMounted(() => {
               action.click();
             }
           "
+          :icon="action.icon"
         >
-          <UIcon :name="action.icon" class="h-4 w-4" />
-          <span class="ml-1.5">{{ action.label }}</span>
+          {{ action.label }}
         </UButton>
 
         <!-- Notifications -->
         <UDropdownMenu :items="notificationItems">
-          <UButton color="neutral" variant="ghost" size="sm" square>
+          <UButton
+            color="neutral"
+            variant="ghost"
+            size="sm"
+            square
+            class="relative"
+          >
             <UIcon name="i-heroicons-bell" class="h-5 w-5" />
             <span
               v-if="unreadCount > 0"
@@ -239,7 +217,9 @@ onMounted(() => {
               </template>
             </UAvatar>
             <div class="hidden text-left lg:block">
-              <div class="text-sm font-medium text-neutral-900 dark:text-white">
+              <div
+                class="text-[13px] font-medium text-neutral-900 dark:text-white"
+              >
                 {{ user?.name || 'User' }}
               </div>
             </div>

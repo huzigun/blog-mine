@@ -2,12 +2,15 @@ import {
   Controller,
   Get,
   Put,
+  Post,
   Body,
   UseGuards,
   NotFoundException,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { UpdateBusinessInfoDto } from './dto';
+import { UpdateBusinessInfoDto, ChangePasswordDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
@@ -58,5 +61,18 @@ export class UserController {
     @Body() dto: UpdateBusinessInfoDto,
   ) {
     return this.userService.upsertBusinessInfo(user.id, dto);
+  }
+
+  /**
+   * 비밀번호 변경
+   * POST /user/change-password
+   */
+  @Post('change-password')
+  @HttpCode(HttpStatus.OK)
+  async changePassword(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.userService.changePassword(user.id, dto);
   }
 }

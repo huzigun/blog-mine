@@ -183,7 +183,11 @@ function getCardTypeText(cardType: string | null) {
             <div
               class="flex items-center justify-center w-10 h-10 rounded-full bg-primary/10"
             >
-              <div class="i-heroicons-credit-card text-primary text-2xl" />
+              <Icon
+                name="i-heroicons-credit-card"
+                :size="24"
+                class="text-primary"
+              />
             </div>
             <div>
               <h3 class="text-lg font-semibold">등록된 카드</h3>
@@ -325,7 +329,11 @@ function getCardTypeText(cardType: string | null) {
           <div
             class="flex items-center justify-center w-10 h-10 rounded-full bg-info/10"
           >
-            <div class="i-heroicons-information-circle text-info text-2xl" />
+            <Icon
+              name="i-heroicons-information-circle"
+              :size="24"
+              class="text-info"
+            />
           </div>
           <h3 class="text-lg font-semibold">결제 안내</h3>
         </div>
