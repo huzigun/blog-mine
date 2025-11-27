@@ -6,7 +6,7 @@ definePageMeta({
 </script>
 
 <template>
-  <div>
+  <SubscriptionGuard>
     <ComingSoon
       title="AI 이미지 생성 서비스 준비중"
       description="고품질 AI 이미지 생성 기능을 준비하고 있습니다. 블로그 포스팅에 완벽한 이미지를 자동으로 생성해드릴 예정입니다."
@@ -14,7 +14,9 @@ definePageMeta({
       :show-contact-button="true"
     >
       <template #features>
-        <div class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+        <div
+          class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+        >
           <UIcon
             name="i-heroicons-sparkles"
             class="w-8 h-8 text-primary mx-auto mb-2"
@@ -22,12 +24,12 @@ definePageMeta({
           <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
             AI 생성
           </p>
-          <p class="text-xs text-neutral-500 mt-1">
-            프롬프트 기반 이미지
-          </p>
+          <p class="text-xs text-neutral-500 mt-1">프롬프트 기반 이미지</p>
         </div>
 
-        <div class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+        <div
+          class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+        >
           <UIcon
             name="i-heroicons-adjustments-horizontal"
             class="w-8 h-8 text-primary mx-auto mb-2"
@@ -35,12 +37,12 @@ definePageMeta({
           <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
             커스터마이징
           </p>
-          <p class="text-xs text-neutral-500 mt-1">
-            스타일 및 크기 조절
-          </p>
+          <p class="text-xs text-neutral-500 mt-1">스타일 및 크기 조절</p>
         </div>
 
-        <div class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg">
+        <div
+          class="text-center p-4 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+        >
           <UIcon
             name="i-heroicons-arrow-down-tray"
             class="w-8 h-8 text-primary mx-auto mb-2"
@@ -48,9 +50,7 @@ definePageMeta({
           <p class="text-sm font-medium text-neutral-700 dark:text-neutral-300">
             다운로드
           </p>
-          <p class="text-xs text-neutral-500 mt-1">
-            고해상도 저장
-          </p>
+          <p class="text-xs text-neutral-500 mt-1">고해상도 저장</p>
         </div>
       </template>
 
@@ -72,5 +72,5 @@ definePageMeta({
         </div>
       </template>
     </ComingSoon>
-  </div>
+  </SubscriptionGuard>
 </template>

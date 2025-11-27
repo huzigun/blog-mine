@@ -212,10 +212,10 @@ const getButtonText = (plan: Plan) => {
       >
         월간 결제
       </span>
-      <UToggle
+      <USwitch
         :model-value="billingPeriod === 'yearly'"
-        on-icon="i-heroicons-calendar"
-        off-icon="i-heroicons-calendar"
+        checked-icon="i-heroicons-calendar"
+        unchecked-icon="i-heroicons-calendar"
         @update:model-value="
           (val: boolean) => (billingPeriod = val ? 'yearly' : 'monthly')
         "
@@ -419,7 +419,7 @@ const getButtonText = (plan: Plan) => {
               무료로 시작하기
             </UButton>
             <UButton
-              v-else-if="currentSubscription?.plan.name === 'FREE'"
+              v-else-if="currentSubscription?.plan?.name === 'FREE'"
               color="primary"
               size="xl"
               icon="i-heroicons-arrow-up-circle"

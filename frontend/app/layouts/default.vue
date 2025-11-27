@@ -15,6 +15,14 @@ const closeSidebar = () => {
   }
 };
 
+const {
+  isModalOpen,
+  hasActiveSubscription,
+  checkSubscription,
+  closeModal,
+  goToSubscription,
+} = useSubscriptionGuard();
+
 onMounted(() => {
   checkMobile();
   window.addEventListener('resize', checkMobile);
@@ -79,7 +87,12 @@ onUnmounted(() => {
       <ConsoleHeader />
 
       <!-- Page Content -->
-      <main class="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8">
+      <main
+        class="min-h-[calc(100vh-4rem)] p-4 sm:p-6 lg:p-8"
+        :class="{
+          relative: !hasActiveSubscription,
+        }"
+      >
         <slot />
       </main>
       <footer

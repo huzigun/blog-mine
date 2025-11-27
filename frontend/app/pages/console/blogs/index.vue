@@ -223,72 +223,74 @@ const columns: ColumnDef<KeywordTracking>[] = [
 </script>
 
 <template>
-  <section class="container mx-auto max-w-6xl">
-    <ConsoleTitle
-      title="블로그 순위 추적"
-      description="키워드별 블로그 순위를 추적하고 관리하세요"
-    />
+  <SubscriptionGuard>
+    <section class="container mx-auto max-w-6xl">
+      <ConsoleTitle
+        title="블로그 순위 추적"
+        description="키워드별 블로그 순위를 추적하고 관리하세요"
+      />
 
-    <!-- Help Section (Collapsible) -->
-    <UAccordion
-      :items="[
-        {
-          label: '추적 기능 안내',
-          icon: 'i-heroicons-information-circle',
-          slot: 'help-content',
-        },
-      ]"
-      color="primary"
-      variant="subtle"
-      class="mb-4 border border-primary/10 bg-primary/3 rounded-lg px-4"
-    >
-      <template #help-content>
-        <ul
-          class="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300 pb-4"
-        >
-          <li>
-            등록된 블로그 중 활성화된 블로그의 순위 데이터를 매일 자동으로
-            수집합니다.
-          </li>
-          <li>등록된 기간 동안 최신 순위 변화를 확인할 수 있습니다.</li>
-          <li>
-            필요할 경우 언제든지 추적을 중지해 보관함으로 이동할 수 있습니다.
-          </li>
-        </ul>
-      </template>
-    </UAccordion>
+      <!-- Help Section (Collapsible) -->
+      <UAccordion
+        :items="[
+          {
+            label: '추적 기능 안내',
+            icon: 'i-heroicons-information-circle',
+            slot: 'help-content',
+          },
+        ]"
+        color="primary"
+        variant="subtle"
+        class="mb-4 border border-primary/10 bg-primary/3 rounded-lg px-4"
+      >
+        <template #help-content>
+          <ul
+            class="list-disc list-inside space-y-2 text-sm text-gray-700 dark:text-gray-300 pb-4"
+          >
+            <li>
+              등록된 블로그 중 활성화된 블로그의 순위 데이터를 매일 자동으로
+              수집합니다.
+            </li>
+            <li>등록된 기간 동안 최신 순위 변화를 확인할 수 있습니다.</li>
+            <li>
+              필요할 경우 언제든지 추적을 중지해 보관함으로 이동할 수 있습니다.
+            </li>
+          </ul>
+        </template>
+      </UAccordion>
 
-    <div class="flex justify-between items-center py-4">
-      <!-- prettier-ignore -->
-      <div class="text-[13px]">
+      <div class="flex justify-between items-center py-4">
+        <!-- prettier-ignore -->
+        <div class="text-[13px]">
         총 <span class="text-primary font-semibold">{{ (result?.meta.total || 0).toLocaleString() }}</span>개의 블로그
       </div>
 
-      <UButton
-        icon="i-heroicons-plus"
-        size="lg"
-        color="primary"
-        @click="openAddForm"
-      >
-        새 추적 등록
-      </UButton>
-    </div>
+        <UButton
+          icon="i-heroicons-plus"
+          size="lg"
+          color="primary"
+          @click="openAddForm"
+        >
+          새 추적 등록
+        </UButton>
+      </div>
 
-    <!-- Keywords Table -->
-    <UTable
-      :data="result?.data || []"
-      :columns="columns"
-      empty="등록된 키워드 추적이 없습니다."
-    />
-
-    <div class="flex justify-center py-4">
-      <UPagination
-        v-model:page="currentPage"
-        :total="result?.meta.total || 0"
-        :items-per-page="itemsPerPage"
-        :show-edges="true"
-        :show-controls="true"
+      <!-- Keywords Table -->
+      <UTable
+        :data="result?.data || []"
+        :columns="columns"
+        empty="등록된 키워드 추적이 없습니다."
       />
-    </div>
-  </section>
+
+      <div class="flex justify-center py-4">
+        <UPagination
+          v-model:page="currentPage"
+          :total="result?.meta.total || 0"
+          :items-per-page="itemsPerPage"
+          :show-edges="true"
+          :show-controls="true"
+        />
+      </div>
+    </section>
+  </SubscriptionGuard>
 </template>
