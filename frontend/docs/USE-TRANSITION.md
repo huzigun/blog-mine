@@ -45,12 +45,12 @@ async function handleSubmit() {
 </template>
 ```
 
-### 2. useTransitionState() - Object Return
+### 2. useAsyncTransition() - Object Return
 
 Returns an object with named properties instead of a tuple.
 
 ```typescript
-export function useTransitionState(): {
+export function useAsyncTransition(): {
   isPending: Ref<boolean>
   start: StartTransition
 }
@@ -59,7 +59,7 @@ export function useTransitionState(): {
 **Usage**:
 ```vue
 <script setup lang="ts">
-const transition = useTransitionState()
+const transition = useAsyncTransition()
 
 async function handleSubmit() {
   await transition.start(async () => {

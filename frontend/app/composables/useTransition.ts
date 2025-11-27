@@ -139,7 +139,7 @@ export function useTransition(): [Ref<boolean>, StartTransition] {
  *
  * @example
  * ```ts
- * const transition = useTransitionState()
+ * const transition = useAsyncTransition()
  *
  * await transition.start(async () => {
  *   await api.call()
@@ -150,7 +150,7 @@ export function useTransition(): [Ref<boolean>, StartTransition] {
  * }
  * ```
  */
-export function useTransitionState() {
+export function useAsyncTransition() {
   const [isPending, startTransition] = useTransition()
 
   return {
