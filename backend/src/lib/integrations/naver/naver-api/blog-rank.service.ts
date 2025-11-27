@@ -1,6 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../lib/database/prisma.service';
-import { NaverApiService, BlogSearchResult } from './naver-api.service';
+import { NaverApiService } from './naver-api.service';
+
+// 크롤링 결과 타입 정의
+interface CrawledBlogResult {
+  author: string | null;
+  title: string | null;
+  link: string | null;
+  rank: number;
+}
 
 @Injectable()
 export class BlogRankService {
@@ -14,10 +22,11 @@ export class BlogRankService {
   /**
    * 특정 키워드의 블로그 순위 수집
    * @param keyword - 검색 키워드
-   * @param display - 검색 결과 수 (기본 40)
+   * @param _display - 검색 결과 수 (하위 호환성을 위해 유지, 크롤러는 고정된 결과를 반환)
    * @returns 수집된 순위 정보
    */
-  async collectBlogRanks(keyword: string, display: number = 40) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async collectBlogRanks(keyword: string, _display: number = 40) {
     const today = this.getTodayDateStr();
 
     this.logger.log(
@@ -54,18 +63,15 @@ export class BlogRankService {
       };
     }
 
-    // 2. 없으면 Naver API로 조회
-    const { total, results } = await this.naverApiService.searchBlogsByKeyword(
-      keyword,
-      display,
-    );
+    // 2. 없으면 웹 크롤링으로 조회 (Naver API 대신 실제 웹 결과 사용)
+    const results = await this.naverApiService.blogsCrawler(keyword);
 
-    // 3. KeywordDate 생성
+    // 3. KeywordDate 생성 (totalResults는 크롤링 결과 수로 설정)
     const keywordDate = await this.prisma.keywordDate.create({
       data: {
         keyword,
         dateStr: today,
-        totalResults: total,
+        totalResults: results.length,
       },
     });
 
@@ -102,44 +108,45 @@ export class BlogRankService {
   }
 
   /**
-   * 블로그 및 순위 저장
+   * 블로그 및 순위 저장 (크롤링 결과 처리)
    * @param keywordDateId - KeywordDate ID
-   * @param results - 검색 결과
+   * @param results - 크롤링 결과
    */
   private async saveBlogsAndRanks(
     keywordDateId: number,
-    results: BlogSearchResult[],
+    results: CrawledBlogResult[],
   ) {
-    // 트랜잭션으로 일괄 처리 (요약 없이 content만 저장)
+    // 트랜잭션으로 일괄 처리
     await this.prisma.$transaction(async (tx) => {
       for (const result of results) {
+        // link가 null이면 건너뛰기
+        if (!result.link) {
+          this.logger.warn(`Skipping blog rank ${result.rank}: missing link`);
+          continue;
+        }
+
         // Blog upsert (link를 unique key로 사용)
-        // 수집 시점에는 요약하지 않고 content만 저장
+        // 크롤링 데이터에는 제한된 정보만 있으므로 최소한의 정보만 저장
         const blog = await tx.blog.upsert({
           where: { link: result.link },
           update: {
-            // 기존 블로그 정보 업데이트 (summary는 유지)
-            title: result.title,
-            description: result.description,
-            bloggerName: result.bloggerName,
-            bloggerLink: result.bloggerLink,
-            postDate: result.postDate,
-            content: result.content || null,
-            // summary는 업데이트하지 않음 (기존 값 유지)
-            realUrl: result.realUrl,
+            // 기존 블로그가 있으면 title과 bloggerName만 업데이트
+            title: result.title || '제목 없음',
+            bloggerName: result.author || 'Unknown',
             lastFetchedAt: new Date(),
+            // description, bloggerLink, postDate, content, realUrl은 유지
           },
           create: {
-            // 새 블로그 생성 (summary는 null)
+            // 새 블로그 생성 (크롤링 데이터의 제한된 정보로 생성)
             link: result.link,
-            title: result.title,
-            description: result.description,
-            bloggerName: result.bloggerName,
-            bloggerLink: result.bloggerLink,
-            postDate: result.postDate,
-            content: result.content || null,
-            summary: null, // 수집 시점에는 요약하지 않음
-            realUrl: result.realUrl,
+            title: result.title || '제목 없음',
+            description: '', // 크롤링에는 description 없음
+            bloggerName: result.author || 'Unknown',
+            bloggerLink: '', // 크롤링에는 bloggerLink 없음
+            postDate: '', // 크롤링에는 postDate 없음
+            content: null, // 크롤링에는 content 없음
+            summary: null,
+            realUrl: result.link, // realUrl은 link와 동일하게 설정
             lastFetchedAt: new Date(),
           },
         });

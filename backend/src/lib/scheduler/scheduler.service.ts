@@ -16,7 +16,7 @@ export class SchedulerService {
    * 예제: 매일 kst 오전 07:00에 실행되는 작업
    * Cron 표현식을 사용하여 원하는 시간에 작업을 스케줄링할 수 있습니다.
    */
-  @Cron('0 0 7 * * *', { timeZone: 'Asia/Seoul' })
+  @Cron('0 0 7 * * *')
   async handleDailyTask() {
     this.logger.log('Daily task executed at 7 AM');
     // 구독 활성화 된 사용자 목록 가져오기

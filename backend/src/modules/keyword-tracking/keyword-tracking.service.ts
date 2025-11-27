@@ -384,10 +384,10 @@ export class KeywordTrackingService {
       };
     }
 
-    // 4. 최근 일주일 날짜 문자열 생성 (Asia/Seoul 타임존 기준)
+    // 4. 최근 일주일 날짜 문자열 생성 (Asia/Seoul 타임존 기준, 최신순)
     const today = this.dateService.now();
     const last7Days: string[] = [];
-    for (let i = 6; i >= 0; i--) {
+    for (let i = 0; i <= 6; i++) {
       const date = this.dateService.subtract(today, i, 'day');
       last7Days.push(date.format('YYYY-MM-DD'));
     }

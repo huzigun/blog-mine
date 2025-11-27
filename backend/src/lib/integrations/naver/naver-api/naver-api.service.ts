@@ -34,6 +34,8 @@ export interface BlogSearchResult {
 @Injectable()
 export class NaverApiService {
   private readonly logger = new Logger(NaverApiService.name);
+  private readonly userAgent =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1 Edg/142.0.0.0';
 
   constructor(
     private readonly httpService: HttpService,
@@ -238,5 +240,81 @@ export class NaverApiService {
    */
   private stripHtmlTags(html: string): string {
     return html.replace(/<[^>]*>/g, '').trim();
+  }
+
+  // NestJS 환경에서 사용하시는 것을 고려하여 작성합니다. (httpService 사용)
+  async blogsCrawler(keyword: string) {
+    const q = encodeURIComponent(keyword);
+    const url = `https://m.search.naver.com/search.naver?sm=tab_hty.top&ssc=tab.m_blog.all&query=${q}`;
+
+    try {
+      const { data } = await this.httpService.axiosRef.get<string>(url, {
+        headers: {
+          // 크롤링 시 User-Agent는 모바일 환경으로 유지합니다.
+          'User-Agent': this.userAgent,
+        },
+      });
+      const $ = cheerio.load(data);
+
+      // 이전과 동일하게, 개별 블로그 아이템을 감싸는 컨테이너를 선택합니다.
+      const blogItems = $(
+        '.fds-ugc-single-intention-item-list-tab .ehKpiBNGSFhS0YAl77ql',
+      );
+
+      const results: {
+        author: string | null;
+        title: string | null;
+        link: string | null;
+        rank: number;
+      }[] = [];
+
+      let rank = 1;
+      // 각 블로그 아이템을 순회하며 정보 추출
+      blogItems.each((index, element) => {
+        const $item = $(element);
+
+        // ⭐ 1. 광고 태그 확인 및 필터링
+        // data-heatmap-target="articleSourceJSX_adtag" 속성을 가진 요소를 찾습니다.
+        const isAd =
+          $item.find('[data-heatmap-target="articleSourceJSX_adtag"]').length >
+          0;
+
+        if (isAd) {
+          // 광고 아이템인 경우, 현재 루프를 건너뛰고 다음 아이템으로 이동
+          return true;
+        }
+
+        // 2. 작성자 (Author) 추출 (이전과 동일)
+        const authorElement = $item.find(
+          '.sds-comps-profile-info-title-text a',
+        );
+        const author = authorElement.find('span').text().trim() || null;
+
+        // 3. 제목 (Title) 및 링크 (Link) 추출
+        // 제목을 감싸고 있는 <a> 태그를 정확히 선택합니다.
+        // .YCo7LmMCOpaHxE7wX0Fr 은 게시글 내용 전체를 담는 컨테이너입니다.
+        const titleLinkElement = $item
+          .find('.YCo7LmMCOpaHxE7wX0Fr a.bptVF1SgHzUVp98UnCKw')
+          .first();
+
+        const title = titleLinkElement.find('span').text().trim() || null;
+        const link = titleLinkElement.attr('href') || null;
+
+        // 추출된 정보를 결과 배열에 추가
+        if (author || title || link) {
+          results.push({
+            author,
+            title,
+            link,
+            rank: rank,
+          });
+          rank++;
+        }
+      });
+      return results;
+    } catch (error) {
+      console.error('크롤링 중 오류 발생:', error);
+      return [];
+    }
   }
 }
