@@ -55,9 +55,13 @@ const handleSubmit = (event: FormSubmitEvent<FormState>) => {
         emit('close', true);
       },
 
-      onError(error) {
+      onError(error: any) {
+        const errorMessage =
+          error.response?._data?.message ||
+          '블로그 순위 추적 등록에 실패했습니다.';
+
         toast.add({
-          title: error.message || '블로그 순위 추적 등록에 실패했습니다.',
+          title: errorMessage,
           color: 'error',
         });
       },

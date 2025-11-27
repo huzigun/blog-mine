@@ -30,14 +30,11 @@ export type UpdatePersonaSchema = z.infer<typeof updatePersonaSchema>;
 export const genderOptions = ['남성', '여성', '기타'];
 
 export const blogStyleOptions = [
-  '친근한',
-  '전문적인',
-  '유머러스',
-  '감성적인',
-  '간결한',
-  '상세한',
-  '캐주얼',
-  '공식적인',
+  '따뜻한 공감형',
+  '객관 정보형',
+  '유머∙위트형',
+  '전문가 신뢰형',
+  '브랜드 큐레이션형',
 ];
 
 export const blogToneOptions = [

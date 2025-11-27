@@ -31,6 +31,12 @@ export const fieldConfigsByType: Record<
         required: true,
       },
       {
+        name: 'placeUrl',
+        label: '플레이스 정보 링크',
+        type: 'text',
+        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
+      },
+      {
         name: 'visitDate',
         label: '방문 시간대',
         type: 'text',
@@ -70,6 +76,12 @@ export const fieldConfigsByType: Record<
         type: 'text',
         placeholder: '방문한 장소의 이름을 입력해주세요',
         required: true,
+      },
+      {
+        name: 'placeUrl',
+        label: '플레이스 정보 링크',
+        type: 'text',
+        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
       },
       {
         name: 'visitDate',
@@ -166,6 +178,12 @@ export const fieldConfigsByType: Record<
         required: true,
       },
       {
+        name: 'placeUrl',
+        label: '플레이스 정보 링크',
+        type: 'text',
+        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
+      },
+      {
         name: 'extra',
         label: '추가 정보',
         type: 'textarea',
@@ -222,6 +240,12 @@ export const fieldConfigsByType: Record<
         type: 'text',
         placeholder:
           '참고하거나 소개할 병원 또는 의료 기관의 이름을 알려주세요',
+      },
+      {
+        name: 'placeUrl',
+        label: '플레이스 정보 링크',
+        type: 'text',
+        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
       },
       {
         name: 'extra',

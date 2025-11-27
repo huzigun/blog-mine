@@ -3,6 +3,7 @@ import {
   NotFoundException,
   ConflictException,
   ForbiddenException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import {
@@ -12,9 +13,11 @@ import {
 } from './dto';
 import { DateService } from '@lib/date';
 import { BlogRankService } from '@lib/integrations/naver/naver-api/blog-rank.service';
+import { SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class KeywordTrackingService {
+  private logger = new Logger(KeywordTrackingService.name);
   constructor(
     private prisma: PrismaService,
     private dateService: DateService,
@@ -266,7 +269,9 @@ export class KeywordTrackingService {
     const activeSubscription = await this.prisma.userSubscription.findFirst({
       where: {
         userId,
-        status: 'ACTIVE',
+        status: {
+          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+        },
         expiresAt: { gte: new Date() }, // 만료되지 않은 구독만
       },
       select: {

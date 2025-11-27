@@ -12,6 +12,7 @@ import {
   Query,
   ParseIntPipe,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { KeywordTrackingService } from './keyword-tracking.service';
 import {
@@ -28,6 +29,7 @@ import { NaverApiService } from '@lib/integrations/naver/naver-api/naver-api.ser
 @Controller('keyword-tracking')
 @UseGuards(JwtAuthGuard)
 export class KeywordTrackingController {
+  private logger = new Logger(KeywordTrackingController.name);
   constructor(
     private keywordTrackingService: KeywordTrackingService,
     private naverApiService: NaverApiService,

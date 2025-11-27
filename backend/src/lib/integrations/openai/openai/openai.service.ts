@@ -1,3 +1,7 @@
+import {
+  CrawlerService,
+  PlaceInfo,
+} from '@lib/integrations/naver/naver-api/crawler.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Persona } from '@prisma/client';
@@ -56,7 +60,10 @@ export class OpenAIService {
     'Q&A 형식으로 독자의 궁금증을 하나씩 해결하는 방식',
   ];
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private crawler: CrawlerService,
+  ) {
     const apiKey = this.configService.get<string>('OPENAI_API_KEY');
 
     if (!apiKey) {
@@ -105,12 +112,36 @@ export class OpenAIService {
       );
     }
 
+    let placeInfo: PlaceInfo | null = null;
+    if (request.additionalFields && request.additionalFields['placeUrl']) {
+      try {
+        const url = new URL(request.additionalFields['placeUrl']);
+        const paths = url.pathname.split('/');
+        const targetId = paths[paths.length - 1];
+        this.logger.debug(`Fetching place info for placeId: ${targetId}`);
+        placeInfo = await this.crawler.getPlaceInfo(targetId);
+        if (placeInfo) {
+          this.logger.debug(
+            `Place info retrieved: ${placeInfo.name} (${placeInfo.menu?.length || 0} menu items)`,
+          );
+        }
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+        this.logger.error(
+          `Failed to fetch place info: ${errorMessage}`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        // 플레이스 정보 없이도 원고 생성은 계속 진행
+      }
+    }
+
     const systemPrompt = this.getSystemPrompt();
     const referencePrompt = this.buildReferencePrompt(
       request.referenceContents,
       request.keyword,
     );
-    const userPrompt = this.buildPrompt(request);
+    const userPrompt = this.buildPrompt(request, placeInfo);
     const fullPrompt =
       systemPrompt + '\n\n' + referencePrompt + '\n\n' + userPrompt;
 
@@ -310,7 +341,10 @@ export class OpenAIService {
   /**
    * 사용자 프롬프트 생성
    */
-  private buildPrompt(request: GeneratePostRequest): string {
+  private buildPrompt(
+    request: GeneratePostRequest,
+    placeInfo: PlaceInfo | null = null,
+  ): string {
     let prompt = `[원고 정보 입력]\n\n`;
     prompt += `- 글 종류: ${request.postType}\n`;
     prompt += `- 주요 키워드: ${request.keyword}\n`;
@@ -336,6 +370,54 @@ export class OpenAIService {
     }
 
     prompt += `\n---\n\n`;
+
+    // 플레이스 상세 정보 (크롤링 데이터)
+    if (placeInfo) {
+      prompt += `[방문 매장 상세 정보]\n\n`;
+      prompt += `※ 아래 정보는 네이버 플레이스에서 수집한 실제 매장 정보입니다. 글 작성 시 반드시 참고하세요.\n\n`;
+
+      prompt += `• 매장명: ${placeInfo.name}\n`;
+
+      if (placeInfo.tags && placeInfo.tags.length > 0) {
+        prompt += `• 카테고리: ${placeInfo.tags.join(', ')}\n`;
+      }
+
+      if (placeInfo.contact) {
+        prompt += `• 전화번호: ${placeInfo.contact}\n`;
+      }
+
+      if (placeInfo.reviews && placeInfo.reviews.length > 0) {
+        prompt += `• 리뷰 현황: ${placeInfo.reviews.join(' | ')}\n`;
+      }
+
+      if (placeInfo.service) {
+        prompt += `• 제공 서비스: ${placeInfo.service}\n`;
+      }
+
+      if (placeInfo.topics && placeInfo.topics.length > 0) {
+        prompt += `• 인기 토픽 키워드: ${placeInfo.topics.join(', ')}\n`;
+      }
+
+      // 메뉴 정보 (가장 중요한 정보)
+      if (placeInfo.menu && placeInfo.menu.length > 0) {
+        prompt += `\n• 메뉴 목록:\n`;
+        placeInfo.menu.forEach((menuItem, index) => {
+          prompt += `  ${index + 1}. ${menuItem.name} - ${menuItem.priceText}\n`;
+        });
+      }
+
+      if (placeInfo.imageUrl) {
+        prompt += `\n• 대표 이미지: ${placeInfo.imageUrl}\n`;
+      }
+
+      prompt += `\n💡 작성 가이드:\n`;
+      prompt += `- 위 정보를 바탕으로 실제 방문한 것처럼 생생하고 구체적으로 작성하세요.\n`;
+      prompt += `- 메뉴와 가격은 정확하게 언급하되, 자연스럽게 녹여쓰세요.\n`;
+      prompt += `- 인기 토픽 키워드를 활용하여 독자의 관심사를 반영하세요.\n`;
+      prompt += `- 리뷰 현황을 참고하여 매장의 인기도를 은연중에 전달하세요.\n`;
+
+      prompt += `\n---\n\n`;
+    }
 
     // 페르소나 정보 (원고 정보 입력 다음에 배치)
     prompt += `[페르소나]\n\n`;
@@ -385,8 +467,17 @@ export class OpenAIService {
     prompt += `4. ${request.postType}의 작성 목적에 충실하며, 실제 방문 또는 이용한 사용자 관점에서 자연스럽고 구체적으로 묘사한다.\n`;
     prompt += `5. 강조가 필요한 부분은 <strong> 태그 사용.\n`;
 
-    // 플레이스 링크가 있는 경우 특별 지침
-    if (request.additionalFields && request.additionalFields.placeLink) {
+    // 플레이스 정보가 있는 경우 특별 지침
+    if (placeInfo) {
+      prompt += `6. [방문 매장 상세 정보]에 제공된 실제 데이터를 적극 활용한다:\n`;
+      prompt += `   - 메뉴명과 가격은 정확하게 언급하되 자연스러운 문맥으로 녹여쓴다.\n`;
+      prompt += `   - 인기 토픽 키워드를 활용하여 독자가 궁금해할 내용을 다룬다.\n`;
+      prompt += `   - 리뷰 현황을 참고하여 매장의 신뢰도와 인기를 간접적으로 전달한다.\n`;
+      prompt += `   - 카테고리와 서비스 정보를 바탕으로 매장 특징을 구체적으로 묘사한다.\n`;
+      prompt += `7. 메뉴 설명 시 구체적인 가격대와 특징을 함께 언급하여 정보성을 높인다.\n`;
+      prompt += `8. 태그(tags)는 매장 정보, 메뉴, 인기 토픽을 반영하여 30개 생성하며 "#단어" 형태를 따른다.\n`;
+      prompt += `9. 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
+    } else if (request.additionalFields && request.additionalFields.placeLink) {
       prompt += `6. 플레이스 링크 정보는 반드시 실제 확인한 내용만 반영한다 (메뉴·가격·위치·주차·영업시간 등).\n`;
       prompt += `7. 태그(tags)는 글 내용과 SEO에 맞게 30개 생성하며 "#단어" 형태를 따른다.\n`;
       prompt += `8. 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
