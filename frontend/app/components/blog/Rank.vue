@@ -44,12 +44,6 @@ const chartOptions = computed(() => {
     a.dateStr.localeCompare(b.dateStr),
   );
 
-  // null이 아닌 순위만 추출하여 최대값 계산
-  const validRanks = sortedHistory
-    .map((item) => item.rank)
-    .filter((rank): rank is number => rank !== null);
-  const maxRank = validRanks.length > 0 ? Math.max(...validRanks) : 10;
-
   return {
     chart: {
       id: 'rank-chart',
@@ -60,10 +54,22 @@ const chartOptions = computed(() => {
       zoom: {
         enabled: false,
       },
+      background: 'transparent',
+      fontFamily: 'inherit',
     },
     stroke: {
       curve: 'smooth' as const,
       width: 3,
+      lineCap: 'round' as const,
+    },
+    markers: {
+      size: 6, // 마커 크기
+      colors: ['#3B82F6'], // 마커 색상
+      strokeColors: '#fff', // 마커 테두리 색상
+      strokeWidth: 2, // 마커 테두리 두께
+      hover: {
+        size: 8, // 호버 시 마커 크기
+      },
     },
     xaxis: {
       categories: sortedHistory.map((item) => {
@@ -73,24 +79,88 @@ const chartOptions = computed(() => {
       }),
       title: {
         text: '날짜',
+        style: {
+          fontSize: '12px',
+          fontWeight: 500,
+        },
+      },
+      labels: {
+        style: {
+          fontSize: '11px',
+        },
+      },
+      axisBorder: {
+        show: true,
+        color: '#e5e7eb',
+      },
+      axisTicks: {
+        show: true,
+        color: '#e5e7eb',
       },
     },
     yaxis: {
       reversed: true, // 순위는 숫자가 작을수록 좋으므로 Y축 반전
       title: {
         text: '순위',
+        style: {
+          fontSize: '12px',
+          fontWeight: 500,
+        },
       },
       min: 1,
-      max: maxRank + 5,
+      max: 30, // Y축을 30위까지 고정
+      tickAmount: 5, // Y축 눈금 개수
+      labels: {
+        style: {
+          fontSize: '11px',
+        },
+        formatter: (value: number) => {
+          // 정수로만 표시
+          return Math.round(value).toString();
+        },
+      },
+    },
+    grid: {
+      borderColor: '#f3f4f6',
+      strokeDashArray: 3,
+      xaxis: {
+        lines: {
+          show: true,
+        },
+      },
+      yaxis: {
+        lines: {
+          show: true,
+        },
+      },
+      padding: {
+        top: 10,
+        right: 10,
+        bottom: 10,
+        left: 10,
+      },
     },
     tooltip: {
+      enabled: true,
+      shared: false,
+      intersect: true,
+      theme: 'light',
       y: {
-        formatter: (value: number) => `${value}위`,
+        formatter: (value: number) => {
+          // 30위는 "순위 없음"으로 표시
+          return value === 30 ? '순위 없음' : `${value}위`;
+        },
+        title: {
+          formatter: () => '순위',
+        },
+      },
+      marker: {
+        show: true,
       },
     },
     colors: ['#3B82F6'], // primary color
     dataLabels: {
-      enabled: true,
+      enabled: false, // 데이터 라벨 비활성화 (깔끔한 디자인)
     },
   };
 });
@@ -106,7 +176,8 @@ const chartSeries = computed(() => {
   return [
     {
       name: '순위',
-      data: sortedHistory.map((item) => item.rank),
+      // null 값은 30(맨 아래)으로 변환
+      data: sortedHistory.map((item) => item.rank ?? 30),
     },
   ];
 });

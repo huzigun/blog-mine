@@ -130,14 +130,16 @@ export class NaverApiService {
     title: string;
     content: string;
     blogDate: string;
+    description: string;
     url: string;
   }> {
     try {
-      const mainFrameUrl = this.extractNaverBlogFrameUrl(url);
+      // const mainFrameUrl = this.extractNaverBlogFrameUrl(url);
+      // this.logger.debug(`main: ${mainFrameUrl}, url: ${url}`);
 
       const finalHtml = await firstValueFrom(
         this.httpService
-          .get<string>(mainFrameUrl || url, {
+          .get<string>(url, {
             responseType: 'text',
             headers: {
               'User-Agent':
@@ -181,16 +183,19 @@ export class NaverApiService {
       // const nickname = $$('.nick')?.text().trim() || 'Unknown';
       const finalNickname =
         $$('meta[property="naverblog:nickname"]').attr('content') || 'Unknown';
+      const description =
+        $$('meta[property="og:description"]').attr('content') || 'Unknown';
 
-      const blogDate = $$('.blog_date')?.text().trim() || 'No Date';
+      const blogDate = $$('.blog_authorArea p')?.text().trim() || 'No Date';
 
       return {
         success: true,
         nickname: finalNickname,
         title,
         content,
+        description,
         blogDate,
-        url: mainFrameUrl || url,
+        url,
       };
     } catch (error) {
       this.logger.warn(`Failed to fetch content from ${url}: ${error.message}`);
@@ -200,6 +205,7 @@ export class NaverApiService {
         nickname: 'Unknown',
         title: 'No Title',
         content: '',
+        description: '',
         blogDate: 'No Date',
         url,
       };
@@ -263,8 +269,10 @@ export class NaverApiService {
 
       // 이전과 동일하게, 개별 블로그 아이템을 감싸는 컨테이너를 선택합니다.
       const blogItems = $(
-        '.fds-ugc-single-intention-item-list-tab .ehKpiBNGSFhS0YAl77ql',
+        '.sds-comps-vertical-layout>a[href^="https://m.blog.naver.com/"]',
       );
+
+      this.logger.debug(`블로그 아이탬스 ${blogItems.length}`);
 
       const results: {
         author: string | null;
@@ -294,36 +302,49 @@ export class NaverApiService {
           continue;
         }
 
+        const link = $item.attr('href');
+
+        if (!link) {
+          continue;
+        }
+
+        const exist = results.find((el) => el.link === link);
+
+        if (exist) {
+          continue;
+        }
+
         // 2. 작성자 (Author) 추출 (이전과 동일)
-        const authorElement = $item.find(
-          '.sds-comps-profile-info-title-text a',
-        );
-        const author = authorElement.find('span').text().trim() || null;
+        // const authorElement = $item.find(
+        //   '.sds-comps-profile-info-title-text a',
+        // );
+        // const author = authorElement.find('span').text().trim() || null;
 
         // 3. 제목 (Title) 및 링크 (Link) 추출
         // 제목을 감싸고 있는 <a> 태그를 정확히 선택합니다.
         // .YCo7LmMCOpaHxE7wX0Fr 은 게시글 내용 전체를 담는 컨테이너입니다.
-        const titleLinkElement = $item
-          .find('.YCo7LmMCOpaHxE7wX0Fr a.bptVF1SgHzUVp98UnCKw')
-          .first();
+        // const titleLinkElement = $item
+        //   .find('.YCo7LmMCOpaHxE7wX0Fr a.bptVF1SgHzUVp98UnCKw')
+        //   .first();
 
         // 4. 요약 (Description) 추출
-        const descriptionElement = $item
-          .find('.RBG98J1qM1Bx_drC9bWN .fds-ugc-ellipsis2')
-          .first();
+        // const descriptionElement = $item
+        //   .find('.RBG98J1qM1Bx_drC9bWN .fds-ugc-ellipsis2')
+        //   .first();
 
-        const title = titleLinkElement.find('span').text().trim() || null;
-        const link = titleLinkElement.attr('href') || '';
-        const description = descriptionElement.text()?.trim() || '';
+        // const title = titleLinkElement.find('span').text().trim() || null;
+        // const link = titleLinkElement.attr('href') || '';
+
+        // const description = descriptionElement.text()?.trim() || '';
         const detail = await this.getBlogContent(link);
 
         // 추출된 정보를 결과 배열에 추가
-        if (author || title || link) {
+        if (detail.nickname || detail.title) {
           results.push({
-            author,
-            title,
+            author: detail.nickname,
+            title: detail.title,
             link,
-            description,
+            description: detail.description,
             rank: rank,
             content: detail.content,
             date: detail.blogDate,

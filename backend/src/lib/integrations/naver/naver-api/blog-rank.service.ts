@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../../../lib/database/prisma.service';
 import { NaverApiService } from './naver-api.service';
+import { DateService } from '@lib/date/date.service';
 
 // 크롤링 결과 타입 정의
 interface CrawledBlogResult {
@@ -20,6 +21,7 @@ export class BlogRankService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly naverApiService: NaverApiService,
+    private readonly dateService: DateService,
   ) {}
 
   /**
@@ -103,82 +105,121 @@ export class BlogRankService {
     results: CrawledBlogResult[],
   ) {
     // 트랜잭션으로 일괄 처리
-    await this.prisma.$transaction(async (tx) => {
-      for (const result of results) {
-        // link가 null이면 건너뛰기
-        if (!result.link || !result.title || !result.author) {
-          this.logger.warn(`Skipping blog rank ${result.rank}: missing link`);
-          continue;
+    for (const result of results) {
+      // link가 null이면 건너뛰기
+      if (!result.link || !result.title || !result.author) {
+        this.logger.warn(`Skipping blog rank ${result.rank}: missing link`);
+        continue;
+      }
+
+      let naverBlogId = '';
+      try {
+        const url = new URL(result.link);
+        const paths = url.pathname.split('/');
+        naverBlogId = paths[paths.length - 1];
+      } catch {
+        naverBlogId = result.link;
+      }
+
+      // 상대 시간 문자열을 날짜로 변환 (예: "1시간 전", "3분 전", "1일 전")
+      if (result.date && result.date.includes('전')) {
+        const relativeTimeMatch = result.date.match(/(\d+)(분|시간|일)\s*전/);
+        if (relativeTimeMatch) {
+          const amount = parseInt(relativeTimeMatch[1], 10);
+          const unit = relativeTimeMatch[2];
+
+          let convertedDate = this.dateService.now();
+
+          // 단위에 따라 시간 빼기
+          if (unit === '분') {
+            convertedDate = this.dateService.subtract(
+              convertedDate,
+              amount,
+              'minute',
+            );
+          } else if (unit === '시간') {
+            convertedDate = this.dateService.subtract(
+              convertedDate,
+              amount,
+              'hour',
+            );
+          } else if (unit === '일') {
+            convertedDate = this.dateService.subtract(
+              convertedDate,
+              amount,
+              'day',
+            );
+          }
+
+          // YYYY-MM-DD HH:mm 형식으로 변환
+          result.date = this.dateService.formatDateTime(
+            convertedDate,
+            'YYYY-MM-DD HH:mm',
+          );
         }
+      }
 
-        let naverBlogId = '';
-        try {
-          const url = new URL(result.link);
-          const paths = url.pathname.split('/');
-          naverBlogId = paths[paths.length - 1];
-        } catch (error) {
-          naverBlogId = result.link;
-        }
+      try {
+        // Blog upsert (link를 unique key로 사용)
+        // 크롤링 데이터에는 제한된 정보만 있으므로 최소한의 정보만 저장
+        const blog = await this.prisma.blog.upsert({
+          where: { link: naverBlogId },
+          update: {
+            // 기존 블로그가 있으면 title과 bloggerName만 업데이트
+            title: result.title || '제목 없음',
+            description: result.description,
+            content: result.content,
+            lastFetchedAt: new Date(),
+            postDate: result.date,
+            // description, bloggerLink, postDate, content, realUrl은 유지
+          },
+          create: {
+            // 새 블로그 생성 (크롤링 데이터의 제한된 정보로 생성)
+            link: naverBlogId,
+            title: result.title,
+            description: result.description,
+            bloggerName: result.author,
+            bloggerLink: '', // 크롤링에는 bloggerLink 없음
+            postDate: result.date, // 크롤링에는 postDate 없음
+            content: result.content,
+            summary: null,
+            realUrl: result.link, // realUrl은 link와 동일하게 설정
+            lastFetchedAt: new Date(),
+          },
+        });
 
-        try {
-          // Blog upsert (link를 unique key로 사용)
-          // 크롤링 데이터에는 제한된 정보만 있으므로 최소한의 정보만 저장
-          this.logger.debug(`Upsert ${result.title}`);
-          const blog = await tx.blog.upsert({
-            where: { link: naverBlogId },
-            update: {
-              // 기존 블로그가 있으면 title과 bloggerName만 업데이트
-              title: result.title || '제목 없음',
-              bloggerName: result.author || 'Unknown',
-              lastFetchedAt: new Date(),
-              // description, bloggerLink, postDate, content, realUrl은 유지
-            },
-            create: {
-              // 새 블로그 생성 (크롤링 데이터의 제한된 정보로 생성)
-              link: naverBlogId,
-              title: result.title,
-              description: result.description, // 크롤링에는 description 없음
-              bloggerName: result.author,
-              bloggerLink: '', // 크롤링에는 bloggerLink 없음
-              postDate: result.date, // 크롤링에는 postDate 없음
-              content: result.content, // 크롤링에는 content 없음
-              summary: null,
-              realUrl: result.link, // realUrl은 link와 동일하게 설정
-              lastFetchedAt: new Date(),
-            },
-          });
-
-          await tx.blogRank.upsert({
-            where: {
-              keywordDateId_blogId: {
-                keywordDateId,
-                blogId: blog.id,
-              },
-            },
-            update: {
-              rank: result.rank, // 랭크 업데이트
-            },
-            create: {
+        await this.prisma.blogRank.upsert({
+          where: {
+            keywordDateId_blogId: {
               keywordDateId,
               blogId: blog.id,
-              rank: result.rank, // 랭크 생성
             },
-          });
-        } catch (error) {
-          this.logger.error(error);
-        }
-
-        await new Promise((resolve) => {
-          setTimeout(() => {
-            resolve(true);
-          }, 100);
-        }); // 수집 차단 방지용 대기
-
-        // this.logger.debug(
-        //   `Saved blog rank ${result.rank} for "${result.title}" (blog_id: ${blog.id})`,
-        // );
+          },
+          update: {
+            rank: result.rank, // 랭크 업데이트
+          },
+          create: {
+            keywordDateId,
+            blogId: blog.id,
+            rank: result.rank, // 랭크 생성
+          },
+        });
+      } catch (error) {
+        this.logger.error(error);
       }
-    });
+
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      }); // 수집 차단 방지용 대기
+
+      // this.logger.debug(
+      //   `Saved blog rank ${result.rank} for "${result.title}" (blog_id: ${blog.id})`,
+      // );
+    }
+    // await this.prisma.$transaction(async (tx) => {
+    // });
   }
 
   /**

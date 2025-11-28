@@ -38,7 +38,11 @@ export class AuthService {
     private readonly verificationCodeService: VerificationCodeService,
   ) {}
 
-  async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
+  async register(
+    registerDto: RegisterDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<AuthResponseDto> {
     const { email, password, name, emailVerified } = registerDto;
 
     // 이메일 인증 확인
@@ -146,7 +150,11 @@ export class AuthService {
 
     // JWT 토큰 생성
     const accessToken = await this.generateAccessToken(result.id);
-    const refreshToken = await this.generateRefreshToken(result.id);
+    const refreshToken = await this.generateRefreshToken(
+      result.id,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       accessToken,
@@ -159,7 +167,11 @@ export class AuthService {
     };
   }
 
-  async login(loginDto: LoginDto): Promise<AuthResponseDto> {
+  async login(
+    loginDto: LoginDto,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<AuthResponseDto> {
     const { email, password } = loginDto;
 
     // 사용자 조회
@@ -182,7 +194,11 @@ export class AuthService {
 
     // JWT 토큰 생성
     const accessToken = await this.generateAccessToken(user.id);
-    const refreshToken = await this.generateRefreshToken(user.id);
+    const refreshToken = await this.generateRefreshToken(
+      user.id,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       accessToken,
@@ -195,13 +211,26 @@ export class AuthService {
     };
   }
 
-  async logout(userId: number): Promise<{ message: string }> {
-    // Refresh token 삭제
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
-
-    this.logger.log(`User logged out: ${userId}`);
+  async logout(
+    userId: number,
+    refreshToken?: string,
+  ): Promise<{ message: string }> {
+    if (refreshToken) {
+      // 특정 디바이스(토큰)만 로그아웃
+      await this.prisma.refreshToken.deleteMany({
+        where: {
+          userId,
+          token: refreshToken,
+        },
+      });
+      this.logger.log(`User logged out from specific device: ${userId}`);
+    } else {
+      // 모든 디바이스에서 로그아웃 (기존 동작 유지)
+      await this.prisma.refreshToken.deleteMany({
+        where: { userId },
+      });
+      this.logger.log(`User logged out from all devices: ${userId}`);
+    }
 
     return {
       message: 'Successfully logged out',
@@ -230,6 +259,12 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired');
     }
 
+    // 토큰 사용 시간 업데이트
+    await this.prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { lastUsedAt: new Date() },
+    });
+
     // 새로운 access token 생성
     const accessToken = await this.generateAccessToken(storedToken.userId);
 
@@ -248,26 +283,66 @@ export class AuthService {
     return this.jwtService.signAsync(payload);
   }
 
-  private async generateRefreshToken(userId: number): Promise<string> {
-    // 기존 refresh token 삭제 (한 사용자당 하나만 유지)
-    await this.prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
-
-    // 새로운 refresh token 생성
+  private async generateRefreshToken(
+    userId: number,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<string> {
+    // 새로운 refresh token 생성 (중복 로그인 허용 - 기존 토큰 삭제하지 않음)
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.REFRESH_TOKEN_EXPIRY_DAYS);
+
+    // User-Agent에서 디바이스 이름 추출
+    const deviceName = this.extractDeviceName(userAgent);
 
     await this.prisma.refreshToken.create({
       data: {
         token,
         userId,
         expiresAt,
+        ipAddress,
+        userAgent,
+        deviceName,
       },
     });
 
     return token;
+  }
+
+  /**
+   * User-Agent에서 간단한 디바이스 이름 추출
+   */
+  private extractDeviceName(userAgent?: string): string | null {
+    if (!userAgent) return null;
+
+    // 브라우저 감지
+    let browser = 'Unknown Browser';
+    if (userAgent.includes('Chrome') && !userAgent.includes('Edg')) {
+      browser = 'Chrome';
+    } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+      browser = 'Safari';
+    } else if (userAgent.includes('Firefox')) {
+      browser = 'Firefox';
+    } else if (userAgent.includes('Edg')) {
+      browser = 'Edge';
+    }
+
+    // OS 감지
+    let os = 'Unknown OS';
+    if (userAgent.includes('Windows')) {
+      os = 'Windows';
+    } else if (userAgent.includes('Mac OS X')) {
+      os = 'macOS';
+    } else if (userAgent.includes('Linux')) {
+      os = 'Linux';
+    } else if (userAgent.includes('Android')) {
+      os = 'Android';
+    } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+      os = 'iOS';
+    }
+
+    return `${browser} on ${os}`;
   }
 
   /**

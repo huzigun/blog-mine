@@ -20,7 +20,7 @@ export class BlogPostService {
   private readonly BATCH_SIZE = 5; // 동시 생성할 원고 개수 (캐싱 효과 + Rate Limit 고려)
 
   // BloC 비용 정의 (원고당 고정 비용)
-  private readonly CREDIT_COST_PER_POST = 1; // 원고 1개당 1 BloC
+  private readonly CREDIT_COST_PER_POST = 5; // 원고 1개당 1 BloC
 
   constructor(
     private readonly prisma: PrismaService,
@@ -127,14 +127,14 @@ export class BlogPostService {
     }
 
     // 6. 백그라운드에서 원고 생성 시작 (비동기)
-    this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
-      (error) => {
-        this.logger.error(
-          `Failed to generate posts for blogPost ${blogPost.id}:`,
-          error.stack,
-        );
-      },
-    );
+    // this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
+    //   (error) => {
+    //     this.logger.error(
+    //       `Failed to generate posts for blogPost ${blogPost.id}:`,
+    //       error.stack,
+    //     );
+    //   },
+    // );
 
     return blogPost;
   }

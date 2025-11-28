@@ -34,6 +34,7 @@ export default defineNuxtConfig({
   },
 
   icon: {
-    localApiEndpoint: '_nuxt_icon',
+    provider: 'iconify',
+    serverBundle: false,
   },
 });

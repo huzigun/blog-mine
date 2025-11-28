@@ -62,10 +62,18 @@ model RefreshToken {
   token     String   @unique
   userId    Int      @map("user_id")
   expiresAt DateTime @map("expires_at")
+
+  // 디바이스 정보
+  ipAddress String?  @map("ip_address") // IP 주소
+  userAgent String?  @map("user_agent") @db.Text // User-Agent 문자열
+  deviceName String? @map("device_name") // 디바이스 이름 (예: "Chrome on Windows")
+  lastUsedAt DateTime @default(now()) @map("last_used_at") // 마지막 사용 시간
+
   createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId]) // 사용자별 토큰 조회 최적화
   @@map("refresh_tokens")
 }
 

@@ -99,7 +99,7 @@ const columns: ColumnDef<KeywordTracking>[] = [
   },
   {
     accessorKey: 'title',
-    header: '블로그 URL',
+    header: '블로그 제목',
     cell: ({ row }) => {
       const title = row.getValue('title') as string;
       const url = row.original.myBlogUrl;
