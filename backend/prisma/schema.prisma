@@ -701,3 +701,42 @@ enum ContactStatus {
   RESOLVED    // 해결됨
   CLOSED      // 종료됨
 }
+
+// 스케줄러 작업 실행 로그
+model SchedulerLog {
+  id       Int      @id @default(autoincrement())
+  taskName String   @map("task_name") // 작업 이름 (예: 'daily-blog-rank-collection')
+  status   SchedulerTaskStatus @default(RUNNING) // 작업 상태
+
+  // 실행 정보
+  startedAt   DateTime  @default(now()) @map("started_at") // 작업 시작 시간
+  completedAt DateTime? @map("completed_at") // 작업 완료 시간
+  duration    Int?      @map("duration") // 실행 시간 (밀리초)
+
+  // 작업 결과
+  totalItems     Int? @map("total_items") // 처리할 전체 항목 수
+  processedItems Int? @default(0) @map("processed_items") // 처리된 항목 수
+  successItems   Int? @default(0) @map("success_items") // 성공한 항목 수
+  failedItems    Int? @default(0) @map("failed_items") // 실패한 항목 수
+
+  // 상세 정보
+  message  String? @db.Text // 작업 메시지 또는 에러 메시지
+  metadata Json? // 추가 메타데이터 (처리된 키워드 목록, 에러 상세 등)
+
+  // 메타데이터
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([taskName, startedAt])
+  @@index([status, startedAt])
+  @@index([startedAt])
+  @@map("scheduler_logs")
+}
+
+// 스케줄러 작업 상태
+enum SchedulerTaskStatus {
+  RUNNING   // 실행 중
+  COMPLETED // 정상 완료
+  FAILED    // 실패
+  PARTIAL   // 부분 성공 (일부 항목 실패)
+}
