@@ -129,6 +129,7 @@ export class NaverApiService {
     nickname: string;
     title: string;
     content: string;
+    blogDate: string;
     url: string;
   }> {
     try {
@@ -181,11 +182,14 @@ export class NaverApiService {
       const finalNickname =
         $$('meta[property="naverblog:nickname"]').attr('content') || 'Unknown';
 
+      const blogDate = $$('.blog_date')?.text().trim() || 'No Date';
+
       return {
         success: true,
         nickname: finalNickname,
         title,
         content,
+        blogDate,
         url: mainFrameUrl || url,
       };
     } catch (error) {
@@ -196,6 +200,7 @@ export class NaverApiService {
         nickname: 'Unknown',
         title: 'No Title',
         content: '',
+        blogDate: 'No Date',
         url,
       };
     }
@@ -265,13 +270,18 @@ export class NaverApiService {
         author: string | null;
         title: string | null;
         link: string | null;
+        description: string;
+        content: string;
+        date: string;
         rank: number;
       }[] = [];
 
       let rank = 1;
       // 각 블로그 아이템을 순회하며 정보 추출
-      blogItems.each((index, element) => {
-        const $item = $(element);
+      // blogItems.each((index, element) => {});
+
+      for (let i = 0; i < blogItems.length; i++) {
+        const $item = $(blogItems[i]);
 
         // ⭐ 1. 광고 태그 확인 및 필터링
         // data-heatmap-target="articleSourceJSX_adtag" 속성을 가진 요소를 찾습니다.
@@ -281,7 +291,7 @@ export class NaverApiService {
 
         if (isAd) {
           // 광고 아이템인 경우, 현재 루프를 건너뛰고 다음 아이템으로 이동
-          return true;
+          continue;
         }
 
         // 2. 작성자 (Author) 추출 (이전과 동일)
@@ -297,8 +307,15 @@ export class NaverApiService {
           .find('.YCo7LmMCOpaHxE7wX0Fr a.bptVF1SgHzUVp98UnCKw')
           .first();
 
+        // 4. 요약 (Description) 추출
+        const descriptionElement = $item
+          .find('.RBG98J1qM1Bx_drC9bWN .fds-ugc-ellipsis2')
+          .first();
+
         const title = titleLinkElement.find('span').text().trim() || null;
-        const link = titleLinkElement.attr('href') || null;
+        const link = titleLinkElement.attr('href') || '';
+        const description = descriptionElement.text()?.trim() || '';
+        const detail = await this.getBlogContent(link);
 
         // 추출된 정보를 결과 배열에 추가
         if (author || title || link) {
@@ -306,12 +323,15 @@ export class NaverApiService {
             author,
             title,
             link,
+            description,
             rank: rank,
+            content: detail.content,
+            date: detail.blogDate,
           });
           rank++;
         }
-      });
-      return results;
+      }
+      return results.filter((el) => !!el.author && !!el.title && !!el.link);
     } catch (error) {
       console.error('크롤링 중 오류 발생:', error);
       return [];

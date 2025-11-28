@@ -13,7 +13,7 @@ import {
 } from './dto';
 import { DateService } from '@lib/date';
 import { BlogRankService } from '@lib/integrations/naver/naver-api/blog-rank.service';
-import { SubscriptionStatus } from '@prisma/client';
+import { Blog, BlogRank, SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class KeywordTrackingService {
@@ -31,11 +31,15 @@ export class KeywordTrackingService {
    * @returns 생성된 키워드 추적
    */
   async create(userId: number, dto: CreateKeywordTrackingDto) {
+    // 순위 조회 기록이 없으면 순위 조회 함
     const now = this.dateService.now().format('YYYY-MM-DD');
-    const isExisting = await this.hasTrackingRecordOnDate(dto.keyword, now);
+    const isExistingRanks = await this.hasTrackingRecordOnDate(
+      dto.keyword,
+      now,
+    );
 
-    if (!isExisting) {
-      // 신규 키워드에 대해 오늘 날짜로 기본 기록 생성
+    if (!isExistingRanks) {
+      this.logger.debug(`순위 수집 ${dto.keyword}`);
       await this.blogRankService.collectBlogRanks(dto.keyword, 40);
     }
 
@@ -56,6 +60,24 @@ export class KeywordTrackingService {
       );
     }
 
+    let naverBlogId = '';
+    try {
+      const url = new URL(dto.myBlogUrl);
+      const paths = url.pathname.split('/');
+      naverBlogId = paths[paths.length - 1];
+    } catch (error) {
+      naverBlogId = dto.myBlogUrl;
+    }
+
+    const existBlog = await this.prisma.blog.findUnique({
+      where: {
+        link: naverBlogId,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     return this.prisma.keywordTracking.create({
       data: {
         userId,
@@ -65,6 +87,7 @@ export class KeywordTrackingService {
         title: dto.title,
         isActive: dto.isActive ?? true,
         displayCount: dto.displayCount ?? 40,
+        blogId: existBlog?.id ?? undefined,
       },
     });
   }
@@ -129,6 +152,9 @@ export class KeywordTrackingService {
   async findOne(id: number, userId: number) {
     const tracking = await this.prisma.keywordTracking.findUnique({
       where: { id },
+      include: {
+        blog: true,
+      },
     });
 
     if (!tracking) {
@@ -358,18 +384,7 @@ export class KeywordTrackingService {
     const tracking = await this.findOne(id, userId);
 
     // 2. myBlogUrl과 일치하는 Blog 찾기
-    const blog = await this.prisma.blog.findUnique({
-      where: {
-        link: tracking.myBlogUrl,
-      },
-      select: {
-        id: true,
-        link: true,
-        title: true,
-        bloggerName: true,
-        bloggerLink: true,
-      },
-    });
+    const blog = tracking.blog;
 
     // 3. Blog가 없으면 순위 데이터도 없음
     if (!blog) {

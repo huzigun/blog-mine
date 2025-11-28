@@ -2,6 +2,7 @@ import { PrismaService } from '@lib/database';
 import { BlogRankService } from '@lib/integrations/naver/naver-api/blog-rank.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { SubscriptionStatus } from '@prisma/client';
 
 @Injectable()
 export class SchedulerService {
@@ -22,7 +23,9 @@ export class SchedulerService {
     // 구독 활성화 된 사용자 목록 가져오기
     const activeSubscribers = await this.prisma.userSubscription.findMany({
       where: {
-        status: 'ACTIVE',
+        status: {
+          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+        },
       },
       include: {
         user: {
@@ -51,18 +54,13 @@ export class SchedulerService {
     );
     this.logger.debug(`Keywords: ${uniqueKeywords.join(', ')}`);
 
-    // 각 키워드에 대해 블로그 순위 수집 배치 실행
-    const batchSize = 5; // 한 번에 처리할 키워드 수
-    for (let i = 0; i < uniqueKeywords.length; i += batchSize) {
-      const batch = uniqueKeywords.slice(i, i + batchSize);
-      await Promise.all(
-        batch.map((keyword) =>
-          this.blogRankService.collectBlogRanks(keyword, 40),
-        ),
-      );
-      this.logger.log(
-        `Processed batch ${i / batchSize + 1} (${batch.length} keywords)`,
-      );
+    for (let i = 0; i < uniqueKeywords.length; i++) {
+      await this.blogRankService.collectBlogRanks(uniqueKeywords[i], 40);
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(true);
+        }, 300);
+      }); // 수집 차단 방지용 대기
     }
 
     this.logger.log('Hourly blog rank collection completed');
