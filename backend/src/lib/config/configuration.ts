@@ -43,4 +43,10 @@ export default () => ({
     clientId: process.env.NAVER_CLIENT_ID,
     clientSecret: process.env.NAVER_CLIENT_SECRET,
   },
+  kakao: {
+    clientId: process.env.KAKAO_CLIENT_ID,
+    clientSecret: process.env.KAKAO_CLIENT_SECRET,
+    redirectUri: process.env.KAKAO_REDIRECT_URI,
+    adminKey: process.env.KAKAO_ADMIN_KEY,
+  },
 });

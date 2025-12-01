@@ -7,9 +7,13 @@ import {
   UseGuards,
   UnauthorizedException,
   Req,
+  Get,
+  Query,
+  Logger,
 } from '@nestjs/common';
 import { Request } from 'express';
 import { AuthService } from './auth.service';
+import { KakaoService } from './kakao.service';
 import {
   RegisterDto,
   LoginDto,
@@ -24,7 +28,12 @@ import { RequestUser } from './strategies/jwt.strategy';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  private readonly logger = new Logger(AuthController.name);
+
+  constructor(
+    private readonly authService: AuthService,
+    private readonly kakaoService: KakaoService,
+  ) {}
 
   @Post('register')
   async register(
@@ -121,5 +130,113 @@ export class AuthController {
     @Body() dto: VerifyCodeDto,
   ): Promise<{ message: string; verified: boolean }> {
     return this.authService.verifyCode(dto.email, dto.code);
+  }
+
+  /**
+   * Kakao OAuth state 토큰 생성
+   * POST /auth/kakao/state
+   */
+  @Post('/kakao/state')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  generateKakaoState(@GetRequestUser() user: RequestUser): { state: string } {
+    const state = this.kakaoService.generateStateToken(user.id);
+    return { state };
+  }
+
+  /**
+   * Kakao OAuth 콜백 처리
+   * - state JWT 검증하여 userId 확인
+   * - 인가 코드로 Kakao 연결
+   * - 팝업 창에서 호출되므로 HTML 응답으로 window.opener.postMessage 전송
+   */
+  @Get('/callback/kakao')
+  async kakaoCallback(
+    @Query()
+    query: {
+      code?: string;
+      state?: string;
+      error?: string;
+      error_description?: string;
+    },
+  ) {
+    // 에러 처리
+    if (query.error) {
+      const errorMessage =
+        query.error_description || 'Kakao authentication failed';
+      return this.sendPopupMessage(false, errorMessage);
+    }
+
+    // code와 state 검증
+    if (!query.code || !query.state) {
+      return this.sendPopupMessage(false, '필수 파라미터가 누락되었습니다.');
+    }
+
+    try {
+      // 1. state JWT 검증 및 userId 추출
+      const { userId } = this.kakaoService.verifyStateToken(query.state);
+
+      // 2. Kakao 연결
+      const result = await this.authService.connectKakao(userId, query.code);
+
+      return this.sendPopupMessage(result.success, result.message);
+    } catch (error) {
+      this.logger.error(`Kakao callback error: ${error.message}`);
+      return this.sendPopupMessage(
+        false,
+        error.message || '연결에 실패했습니다.',
+      );
+    }
+  }
+
+  /**
+   * Kakao 계정 연결 해제
+   * POST /auth/disconnect-kakao
+   */
+  @Post('/disconnect-kakao')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  async disconnectKakao(
+    @GetRequestUser() user: RequestUser,
+  ): Promise<{ message: string; success: boolean }> {
+    return this.authService.disconnectKakao(user.id);
+  }
+
+  /**
+   * 팝업 창에 postMessage를 전송하는 HTML 응답 생성
+   */
+  private sendPopupMessage(success: boolean, message: string) {
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Kakao Authentication</title>
+        </head>
+        <body>
+          <script>
+            try {
+              if (window.opener) {
+                window.opener.postMessage(
+                  {
+                    success: ${success},
+                    message: "${message.replace(/"/g, '\\"')}"
+                  },
+                  '*'
+                );
+                window.close();
+              } else {
+                document.body.innerHTML = '<p>${success ? '성공' : '실패'}: ${message.replace(/"/g, '\\"')}</p>';
+              }
+            } catch (error) {
+              console.error('postMessage error:', error);
+              document.body.innerHTML = '<p>통신 오류가 발생했습니다.</p>';
+            }
+          </script>
+        </body>
+      </html>
+    `;
+
+    return htmlContent;
   }
 }

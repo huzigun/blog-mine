@@ -200,7 +200,7 @@ async function onAddCard(event: FormSubmitEvent<CardRegistrationForm>) {
           <UButton
             color="neutral"
             variant="outline"
-            @click="emit('close', true)"
+            @click="emit('close', false)"
             :disabled="isPending"
           >
             취소

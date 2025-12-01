@@ -127,14 +127,14 @@ export class BlogPostService {
     }
 
     // 6. 백그라운드에서 원고 생성 시작 (비동기)
-    // this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
-    //   (error) => {
-    //     this.logger.error(
-    //       `Failed to generate posts for blogPost ${blogPost.id}:`,
-    //       error.stack,
-    //     );
-    //   },
-    // );
+    this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
+      (error) => {
+        this.logger.error(
+          `Failed to generate posts for blogPost ${blogPost.id}:`,
+          error.stack,
+        );
+      },
+    );
 
     return blogPost;
   }

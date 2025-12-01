@@ -98,6 +98,10 @@ interface UserResponse {
   name: string | null;
   createdAt: string;
   businessInfo: BusinessInfo | null;
+  kakaoId: string | null;
+  kakaoNickname: string | null;
+  kakaoProfileImage: string | null;
+  kakaoConnectedAt: string | null;
 }
 
 interface CreditBalance {
@@ -122,6 +126,10 @@ const user = computed(() => ({
   name: userData.value?.name || '',
   createdAt: userData.value?.createdAt || '',
   businessInfo: userData.value?.businessInfo || null,
+  kakaoId: userData.value?.kakaoId || null,
+  kakaoNickname: userData.value?.kakaoNickname || null,
+  kakaoProfileImage: userData.value?.kakaoProfileImage || null,
+  kakaoConnectedAt: userData.value?.kakaoConnectedAt || null,
 }));
 
 const formatDate = (dateStr: string) => {
@@ -373,6 +381,236 @@ const handleDeleteAccount = async () => {
     isDeleting.value = false;
   }
 };
+
+// Kakao 연결 상태
+const [isConnectingKakao, startKakaoConnect] = useTransition();
+let kakaoPopup: Window | null = null;
+
+// Kakao OAuth 콜백 처리를 위한 Promise resolver
+let kakaoConnectResolver:
+  | ((value: { success: boolean; message: string }) => void)
+  | null = null;
+
+const connectResult = (
+  e: MessageEvent<{
+    success: boolean;
+    message: string;
+  }>,
+) => {
+  // 메시지 origin 검증 (보안 강화)
+  const config = useRuntimeConfig();
+  const allowedOrigins = [
+    config.public.apiBase || 'http://localhost:9706',
+    window.location.origin,
+  ];
+
+  if (!allowedOrigins.includes(e.origin)) {
+    console.warn('Untrusted message origin:', e.origin);
+    return;
+  }
+
+  const data = e.data;
+
+  // 데이터 유효성 검증
+  if (!data || typeof data.success !== 'boolean') {
+    console.warn('Invalid message data:', data);
+    return;
+  }
+
+  // 이벤트 리스너 정리
+  window.removeEventListener('message', connectResult);
+
+  // 팝업 닫기
+  if (kakaoPopup && !kakaoPopup.closed) {
+    kakaoPopup.close();
+  }
+  kakaoPopup = null;
+
+  // Promise resolver 호출
+  if (kakaoConnectResolver) {
+    kakaoConnectResolver(data);
+    kakaoConnectResolver = null;
+  }
+};
+
+const connectKakao = async () => {
+  if (isConnectingKakao.value) {
+    toast.add({
+      title: '진행 중',
+      description: '카카오 연결이 이미 진행 중입니다.',
+      color: 'warning',
+    });
+    return;
+  }
+
+  await startKakaoConnect(
+    async () => {
+      const config = useRuntimeConfig();
+      const KAKAO_AUTH_URL = 'https://kauth.kakao.com/oauth/authorize';
+      const url = new URL(KAKAO_AUTH_URL);
+
+      // 환경 변수에서 Client ID 가져오기
+      const clientId = config.public.kakaoClientId;
+      if (!clientId) {
+        throw new Error('카카오 클라이언트 ID가 설정되지 않았습니다.');
+      }
+
+      // JWT state 토큰 생성 (백엔드 API 호출)
+      let stateToken: string;
+      try {
+        const response = await useApi<{ state: string }>('/auth/kakao/state', {
+          method: 'POST',
+        });
+        stateToken = response.state;
+      } catch (error: any) {
+        throw new Error(
+          error?.data?.message || '인증 준비 중 오류가 발생했습니다.',
+        );
+      }
+
+      // 환경에 따른 Redirect URI 설정
+      const baseUrl = config.public.apiBaseUrl || 'http://localhost:9706';
+      const redirectUri = `${baseUrl}/auth/callback/kakao`;
+
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('state', stateToken);
+      url.searchParams.set(
+        'scope',
+        'account_email,profile_nickname,profile_image',
+      );
+
+      console.log(redirectUri);
+
+      // 기존 이벤트 리스너 정리
+      window.removeEventListener('message', connectResult);
+
+      // 약간의 지연 후 이벤트 리스너 등록 (중복 방지)
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      });
+
+      window.addEventListener('message', connectResult);
+
+      // 팝업 열기
+      kakaoPopup = window.open(
+        url.toString(),
+        'kakao_auth',
+        'width=470,height=620,resizable=no,scrollbars=yes',
+      );
+
+      await new Promise((resolve) => {
+        setTimeout(() => {
+          resolve(true);
+        }, 100);
+      });
+
+      // 팝업 차단 확인
+      if (!kakaoPopup || kakaoPopup.closed) {
+        window.removeEventListener('message', connectResult);
+        throw new Error('팝업이 차단되었습니다. 브라우저 설정을 확인해주세요.');
+      }
+
+      // Promise로 OAuth 콜백 결과를 기다림
+      const result = await new Promise<{ success: boolean; message: string }>(
+        (resolve, reject) => {
+          kakaoConnectResolver = resolve;
+
+          // 팝업이 닫혔는지 주기적으로 확인
+          const checkPopupClosed = setInterval(() => {
+            if (kakaoPopup && kakaoPopup.closed) {
+              clearInterval(checkPopupClosed);
+              clearTimeout(timeoutId);
+              window.removeEventListener('message', connectResult);
+              kakaoConnectResolver = null;
+              reject(new Error('카카오 연결이 취소되었습니다.'));
+            }
+          }, 500);
+
+          // 타임아웃 설정 (2분)
+          const timeoutId = setTimeout(() => {
+            clearInterval(checkPopupClosed);
+            if (kakaoPopup && !kakaoPopup.closed) {
+              kakaoPopup.close();
+            }
+            window.removeEventListener('message', connectResult);
+            kakaoConnectResolver = null;
+            reject(new Error('카카오 연결 시간이 초과되었습니다.'));
+          }, 120000);
+        },
+      );
+
+      // 결과 처리
+      if (!result.success) {
+        throw new Error(result.message);
+      }
+
+      return result;
+    },
+    {
+      onSuccess: () => {
+        toast.add({
+          title: '카카오 연결 성공',
+          description: '카카오 계정이 성공적으로 연결되었습니다.',
+          color: 'success',
+        });
+        refreshUser();
+      },
+      onError: (error) => {
+        const message = error.message || '연결에 실패했습니다.';
+        toast.add({
+          title: '카카오 연결 실패',
+          description: message,
+          color: 'error',
+        });
+      },
+    },
+  );
+};
+
+// Kakao 연결 해제
+const [isDisconnectingKakao, startKakaoDisconnect] = useTransition();
+
+const disconnectKakao = async () => {
+  if (isDisconnectingKakao.value) return;
+
+  const confirmed = confirm('카카오 계정 연결을 해제하시겠습니까?');
+  if (!confirmed) return;
+
+  await startKakaoDisconnect(
+    async () => {
+      const response = await useApi<{ message: string; success: boolean }>(
+        '/auth/disconnect-kakao',
+        {
+          method: 'POST',
+        },
+      );
+
+      return response;
+    },
+    {
+      onSuccess: () => {
+        toast.add({
+          title: '연결 해제 완료',
+          description: '카카오 계정 연결이 해제되었습니다.',
+          color: 'success',
+        });
+        refreshUser();
+      },
+      onError: (error: any) => {
+        toast.add({
+          title: '연결 해제 실패',
+          description:
+            error?.data?.message || '연결 해제 중 오류가 발생했습니다.',
+          color: 'error',
+        });
+      },
+    },
+  );
+};
 </script>
 
 <template>
@@ -456,6 +694,104 @@ const handleDeleteAccount = async () => {
           <div class="text-base font-medium">
             {{ formatDate(user.createdAt) }}
           </div>
+        </div>
+      </div>
+    </UCard>
+
+    <!-- Kakao 계정 연결 -->
+    <UCard>
+      <template #header>
+        <div class="flex items-center gap-3">
+          <div
+            class="flex items-center justify-center w-10 h-10 rounded-full bg-warning/10"
+          >
+            <UIcon name="i-heroicons-link" class="text-warning" :size="24" />
+          </div>
+          <div>
+            <h3 class="text-lg font-semibold">소셜 계정 연결</h3>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5">
+              카카오 계정을 연결하여 간편하게 로그인하세요
+            </p>
+          </div>
+        </div>
+      </template>
+
+      <div class="space-y-4">
+        <!-- 연결 상태 표시 -->
+        <div
+          v-if="user.kakaoId"
+          class="flex items-center justify-between p-4 rounded-lg bg-success/5 border border-success/20"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-400"
+            >
+              <UIcon
+                name="i-heroicons-chat-bubble-bottom-center-text"
+                class="text-yellow-900"
+                :size="24"
+              />
+            </div>
+            <div>
+              <p class="font-medium text-success">카카오 계정 연결됨</p>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                {{ user.kakaoNickname || '카카오 사용자' }}
+              </p>
+            </div>
+          </div>
+          <UButton
+            color="error"
+            variant="soft"
+            size="sm"
+            :loading="isDisconnectingKakao"
+            @click="disconnectKakao"
+          >
+            연결 해제
+          </UButton>
+        </div>
+
+        <!-- 연결 안 됨 -->
+        <div
+          v-else
+          class="flex items-center justify-between p-4 rounded-lg bg-neutral-50 dark:bg-neutral-900"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="flex items-center justify-center w-12 h-12 rounded-full bg-yellow-400"
+            >
+              <UIcon
+                name="i-heroicons-chat-bubble-bottom-center-text"
+                class="text-yellow-900"
+                :size="24"
+              />
+            </div>
+            <div>
+              <p class="font-medium">카카오 계정</p>
+              <p class="text-sm text-neutral-600 dark:text-neutral-400">
+                연결되지 않음
+              </p>
+            </div>
+          </div>
+          <UButton
+            color="warning"
+            variant="soft"
+            size="sm"
+            :loading="isConnectingKakao"
+            @click="connectKakao"
+          >
+            연결하기
+          </UButton>
+        </div>
+
+        <!-- 안내 메시지 -->
+        <div
+          class="text-sm text-neutral-600 dark:text-neutral-400 p-3 bg-neutral-50 dark:bg-neutral-900 rounded-lg"
+        >
+          <UIcon
+            name="i-heroicons-information-circle"
+            class="w-4 h-4 inline mr-1"
+          />
+          카카오 계정을 연결하면 다음 로그인 시 간편하게 이용할 수 있습니다.
         </div>
       </div>
     </UCard>

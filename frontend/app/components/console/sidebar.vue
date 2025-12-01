@@ -4,6 +4,7 @@ interface NavigationItem {
   to: string;
   icon: string;
   badge?: string | number;
+  target?: string;
   subItems?: NavigationItem[];
 }
 
@@ -90,8 +91,9 @@ const navigationGroups: NavigationGroup[] = [
       },
       {
         name: '이용자 가이드',
-        to: '/console/guide',
+        to: 'https://atomosads.notion.site/_BlogMine_v1-0-2a83f8c41f0880fb959cd13789721b9b?source=copy_link',
         icon: 'i-heroicons-book-open',
+        target: '_blank',
       },
     ],
   },
@@ -272,6 +274,7 @@ const isActive = (path: string) => {
                       ? 'bg-primary-600/10 text-primary-300'
                       : 'text-neutral-400 hover:bg-neutral-800/50',
                   ]"
+                  :target="subItem.target"
                 >
                   <!-- Dot instead of icon -->
                   <div
@@ -305,6 +308,7 @@ const isActive = (path: string) => {
                   : 'text-neutral-300 hover:bg-neutral-800/50',
                 isCollapsed && !isHovered && 'justify-center lg:justify-start',
               ]"
+              :target="item.target"
             >
               <!-- Active Indicator -->
               <div

@@ -217,7 +217,7 @@ export class NaverApiService {
    * @param url - 네이버 블로그 URL
    * @returns iframe URL 또는 null
    */
-  private extractNaverBlogFrameUrl(url: string): string | null {
+  extractNaverBlogFrameUrl(url: string): string | null {
     try {
       const urlObj = new URL(url);
 

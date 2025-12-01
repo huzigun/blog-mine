@@ -12,6 +12,7 @@ import { UserService } from '../user/user.service';
 import { CreditService } from '../credit/credit.service';
 import { EmailService } from '../../lib/integrations/email/email.service';
 import { VerificationCodeService } from './verification-code.service';
+import { KakaoService } from './kakao.service';
 import {
   RegisterDto,
   LoginDto,
@@ -36,6 +37,7 @@ export class AuthService {
     private readonly creditService: CreditService,
     private readonly emailService: EmailService,
     private readonly verificationCodeService: VerificationCodeService,
+    private readonly kakaoService: KakaoService,
   ) {}
 
   async register(
@@ -392,5 +394,155 @@ export class AuthService {
       message: '이메일 인증이 완료되었습니다.',
       verified: true,
     };
+  }
+
+  /**
+   * Kakao 계정 연결
+   * - 인가 코드로 토큰 교환 후 사용자 정보 조회
+   * - 중복 연결 방지 (이미 다른 사용자와 연결된 Kakao 계정)
+   * - User 모델에 Kakao 정보 저장
+   */
+  async connectKakao(
+    userId: number,
+    code: string,
+  ): Promise<{ message: string; success: boolean }> {
+    try {
+      // 1. 인가 코드로 액세스 토큰 교환
+      const tokenData = await this.kakaoService.exchangeCodeForToken(code);
+
+      // 2. 액세스 토큰으로 사용자 정보 조회
+      const kakaoUserInfo = await this.kakaoService.getUserInfo(
+        tokenData.access_token,
+      );
+
+      const kakaoId = String(kakaoUserInfo.id);
+      const kakaoNickname =
+        kakaoUserInfo.kakao_account?.profile?.nickname || null;
+      const kakaoProfileImage =
+        kakaoUserInfo.kakao_account?.profile?.profile_image_url || null;
+
+      // 3. 중복 연결 확인 - 다른 사용자가 이미 연결한 Kakao 계정인지 확인
+      const existingConnection = await this.prisma.user.findUnique({
+        where: { kakaoId },
+      });
+
+      if (existingConnection && existingConnection.id !== userId) {
+        throw new ConflictException(
+          '이미 다른 계정과 연결된 카카오 계정입니다.',
+        );
+      }
+
+      // 4. 현재 사용자 조회
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+      }
+
+      // 5. 이미 연결된 경우 확인
+      if (user.kakaoId) {
+        throw new ConflictException('이미 카카오 계정이 연결되어 있습니다.');
+      }
+
+      // 6. Kakao 정보 저장
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          kakaoId,
+          kakaoNickname,
+          kakaoProfileImage,
+          kakaoConnectedAt: new Date(),
+        },
+      });
+
+      this.logger.log(`Kakao account connected for user ${userId}: ${kakaoId}`);
+
+      return {
+        message: '카카오 계정이 성공적으로 연결되었습니다.',
+        success: true,
+      };
+    } catch (error) {
+      this.logger.error(`Kakao connection failed: ${error.message}`);
+
+      if (
+        error instanceof ConflictException ||
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        '카카오 연결 중 오류가 발생했습니다.',
+      );
+    }
+  }
+
+  /**
+   * Kakao 계정 연결 해제
+   * - User 모델에서 Kakao 정보 제거
+   */
+  async disconnectKakao(
+    userId: number,
+  ): Promise<{ message: string; success: boolean }> {
+    try {
+      // 1. 현재 사용자 조회
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
+      }
+
+      // 2. 연결된 Kakao 계정이 없는 경우
+      if (!user.kakaoId) {
+        throw new BadRequestException('연결된 카카오 계정이 없습니다.');
+      }
+
+      // 3. 카카오 서버에서 연결 해제
+      try {
+        await this.kakaoService.unlinkKakaoAccount(user.kakaoId);
+      } catch (kakaoError) {
+        // 카카오 API 호출 실패 시 로그만 남기고 계속 진행
+        // (이미 연결이 해제되었거나, 일시적인 오류일 수 있음)
+        this.logger.warn(
+          `Kakao API unlink failed, but continuing: ${kakaoError.message}`,
+        );
+      }
+
+      // 4. DB에서 Kakao 정보 제거
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          kakaoId: null,
+          kakaoNickname: null,
+          kakaoProfileImage: null,
+          kakaoConnectedAt: null,
+        },
+      });
+
+      this.logger.log(`Kakao account disconnected for user ${userId}`);
+
+      return {
+        message: '카카오 계정 연결이 해제되었습니다.',
+        success: true,
+      };
+    } catch (error) {
+      this.logger.error(`Kakao disconnection failed: ${error.message}`);
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        '카카오 연결 해제 중 오류가 발생했습니다.',
+      );
+    }
   }
 }

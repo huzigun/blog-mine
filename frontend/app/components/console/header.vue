@@ -72,7 +72,7 @@ const quickActions = [
     label: 'BloC 충전',
     icon: 'i-heroicons-plus',
     color: 'primary' as const,
-    click: () => navigateTo('/console/ai-post'),
+    click: () => navigateTo('/mypage/credits'),
   },
 ];
 

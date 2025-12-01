@@ -16,7 +16,12 @@ export default defineNuxtConfig({
   runtimeConfig: {
     public: {
       apiBaseUrl:
-        process.env.NUXT_PUBLIC_API_BASE_URL || 'http://localhost:9706',
+        process.env.NODE_ENV === 'production'
+          ? process.env.NUXT_PUBLIC_API_BASE_URL || ''
+          : 'http://localhost:9706',
+      kakaoClientId:
+        process.env.NUXT_PUBLIC_KAKAO_CLIENT_ID ||
+        '8f9d4a146b8c745c25697ea747b2f0a5',
     },
   },
 

@@ -39,6 +39,10 @@ export class UserController {
       name: userWithBusinessInfo.name,
       createdAt: userWithBusinessInfo.createdAt,
       businessInfo: userWithBusinessInfo.businessInfo,
+      kakaoId: userWithBusinessInfo.kakaoId,
+      kakaoNickname: userWithBusinessInfo.kakaoNickname,
+      kakaoProfileImage: userWithBusinessInfo.kakaoProfileImage,
+      kakaoConnectedAt: userWithBusinessInfo.kakaoConnectedAt,
     };
   }
 

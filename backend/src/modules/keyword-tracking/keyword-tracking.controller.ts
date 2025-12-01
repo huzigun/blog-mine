@@ -164,7 +164,15 @@ export class KeywordTrackingController {
 
   @Get('search/blog-details')
   async fetchBlogDetails(@Query('blogUrl') blogUrl: string) {
-    const content = await this.naverApiService.getBlogContent(blogUrl);
+    const realUrl = this.naverApiService.extractNaverBlogFrameUrl(blogUrl);
+
+    if (!realUrl) {
+      throw new BadRequestException('유효한 URL이 아닙니다.');
+    }
+
+    const content = await this.naverApiService.getBlogContent(realUrl);
+
+    this.logger.debug(content.success);
 
     return {
       bloggerName: content.nickname,

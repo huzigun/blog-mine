@@ -130,4 +130,21 @@ export class ConfigService {
   get naverClientSecret(): string | undefined {
     return this.configService.get<string>('naver.clientSecret');
   }
+
+  // Kakao Configuration
+  get kakaoClientId(): string | undefined {
+    return this.configService.get<string>('kakao.clientId');
+  }
+
+  get kakaoClientSecret(): string | undefined {
+    return this.configService.get<string>('kakao.clientSecret');
+  }
+
+  get kakaoRedirectUri(): string | undefined {
+    return this.configService.get<string>('kakao.redirectUri');
+  }
+
+  get kakaoAdminKey(): string | undefined {
+    return this.configService.get<string>('kakao.adminKey');
+  }
 }

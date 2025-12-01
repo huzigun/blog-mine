@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { VerificationCodeService } from './verification-code.service';
+import { KakaoService } from './kakao.service';
 import { ConfigService } from '../../lib/config/config.service';
 import { UserModule } from '../user/user.module';
 import { CreditModule } from '../credit/credit.module';
@@ -32,8 +33,8 @@ import { EmailModule } from '../../lib/integrations/email/email.module';
       },
     }),
   ],
-  providers: [AuthService, JwtStrategy, VerificationCodeService],
+  providers: [AuthService, JwtStrategy, VerificationCodeService, KakaoService],
   controllers: [AuthController],
-  exports: [AuthService],
+  exports: [AuthService, KakaoService],
 })
 export class AuthModule {}
