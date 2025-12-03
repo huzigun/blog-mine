@@ -42,4 +42,5 @@ coverage/
 
 *-mcp
 
+# Claude Code settings (contains sensitive tokens)
 .claude

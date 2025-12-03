@@ -102,6 +102,7 @@ interface UserResponse {
   kakaoNickname: string | null;
   kakaoProfileImage: string | null;
   kakaoConnectedAt: string | null;
+  hasPassword: boolean;
 }
 
 interface CreditBalance {
@@ -130,6 +131,7 @@ const user = computed(() => ({
   kakaoNickname: userData.value?.kakaoNickname || null,
   kakaoProfileImage: userData.value?.kakaoProfileImage || null,
   kakaoConnectedAt: userData.value?.kakaoConnectedAt || null,
+  hasPassword: userData.value?.hasPassword || false,
 }));
 
 const formatDate = (dateStr: string) => {
@@ -179,17 +181,15 @@ const isProfileModalOpen = ref(false);
 const isPasswordModalOpen = ref(false);
 const isBusinessModalOpen = ref(false);
 
-// 프로필 수정 모달
+// 프로필 수정 모달 (이름만 수정, 이메일은 별도 플로우)
 const profileForm = reactive({
   name: user.value.name,
-  email: user.value.email,
 });
 
 const isProfileSaving = ref(false);
 
 const openProfileModal = () => {
   profileForm.name = user.value.name;
-  profileForm.email = user.value.email;
   isProfileModalOpen.value = true;
 };
 
@@ -198,10 +198,9 @@ const handleSaveProfile = async (
 ) => {
   isProfileSaving.value = true;
   try {
-    // TODO: API 호출
+    // TODO: 이름 변경 API 호출
     await new Promise((resolve) => setTimeout(resolve, 1000));
     user.value.name = event.data.name;
-    user.value.email = event.data.email;
     toast.add({
       title: '성공',
       description: '프로필이 업데이트되었습니다.',
@@ -219,7 +218,129 @@ const handleSaveProfile = async (
   }
 };
 
-// 비밀번호 변경 모달
+// 이메일 변경 모달
+const isEmailModalOpen = ref(false);
+const emailForm = reactive({
+  newEmail: '',
+  verificationCode: '',
+});
+const isEmailSending = ref(false);
+const isEmailVerifying = ref(false);
+const isCodeSent = ref(false);
+const countdown = ref(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
+const openEmailModal = () => {
+  emailForm.newEmail = '';
+  emailForm.verificationCode = '';
+  isCodeSent.value = false;
+  countdown.value = 0;
+  if (countdownTimer) clearInterval(countdownTimer);
+  isEmailModalOpen.value = true;
+};
+
+const handleSendEmailCode = async () => {
+  if (!emailForm.newEmail) {
+    toast.add({
+      title: '입력 오류',
+      description: '이메일을 입력해주세요.',
+      color: 'error',
+    });
+    return;
+  }
+
+  isEmailSending.value = true;
+  try {
+    await useApi('/user/request-email-change', {
+      method: 'POST',
+      body: { newEmail: emailForm.newEmail },
+    });
+
+    // 인증 코드 전송 API (기존 auth 엔드포인트 재사용)
+    await useApi('/auth/send-verification-code', {
+      method: 'POST',
+      body: { email: emailForm.newEmail },
+    });
+
+    toast.add({
+      title: '인증 코드 전송',
+      description: '새 이메일로 인증 코드가 전송되었습니다.',
+      color: 'success',
+    });
+
+    isCodeSent.value = true;
+    countdown.value = 180; // 3분
+
+    // 카운트다운 시작
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      countdown.value--;
+      if (countdown.value <= 0) {
+        clearInterval(countdownTimer!);
+        countdownTimer = null;
+      }
+    }, 1000);
+  } catch (error: any) {
+    toast.add({
+      title: '전송 실패',
+      description: error?.data?.message || '인증 코드 전송에 실패했습니다.',
+      color: 'error',
+    });
+  } finally {
+    isEmailSending.value = false;
+  }
+};
+
+const handleVerifyEmailChange = async () => {
+  if (!emailForm.verificationCode) {
+    toast.add({
+      title: '입력 오류',
+      description: '인증 코드를 입력해주세요.',
+      color: 'error',
+    });
+    return;
+  }
+
+  isEmailVerifying.value = true;
+  try {
+    await useApi('/user/verify-email-change', {
+      method: 'POST',
+      body: {
+        email: emailForm.newEmail,
+        code: emailForm.verificationCode,
+      },
+    });
+
+    toast.add({
+      title: '이메일 변경 완료',
+      description: '이메일이 성공적으로 변경되었습니다.',
+      color: 'success',
+    });
+
+    // 사용자 정보 새로고침
+    await refreshUser();
+
+    // 모달 닫기
+    isEmailModalOpen.value = false;
+    if (countdownTimer) clearInterval(countdownTimer);
+  } catch (error: any) {
+    toast.add({
+      title: '인증 실패',
+      description: error?.data?.message || '이메일 변경에 실패했습니다.',
+      color: 'error',
+    });
+  } finally {
+    isEmailVerifying.value = false;
+  }
+};
+
+const formattedCountdown = computed(() => {
+  const minutes = Math.floor(countdown.value / 60);
+  const seconds = countdown.value % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+});
+
+// 비밀번호 변경/설정 모달
 const passwordForm = reactive({
   currentPassword: '',
   newPassword: '',
@@ -249,17 +370,21 @@ const handleChangePassword = async (
 
   isPasswordSaving.value = true;
   try {
-    await useApi('/user/change-password', {
+    // 새로운 set-password 엔드포인트 사용 (설정과 변경 모두 지원)
+    await useApi('/user/set-password', {
       method: 'POST',
       body: {
-        currentPassword: event.data.currentPassword,
+        currentPassword: event.data.currentPassword || undefined,
         newPassword: event.data.newPassword,
       },
     });
 
+    const isSettingPassword = !event.data.currentPassword;
     toast.add({
       title: '성공',
-      description: '비밀번호가 변경되었습니다.',
+      description: isSettingPassword
+        ? '비밀번호가 설정되었습니다.'
+        : '비밀번호가 변경되었습니다.',
       color: 'success',
     });
     isPasswordModalOpen.value = false;
@@ -268,6 +393,9 @@ const handleChangePassword = async (
     passwordForm.currentPassword = '';
     passwordForm.newPassword = '';
     passwordForm.confirmPassword = '';
+
+    // 사용자 정보 새로고침
+    await refreshUser();
   } catch (error: any) {
     const errorMessage =
       error?.data?.message || '비밀번호 변경에 실패했습니다.';
@@ -400,7 +528,7 @@ const connectResult = (
   // 메시지 origin 검증 (보안 강화)
   const config = useRuntimeConfig();
   const allowedOrigins = [
-    config.public.apiBase || 'http://localhost:9706',
+    config.public.apiBaseUrl || 'http://localhost:9706',
     window.location.origin,
   ];
 
@@ -643,7 +771,15 @@ const disconnectKakao = async () => {
               icon="i-heroicons-pencil"
               @click="openProfileModal"
             >
-              프로필 수정
+              이름 수정
+            </UButton>
+            <UButton
+              size="sm"
+              variant="soft"
+              icon="i-heroicons-envelope"
+              @click="openEmailModal"
+            >
+              이메일 변경
             </UButton>
             <UButton
               size="sm"
@@ -651,7 +787,7 @@ const disconnectKakao = async () => {
               icon="i-heroicons-key"
               @click="openPasswordModal"
             >
-              비밀번호 변경
+              {{ user.hasPassword ? '비밀번호 변경' : '비밀번호 설정' }}
             </UButton>
           </div>
         </div>
@@ -1346,11 +1482,11 @@ const disconnectKakao = async () => {
       </div>
     </UCard>
 
-    <!-- 프로필 수정 모달 -->
+    <!-- 프로필 수정 모달 (이름만) -->
     <UModal
       v-model:open="isProfileModalOpen"
-      title="프로필 수정"
-      description="이름과 이메일을 수정할 수 있습니다."
+      title="이름 수정"
+      description="사용자 이름을 수정할 수 있습니다."
     >
       <template #body>
         <UForm :state="profileForm" @submit="handleSaveProfile">
@@ -1360,16 +1496,6 @@ const disconnectKakao = async () => {
                 v-model="profileForm.name"
                 placeholder="이름을 입력하세요"
                 icon="i-heroicons-user"
-                size="lg"
-              />
-            </UFormField>
-
-            <UFormField label="이메일" name="email" required>
-              <UInput
-                v-model="profileForm.email"
-                type="email"
-                placeholder="이메일을 입력하세요"
-                icon="i-heroicons-envelope"
                 size="lg"
               />
             </UFormField>
@@ -1399,16 +1525,124 @@ const disconnectKakao = async () => {
       </template>
     </UModal>
 
-    <!-- 비밀번호 변경 모달 -->
+    <!-- 이메일 변경 모달 -->
+    <UModal
+      v-model:open="isEmailModalOpen"
+      title="이메일 변경"
+      description="새 이메일 주소로 인증 코드를 전송하여 변경합니다."
+    >
+      <template #body>
+        <div class="space-y-4 p-6">
+          <UFormField label="새 이메일" name="newEmail" required>
+            <div class="flex gap-2">
+              <UInput
+                v-model="emailForm.newEmail"
+                type="email"
+                placeholder="새 이메일을 입력하세요"
+                icon="i-heroicons-envelope"
+                size="lg"
+                class="flex-1"
+                :disabled="isCodeSent"
+              />
+              <UButton
+                color="primary"
+                size="lg"
+                :loading="isEmailSending"
+                :disabled="isCodeSent || isEmailSending"
+                @click="handleSendEmailCode"
+              >
+                {{ isCodeSent ? '전송됨' : '인증코드 전송' }}
+              </UButton>
+            </div>
+          </UFormField>
+
+          <UFormField
+            v-if="isCodeSent"
+            label="인증 코드"
+            name="verificationCode"
+            required
+          >
+            <UInput
+              v-model="emailForm.verificationCode"
+              placeholder="6자리 인증 코드를 입력하세요"
+              icon="i-heroicons-key"
+              size="lg"
+              maxlength="6"
+            />
+            <template #hint>
+              <span v-if="countdown > 0" class="text-sm text-primary">
+                남은 시간: {{ formattedCountdown }}
+              </span>
+              <span v-else class="text-sm text-error">
+                인증 코드가 만료되었습니다. 다시 전송해주세요.
+              </span>
+            </template>
+          </UFormField>
+
+          <div class="flex justify-end gap-3 pt-4">
+            <UButton
+              variant="outline"
+              color="neutral"
+              size="md"
+              @click="isEmailModalOpen = false"
+            >
+              취소
+            </UButton>
+            <UButton
+              v-if="isCodeSent"
+              color="primary"
+              size="md"
+              icon="i-heroicons-check"
+              :loading="isEmailVerifying"
+              :disabled="isEmailVerifying || countdown <= 0"
+              @click="handleVerifyEmailChange"
+            >
+              이메일 변경
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- 비밀번호 변경/설정 모달 -->
     <UModal
       v-model:open="isPasswordModalOpen"
-      title="비밀번호 변경"
-      description="보안을 위해 현재 비밀번호를 먼저 입력해주세요."
+      :title="user.hasPassword ? '비밀번호 변경' : '비밀번호 설정'"
+      :description="
+        user.hasPassword
+          ? '보안을 위해 현재 비밀번호를 먼저 입력해주세요.'
+          : '이메일/비밀번호 로그인을 위한 비밀번호를 설정하세요.'
+      "
     >
       <template #body>
         <UForm :state="passwordForm" @submit="handleChangePassword">
           <div class="space-y-4 p-6">
-            <UFormField label="현재 비밀번호" name="currentPassword" required>
+            <!-- 카카오 전용 사용자 안내 -->
+            <div
+              v-if="!user.hasPassword"
+              class="p-3 rounded-lg bg-info/10 border border-info/20"
+            >
+              <div class="flex items-start gap-2">
+                <UIcon
+                  name="i-heroicons-information-circle"
+                  class="w-5 h-5 text-info flex-shrink-0 mt-0.5"
+                />
+                <div class="text-sm text-neutral-700 dark:text-neutral-300">
+                  <p>
+                    현재 카카오 계정으로만 로그인할 수 있습니다. 비밀번호를
+                    설정하면 이메일/비밀번호 로그인도 이용할 수 있습니다.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- 현재 비밀번호 (일반 사용자만) -->
+            <UFormField
+              v-if="user.hasPassword"
+              label="현재 비밀번호"
+              name="currentPassword"
+              required
+            >
               <UInput
                 v-model="passwordForm.currentPassword"
                 type="password"
@@ -1422,7 +1656,7 @@ const disconnectKakao = async () => {
               <UInput
                 v-model="passwordForm.newPassword"
                 type="password"
-                placeholder="새 비밀번호를 입력하세요"
+                placeholder="새 비밀번호를 입력하세요 (최소 8자)"
                 icon="i-heroicons-key"
                 size="lg"
               />
@@ -1455,11 +1689,15 @@ const disconnectKakao = async () => {
                 type="submit"
                 color="primary"
                 size="md"
-                icon="i-heroicons-arrow-path"
+                :icon="
+                  user.hasPassword
+                    ? 'i-heroicons-arrow-path'
+                    : 'i-heroicons-check'
+                "
                 :loading="isPasswordSaving"
                 :disabled="isPasswordSaving"
               >
-                변경
+                {{ user.hasPassword ? '변경' : '설정' }}
               </UButton>
             </div>
           </div>

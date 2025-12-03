@@ -182,6 +182,13 @@ export class AuthService {
       throw new UnauthorizedException('아이디 또는 비밀번호가 잘못되었습니다');
     }
 
+    // 비밀번호가 없는 사용자 (카카오 전용 계정) 체크
+    if (!user.password) {
+      throw new UnauthorizedException(
+        '카카오 계정으로 가입한 사용자입니다. 카카오 로그인을 이용해주세요.',
+      );
+    }
+
     // 비밀번호 검증
     const isPasswordValid = await this.userService.validatePassword(
       password,
@@ -542,6 +549,207 @@ export class AuthService {
 
       throw new InternalServerErrorException(
         '카카오 연결 해제 중 오류가 발생했습니다.',
+      );
+    }
+  }
+
+  /**
+   * 카카오 로그인/회원가입
+   * - 카카오 인가 코드로 사용자 정보를 가져와서
+   * - 기존 사용자면 로그인, 신규 사용자면 자동 회원가입
+   */
+  async kakaoLogin(
+    code: string,
+    redirectUri?: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<AuthResponseDto> {
+    try {
+      // 1. 카카오 인가 코드로 액세스 토큰 받기
+      const tokenResponse = await this.kakaoService.exchangeCodeForToken(
+        code,
+        redirectUri,
+      );
+
+      // 2. 액세스 토큰으로 사용자 정보 조회
+      const kakaoUserInfo = await this.kakaoService.getUserInfo(
+        tokenResponse.access_token,
+      );
+
+      // 3. 카카오 이메일 확인
+      const kakaoEmail = kakaoUserInfo.kakao_account?.email;
+      if (!kakaoEmail) {
+        throw new BadRequestException(
+          '카카오 계정에서 이메일 정보를 가져올 수 없습니다. 카카오 계정에 이메일을 등록해주세요.',
+        );
+      }
+
+      const kakaoId = String(kakaoUserInfo.id);
+      const kakaoNickname =
+        kakaoUserInfo.kakao_account?.profile?.nickname || null;
+      const kakaoProfileImage =
+        kakaoUserInfo.kakao_account?.profile?.profile_image_url || null;
+
+      // 4. 카카오 ID로 기존 사용자 찾기
+      let user = await this.prisma.user.findUnique({
+        where: { kakaoId },
+      });
+
+      // 5. 카카오 ID로 사용자를 찾지 못한 경우, 이메일로 찾아보기
+      let isAccountLinked = false;
+      if (!user) {
+        user = await this.prisma.user.findUnique({
+          where: { email: kakaoEmail },
+        });
+
+        // 이메일로 찾은 사용자가 있으면 카카오 정보 연결
+        if (user) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              kakaoId,
+              kakaoNickname,
+              kakaoProfileImage,
+              kakaoConnectedAt: new Date(),
+            },
+          });
+
+          isAccountLinked = true;
+          this.logger.log(
+            `Existing user linked with Kakao: ${user.email} (kakaoId: ${kakaoId})`,
+          );
+        }
+      }
+
+      // 6. 신규 사용자인 경우 자동 회원가입
+      if (!user) {
+        // FREE 플랜 조회
+        const freePlan = await this.prisma.subscriptionPlan.findUnique({
+          where: { name: 'FREE' },
+        });
+
+        if (!freePlan) {
+          throw new InternalServerErrorException(
+            'Default subscription plan not found. Please run database seed.',
+          );
+        }
+
+        // 트랜잭션으로 사용자 생성 + 구독 + 크레딧 계정 생성
+        const result = await this.prisma.$transaction(async (tx) => {
+          // 사용자 생성 (password는 null)
+          const newUser = await tx.user.create({
+            data: {
+              email: kakaoEmail,
+              password: null,
+              name: kakaoNickname,
+              kakaoId,
+              kakaoNickname,
+              kakaoProfileImage,
+              kakaoConnectedAt: new Date(),
+            },
+          });
+
+          // FREE 구독 생성 (체험 기간 7일)
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7);
+
+          const subscription = await tx.userSubscription.create({
+            data: {
+              userId: newUser.id,
+              planId: freePlan.id,
+              status: SubscriptionStatus.TRIAL,
+              startedAt: new Date(),
+              expiresAt,
+              autoRenewal: false,
+            },
+          });
+
+          // 크레딧 계정 생성 및 초기 크레딧 지급
+          const creditAccount = await tx.creditAccount.create({
+            data: {
+              userId: newUser.id,
+              subscriptionCredits: freePlan.monthlyCredits,
+              purchasedCredits: 0,
+              bonusCredits: 0,
+              totalCredits: freePlan.monthlyCredits,
+            },
+          });
+
+          // 크레딧 거래 내역 생성
+          await tx.creditTransaction.create({
+            data: {
+              accountId: creditAccount.id,
+              userId: newUser.id,
+              type: 'SUBSCRIPTION_GRANT',
+              amount: freePlan.monthlyCredits,
+              balanceBefore: 0,
+              balanceAfter: freePlan.monthlyCredits,
+              creditType: 'SUBSCRIPTION',
+              referenceType: 'subscription',
+              referenceId: subscription.id,
+            },
+          });
+
+          // 구독 히스토리 생성
+          await tx.subscriptionHistory.create({
+            data: {
+              userId: newUser.id,
+              subscriptionId: subscription.id,
+              action: 'CREATED',
+              oldStatus: null,
+              newStatus: SubscriptionStatus.TRIAL,
+              planId: freePlan.id,
+              planName: freePlan.displayName,
+              planPrice: freePlan.price,
+              creditsGranted: freePlan.monthlyCredits,
+              startedAt: subscription.startedAt,
+              expiresAt: subscription.expiresAt,
+            },
+          });
+
+          return newUser;
+        });
+
+        user = result;
+
+        this.logger.log(
+          `New user registered via Kakao: ${user.email} (kakaoId: ${kakaoId})`,
+        );
+      } else {
+        this.logger.log(`User logged in via Kakao: ${user.email}`);
+      }
+
+      // 7. JWT 토큰 생성
+      const accessToken = await this.generateAccessToken(user.id);
+      const refreshToken = await this.generateRefreshToken(
+        user.id,
+        ipAddress,
+        userAgent,
+      );
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        },
+        isAccountLinked, // 기존 계정에 카카오 연동되었는지 여부
+      };
+    } catch (error) {
+      this.logger.error(`Kakao login failed: ${error.message}`);
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof UnauthorizedException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException(
+        '카카오 로그인 중 오류가 발생했습니다.',
       );
     }
   }

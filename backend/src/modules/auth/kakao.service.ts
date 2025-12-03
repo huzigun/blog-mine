@@ -88,13 +88,16 @@ export class KakaoService {
   /**
    * Kakao OAuth 인가 코드로 액세스 토큰 교환
    */
-  async exchangeCodeForToken(code: string): Promise<KakaoTokenResponse> {
+  async exchangeCodeForToken(
+    code: string,
+    redirectUri?: string,
+  ): Promise<KakaoTokenResponse> {
     try {
       const params = new URLSearchParams({
         grant_type: 'authorization_code',
         client_id: this.kakaoClientId,
         client_secret: this.kakaoClientSecret,
-        redirect_uri: this.kakaoRedirectUri,
+        redirect_uri: redirectUri || this.kakaoRedirectUri,
         code,
       });
 

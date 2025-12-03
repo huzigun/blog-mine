@@ -3,152 +3,26 @@ definePageMeta({
   layout: 'landing',
 });
 
-// 통계 데이터
-const stats = [
-  { label: '생성된 원고', value: '10,000+', icon: 'i-heroicons-document-text' },
-  { label: '활성 사용자', value: '1,200+', icon: 'i-heroicons-users' },
-  { label: '평균 만족도', value: '4.8/5', icon: 'i-heroicons-star' },
-  { label: '시간 절감', value: '80%', icon: 'i-heroicons-clock' },
-];
-
-// 주요 기능
-const features = [
+const points = [
   {
-    icon: 'i-heroicons-sparkles',
-    title: 'AI 기반 원고 생성',
+    key: 'point01',
+    title: '상위 노출 패턴 변화',
     description:
-      '키워드만 입력하면 SEO 최적화된 고품질 블로그 원고를 자동으로 생성합니다.',
-    color: 'primary',
+      '상위노출 패턴이 계속 바뀌어, 글을 쓸 때마다 다시 공부해야 합니다.',
+    image: '/point01.png',
   },
   {
-    icon: 'i-heroicons-user-circle',
-    title: '페르소나 관리',
+    key: 'point02',
+    title: '계정 운영 부담',
+    description: '어떤 계정에 어떤 글을 올려야 할지 매번 고민하게 됩니다.',
+    image: '/point02.png',
+  },
+  {
+    key: 'point03',
+    title: '결과 관리 부족',
     description:
-      '브랜드 톤앤매너에 맞는 페르소나를 생성하고 관리할 수 있습니다.',
-    color: 'success',
-  },
-  {
-    icon: 'i-heroicons-chart-bar',
-    title: '키워드 추적',
-    description:
-      '네이버 검색 순위를 추적하고 SEO 성과를 실시간으로 분석합니다.',
-    color: 'info',
-  },
-  {
-    icon: 'i-heroicons-credit-card',
-    title: '유연한 크레딧 시스템',
-    description:
-      '사용한 만큼만 지불하는 BloC 크레딧으로 효율적인 비용 관리가 가능합니다.',
-    color: 'warning',
-  },
-  {
-    icon: 'i-heroicons-document-duplicate',
-    title: '원고 워크스페이스',
-    description:
-      '생성된 원고를 체계적으로 관리하고 언제든지 확인할 수 있습니다.',
-    color: 'error',
-  },
-  {
-    icon: 'i-heroicons-bolt',
-    title: '빠른 생성 속도',
-    description:
-      '최신 AI 기술로 몇 초 만에 완성도 높은 블로그 원고를 생성합니다.',
-    color: 'neutral',
-  },
-];
-
-// 사용 방법
-const howItWorks = [
-  {
-    step: 1,
-    title: '페르소나 생성',
-    description: '브랜드 특성에 맞는 페르소나를 설정합니다.',
-    icon: 'i-heroicons-user-plus',
-  },
-  {
-    step: 2,
-    title: '키워드 입력',
-    description: '원하는 주제의 키워드를 입력합니다.',
-    icon: 'i-heroicons-magnifying-glass',
-  },
-  {
-    step: 3,
-    title: 'AI 원고 생성',
-    description: 'AI가 자동으로 SEO 최적화 원고를 생성합니다.',
-    icon: 'i-heroicons-sparkles',
-  },
-  {
-    step: 4,
-    title: '검토 및 발행',
-    description: '원고를 검토하고 블로그에 발행합니다.',
-    icon: 'i-heroicons-rocket-launch',
-  },
-];
-
-// 고객 후기
-const testimonials = [
-  {
-    name: '김마케터',
-    role: '마케팅팀 리더',
-    company: '테크스타트업',
-    content:
-      'Blog Mine을 사용한 후 블로그 운영 시간이 80% 단축되었습니다. SEO 순위도 크게 개선되어 유입이 2배 이상 증가했어요.',
-    avatar: '👨‍💼',
-    rating: 5,
-  },
-  {
-    name: '이콘텐츠',
-    role: '콘텐츠 마케터',
-    company: '이커머스 회사',
-    content:
-      '페르소나 기능이 정말 유용해요. 브랜드 톤을 일관되게 유지하면서도 다양한 주제의 원고를 빠르게 생성할 수 있습니다.',
-    avatar: '👩‍💻',
-    rating: 5,
-  },
-  {
-    name: '박블로거',
-    role: '1인 블로거',
-    company: '개인 블로그',
-    content:
-      '크레딧 시스템 덕분에 부담 없이 시작할 수 있었어요. 필요한 만큼만 충전해서 사용하니 경제적이에요.',
-    avatar: '✍️',
-    rating: 4,
-  },
-];
-
-// 플랜 비교 (간단 버전)
-const planComparison = [
-  {
-    name: 'FREE',
-    price: 0,
-    credits: 10,
-    features: ['월 10 BloC', '기본 페르소나', '키워드 추적 3개'],
-    highlighted: false,
-  },
-  {
-    name: 'PRO',
-    price: 29000,
-    credits: 100,
-    features: [
-      '월 100 BloC',
-      '무제한 페르소나',
-      '무제한 키워드 추적',
-      '우선 처리',
-    ],
-    highlighted: true,
-  },
-  {
-    name: 'ENTERPRISE',
-    price: 99000,
-    credits: 500,
-    features: [
-      '월 500 BloC',
-      '무제한 페르소나',
-      '무제한 키워드 추적',
-      'API 액세스',
-      '전담 지원',
-    ],
-    highlighted: false,
+      '게시 후 순위 변화를 매일 직접 확인하고 기록하기가 현실적으로 어렵습니다.',
+    image: '/point03.png',
   },
 ];
 </script>
@@ -156,441 +30,835 @@ const planComparison = [
 <template>
   <div>
     <!-- Hero Section -->
-    <section
-      class="relative min-h-[90vh] flex items-center justify-center overflow-hidden bg-linear-to-br from-primary/5 via-white to-success/5 dark:from-primary/10 dark:via-neutral-950 dark:to-success/10"
-    >
-      <!-- 배경 그래디언트 효과 -->
-      <div
-        class="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(99,102,241,0.1),transparent_50%),radial-gradient(circle_at_70%_80%,rgba(34,197,94,0.1),transparent_50%)]"
-      />
-
-      <div
-        class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10"
-      >
-        <div class="text-center space-y-8 py-20">
-          <!-- Badge -->
-          <div class="flex justify-center">
-            <UBadge color="primary" size="lg" variant="soft" class="px-4 py-2">
-              <UIcon name="i-heroicons-sparkles" class="mr-2" />
-              AI 기반 블로그 자동화 플랫폼
-            </UBadge>
-          </div>
-
-          <!-- Headline -->
-          <h1
-            class="text-4xl md:text-6xl lg:text-7xl font-bold text-neutral-900 dark:text-neutral-100 leading-tight"
-          >
-            블로그 원고 생성,
-            <br />
-            <span
-              class="bg-linear-to-r from-primary to-success bg-clip-text text-transparent"
-            >
-              이제 AI가 해결합니다
-            </span>
-          </h1>
-
-          <!-- Subheadline -->
-          <p
-            class="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto"
-          >
-            키워드만 입력하면 SEO 최적화된 고품질 블로그 원고를 자동으로
-            생성합니다.
-            <br class="hidden md:block" />
-            콘텐츠 제작 시간을 80% 단축하고, 검색 순위를 높이세요.
-          </p>
-
-          <!-- CTA Buttons -->
-          <div
-            class="flex flex-col sm:flex-row items-center justify-center gap-4"
-          >
-            <UButton
-              to="/auth/register"
-              color="primary"
-              size="xl"
-              icon="i-heroicons-rocket-launch"
-              class="px-8"
-            >
-              무료로 시작하기
-            </UButton>
-            <UButton
-              to="/#demo"
-              color="neutral"
-              variant="outline"
-              size="xl"
-              icon="i-heroicons-play-circle"
-            >
-              사용 방법 보기
-            </UButton>
-          </div>
-
-          <!-- Stats -->
-          <div
-            class="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 pt-12 max-w-4xl mx-auto"
-          >
-            <div
-              v-for="stat in stats"
-              :key="stat.label"
-              class="text-center space-y-2"
-            >
-              <div class="flex items-center justify-center">
-                <UIcon :name="stat.icon" class="text-3xl text-primary" />
-              </div>
-              <div
-                class="text-2xl md:text-3xl font-bold text-neutral-900 dark:text-neutral-100"
-              >
-                {{ stat.value }}
-              </div>
-              <div class="text-sm text-neutral-600 dark:text-neutral-400">
-                {{ stat.label }}
-              </div>
-            </div>
-          </div>
+    <section class="relative h-[604px]">
+      <!-- Background Pattern -->
+      <div class="absolute inset-0 grid grid-cols-2">
+        <div class="col-span-1"></div>
+        <div
+          class="col-span-1 h-full bg-cover"
+          :style="{
+            backgroundImage: `url('/hero01.jpg')`,
+          }"
+        >
+          <!-- <NuxtImg src="/hero01.jpg" alt="" class="w-full" /> -->
         </div>
       </div>
 
-      <!-- Scroll Indicator -->
-      <div
-        class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce text-neutral-400"
-      >
-        <UIcon name="i-heroicons-chevron-down" class="text-2xl" />
+      <div class="relative container mx-auto max-w-7xl">
+        <div class="grid grid-cols-2">
+          <!-- Left Content -->
+          <div class="pt-[107px] font-medium">
+            <!-- Stats Badge -->
+            <div
+              class="inline-flex items-center gap-2 h-[34px] px-4 rounded-full bg-primary-100 border border-primary-200 mb-6"
+            >
+              <span class="text-sm text-primary-700 dark:text-primary-300">
+                누적 생성 원고의 수:
+              </span>
+              <span class="text-primary-600 dark:text-primary-400">305개</span>
+            </div>
+
+            <h2
+              class="text-[40px] font-semibold leading-normal mb-5"
+              style="letter-spacing: -0.8px"
+            >
+              이제 '잘 되는 글'만 쓰세요.
+              <br />
+              AI로 패턴 분석부터 원고 생성,
+              <br />
+              배포, 추적까지 한 번에.
+            </h2>
+
+            <!-- Description -->
+            <p class="text-lg mb-10">
+              상위노출에 필요한 핵심 요소를 모두 자동화했습니다.
+              <br />
+              빠르게 쓰고, 정확하게 올리고, 꾸준히 추적하세요.
+            </p>
+
+            <UButton
+              color="neutral"
+              to="/auth/register"
+              trailing-icon="i-heroicons-chevron-right-16-solid"
+              class="rounded px-8"
+              size="xl"
+            >
+              지금 바로 시작하기
+            </UButton>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- Features Section -->
-    <section id="features" class="py-20 bg-white dark:bg-neutral-950">
-      <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="text-center space-y-4 mb-16">
-          <UBadge color="primary" size="lg" variant="soft">주요 기능</UBadge>
-          <h2
-            class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100"
-          >
-            강력한 기능으로 블로그 운영을 자동화하세요
+    <!-- Pain Points Section -->
+    <section class="pt-[120px] pb-[168px] bg-whit">
+      <div class="container mx-auto max-w-7xl">
+        <!-- Section Header -->
+        <div class="text-center mb-10">
+          <span class="inline-block text-primary-500 font-medium text-xl">
+            Pain Point
+          </span>
+          <h2 class="text-[32px] font-bold">
+            왜 블로그 원고 작성이 이렇게 어려울까요?
           </h2>
-          <p
-            class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
-          >
-            Blog Mine은 AI 기반 원고 생성부터 SEO 분석까지 블로그 운영에 필요한
-            모든 기능을 제공합니다.
-          </p>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          <UCard
-            v-for="feature in features"
-            :key="feature.title"
-            class="hover:shadow-lg transition-shadow duration-200"
-          >
-            <div class="space-y-4">
-              <div
-                :class="[
-                  'w-12 h-12 rounded-lg flex items-center justify-center',
-                  `bg-${feature.color}/10`,
-                ]"
-              >
-                <UIcon
-                  :name="feature.icon"
-                  :class="`text-${feature.color}`"
-                  class="text-2xl"
-                />
-              </div>
-              <h3
-                class="text-xl font-bold text-neutral-900 dark:text-neutral-100"
-              >
-                {{ feature.title }}
-              </h3>
-              <p class="text-neutral-600 dark:text-neutral-400">
-                {{ feature.description }}
+        <!-- Pain Point Cards -->
+        <ul class="grid gap-6 mb-12" :class="[`grid-cols-${points.length}`]">
+          <!-- Card 1: 상위 노출 패턴 변화 -->
+          <li class="" v-for="pt in points" :key="pt.key">
+            <div class="relative bg-[#F4F4F4] rounded-xl p-9">
+              <!-- Content -->
+              <h3 class="text-2xl font-bold mb-2">{{ pt.title }}</h3>
+              <p class="text-lg mb-9">
+                {{ pt.description }}
               </p>
+              <div class="flex justify-end">
+                <NuxtImg :src="pt.image" alt="" sizes="150" />
+              </div>
             </div>
-          </UCard>
+          </li>
+        </ul>
+
+        <!-- Solution Message -->
+        <div class="text-center py-12">
+          <!-- prettier-ignore -->
+          <p class="text-[40px] font-semibold">
+            그래서 <span class="text-primary-600">블로그마인</span>은
+            <br />
+            <span class="text-primary-600">생성부터 배포, 추적까지</span> 전부 자동으로 해결합니다.
+          </p>
         </div>
       </div>
     </section>
 
     <!-- How It Works Section -->
-    <section id="demo" class="py-20 bg-neutral-50 dark:bg-neutral-900">
-      <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="text-center space-y-4 mb-16">
-          <UBadge color="success" size="lg" variant="soft">사용 방법</UBadge>
-          <h2
-            class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100"
-          >
-            4단계로 간단하게 시작하세요
-          </h2>
-          <p
-            class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
-          >
-            복잡한 설정 없이 바로 시작할 수 있습니다. 몇 분이면 첫 번째 원고를
-            생성할 수 있어요.
-          </p>
+    <section class="py-[120px] bg-[#EFF1F5]">
+      <div class="container mx-auto max-w-7xl px-[70px]">
+        <!-- Section Header -->
+        <div class="text-center mb-12">
+          <span class="inline-block text-primary-500 font-medium text-xl">
+            How It Works
+          </span>
+          <h2 class="text-[32px] font-bold">이렇게 가치를 제공합니다</h2>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          <div v-for="step in howItWorks" :key="step.step" class="relative">
-            <!-- 연결선 (데스크톱) -->
+        <div class="mb-5">
+          <div
+            class="h-3 w-full grid grid-cols-3 gap-5"
+            :style="{
+              background: `url('/line01.png') 100% 50% no-repeat`,
+            }"
+          >
             <div
-              v-if="step.step < howItWorks.length"
-              class="hidden lg:block absolute top-16 left-[60%] w-[80%] h-0.5 bg-linear-to-r from-primary/50 to-transparent"
-            />
-
-            <div class="text-center space-y-4">
-              <!-- Step Number -->
-              <div
-                class="w-16 h-16 mx-auto rounded-full bg-linear-to-br from-primary to-success flex items-center justify-center text-white text-2xl font-bold"
-              >
-                {{ step.step }}
-              </div>
-
-              <!-- Icon -->
-              <div class="flex items-center justify-center">
-                <div
-                  class="w-20 h-20 rounded-2xl bg-white dark:bg-neutral-800 shadow-lg flex items-center justify-center"
-                >
-                  <UIcon :name="step.icon" class="text-primary text-3xl" />
-                </div>
-              </div>
-
-              <!-- Content -->
-              <h3
-                class="text-xl font-bold text-neutral-900 dark:text-neutral-100"
-              >
-                {{ step.title }}
-              </h3>
-              <p class="text-neutral-600 dark:text-neutral-400">
-                {{ step.description }}
-              </p>
+              class="col-span-1 flex items-center justify-center"
+              v-for="i in 3"
+              :key="`dot-${i}`"
+            >
+              <span class="w-3 h-3 bg-primary-500 rounded-full"></span>
             </div>
           </div>
         </div>
 
-        <!-- CTA -->
-        <div class="text-center mt-12">
-          <UButton
-            to="/auth/register"
-            color="primary"
-            size="xl"
-            icon="i-heroicons-arrow-right-circle"
-          >
-            지금 바로 시작하기
-          </UButton>
-        </div>
-      </div>
-    </section>
-
-    <!-- Testimonials Section -->
-    <section class="py-20 bg-white dark:bg-neutral-950">
-      <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="text-center space-y-4 mb-16">
-          <UBadge color="warning" size="lg" variant="soft">고객 후기</UBadge>
-          <h2
-            class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100"
-          >
-            실제 사용자들의 생생한 후기
-          </h2>
-          <p
-            class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
-          >
-            다양한 분야의 고객들이 Blog Mine으로 블로그 운영 효율을 높이고
-            있습니다.
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <UCard
-            v-for="testimonial in testimonials"
-            :key="testimonial.name"
-            class="hover:shadow-xl transition-shadow duration-200"
-          >
-            <div class="space-y-4">
-              <!-- Rating -->
-              <div class="flex items-center gap-1">
-                <UIcon
-                  v-for="i in testimonial.rating"
-                  :key="i"
-                  name="i-heroicons-star-solid"
-                  class="text-warning text-lg"
-                />
-              </div>
-
-              <!-- Content -->
-              <p class="text-neutral-700 dark:text-neutral-300 leading-relaxed">
-                "{{ testimonial.content }}"
-              </p>
-
-              <!-- Author -->
-              <div
-                class="flex items-center gap-3 pt-4 border-t border-neutral-200 dark:border-neutral-800"
-              >
-                <div class="text-4xl">{{ testimonial.avatar }}</div>
-                <div>
-                  <div
-                    class="font-semibold text-neutral-900 dark:text-neutral-100"
-                  >
-                    {{ testimonial.name }}
-                  </div>
-                  <div class="text-sm text-neutral-600 dark:text-neutral-400">
-                    {{ testimonial.role }} · {{ testimonial.company }}
-                  </div>
-                </div>
-              </div>
+        <ul class="grid grid-cols-3 gap-5 mb-10">
+          <li class="bg-white rounded-3xl py-11 px-6">
+            <NuxtImg src="/icon_work01.png" alt="" :width="56" class="mb-6" />
+            <div class="font-semibold text-xl text-primary-500 mb-1">
+              STEP 1
             </div>
-          </UCard>
-        </div>
-      </div>
-    </section>
-
-    <!-- Pricing Preview Section -->
-    <section class="py-20 bg-neutral-50 dark:bg-neutral-900">
-      <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div class="text-center space-y-4 mb-16">
-          <UBadge color="info" size="lg" variant="soft">요금제</UBadge>
-          <h2
-            class="text-3xl md:text-4xl font-bold text-neutral-900 dark:text-neutral-100"
-          >
-            비즈니스에 맞는 플랜을 선택하세요
-          </h2>
-          <p
-            class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
-          >
-            무료로 시작하고, 필요에 따라 언제든지 업그레이드할 수 있습니다.
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <UCard
-            v-for="plan in planComparison"
-            :key="plan.name"
-            :class="[
-              'relative transition-all duration-200',
-              plan.highlighted
-                ? 'ring-2 ring-primary shadow-xl scale-105'
-                : 'hover:shadow-lg',
-            ]"
-          >
-            <!-- Popular Badge -->
-            <div
-              v-if="plan.highlighted"
-              class="absolute -top-4 left-1/2 -translate-x-1/2 z-10"
-            >
-              <UBadge color="primary" size="lg" class="px-4 py-1.5">
-                <UIcon name="i-heroicons-star-solid" class="mr-1" />
-                인기
-              </UBadge>
+            <div class="font-semibold text-2xl mb-8">키워드 입력</div>
+            <div class="text-lg">
+              기획이나 구조 고민 없이, 단 한 단계로 모든 생성 프로세스가
+              시작됩니다.
             </div>
-
-            <template #header>
-              <div class="space-y-3 pt-4">
-                <h3
-                  class="text-xl font-bold text-neutral-900 dark:text-neutral-100"
-                >
-                  {{ plan.name }}
-                </h3>
-                <div class="flex items-baseline gap-1">
-                  <span class="text-3xl font-bold">
-                    {{ plan.price.toLocaleString() }}원
-                  </span>
-                  <span class="text-neutral-500 dark:text-neutral-400">
-                    / 월
-                  </span>
-                </div>
-                <div class="text-sm text-neutral-600 dark:text-neutral-400">
-                  월 {{ plan.credits }} BloC 제공
-                </div>
-              </div>
-            </template>
-
-            <div class="space-y-3 py-6">
-              <div
-                v-for="(feature, index) in plan.features"
-                :key="index"
-                class="flex items-start gap-2 text-sm"
-              >
-                <UIcon
-                  name="i-heroicons-check-circle-solid"
-                  class="text-success shrink-0 mt-0.5"
-                />
-                <span>{{ feature }}</span>
-              </div>
+          </li>
+          <li class="bg-white rounded-3xl py-11 px-6">
+            <NuxtImg src="/icon_work02.png" alt="" :width="56" class="mb-6" />
+            <div class="font-semibold text-xl text-primary-500 mb-1">
+              STEP 2
             </div>
+            <div class="font-semibold text-2xl mb-8">
+              상위 20개 블로그 자동 분석
+            </div>
+            <div class="text-lg">
+              AI가 상위권 블로그를 분석해 어떤 구조가 효과적인지 즉시
+              파악합니다.
+            </div>
+          </li>
+          <li class="bg-white rounded-3xl py-11 px-6">
+            <NuxtImg src="/icon_work03.png" alt="" :width="56" class="mb-6" />
+            <div class="font-semibold text-xl text-primary-500 mb-1">
+              STEP 3
+            </div>
+            <div class="font-semibold text-2xl mb-8">분석 기반 자동 생성</div>
+            <div class="text-lg">
+              패턴 분석 결과를 반영해 바로 써도 되는 고품질 원고가 완성됩니다.
+            </div>
+          </li>
+        </ul>
 
-            <template #footer>
-              <UButton
-                :to="plan.name === 'FREE' ? '/auth/register' : '/pricing'"
-                :color="plan.highlighted ? 'primary' : 'neutral'"
-                :variant="plan.highlighted ? 'solid' : 'outline'"
-                size="lg"
-                block
-              >
-                {{ plan.name === 'FREE' ? '무료 시작' : '자세히 보기' }}
-              </UButton>
-            </template>
-          </UCard>
-        </div>
-
-        <div class="text-center mt-12">
-          <UButton
-            to="/pricing"
-            color="neutral"
-            variant="outline"
-            size="lg"
-            icon="i-heroicons-arrow-right-circle"
-          >
-            모든 플랜 비교하기
-          </UButton>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="py-20 bg-linear-to-br from-primary to-success text-white">
-      <div class="container mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-        <div class="text-center space-y-8">
-          <h2 class="text-3xl md:text-5xl font-bold">지금 바로 시작하세요</h2>
-          <p class="text-lg md:text-xl text-white/90 max-w-2xl mx-auto">
-            무료 플랜으로 Blog Mine의 강력한 기능을 경험해보세요.
-            <br class="hidden md:block" />
-            신용카드 없이 즉시 시작할 수 있습니다.
-          </p>
-
+        <div class="mb-5">
           <div
-            class="flex flex-col sm:flex-row items-center justify-center gap-4"
+            class="h-3 w-full grid grid-cols-2 gap-5 px-[190px]"
+            :style="{
+              background: `url('/line02.png') 0 50% no-repeat`,
+            }"
           >
-            <UButton
-              to="/auth/register"
-              color="neutral"
-              size="xl"
-              icon="i-heroicons-rocket-launch"
+            <div
+              class="col-span-1 flex items-center justify-center"
+              v-for="i in 2"
+              :key="`dot-${i}`"
             >
+              <span class="w-3 h-3 bg-primary-500 rounded-full"></span>
+            </div>
+          </div>
+        </div>
+
+        <ul class="grid grid-cols-2 gap-5 px-[190px]">
+          <li class="bg-white rounded-3xl py-11 px-6">
+            <NuxtImg src="/icon_work04.png" alt="" :width="56" class="mb-6" />
+            <div class="font-semibold text-xl text-primary-500 mb-1">
+              STEP 4
+            </div>
+            <div class="font-semibold text-2xl mb-8">키워드 입력</div>
+            <div class="text-lg">
+              기획이나 구조 고민 없이, 단 한 단계로 모든 생성 프로세스가
+              시작됩니다.
+            </div>
+          </li>
+          <li class="bg-white rounded-3xl py-11 px-6">
+            <NuxtImg src="/icon_work05.png" alt="" :width="56" class="mb-6" />
+            <div class="font-semibold text-xl text-primary-500 mb-1">
+              STEP 5
+            </div>
+            <div class="font-semibold text-2xl mb-8">
+              상위 20개 블로그 자동 분석
+            </div>
+            <div class="text-lg">
+              AI가 상위권 블로그를 분석해 어떤 구조가 효과적인지 즉시
+              파악합니다.
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="py-[120px]">
+      <div class="container mx-auto max-w-7xl">
+        <div class="text-center mb-12">
+          <h2 class="text-[40px] font-bold">데모 영상</h2>
+        </div>
+        <div class="bg-[#D9D9D9] rounded-2xl h-[720px]"></div>
+      </div>
+    </section>
+
+    <section class="py-[120px]">
+      <div class="container mx-auto max-w-7xl">
+        <div class="text-center mb-10">
+          <span class="inline-block text-primary-500 font-medium text-xl">
+            Inside the BloC
+          </span>
+          <h2 class="text-[32px] font-bold">
+            블로그마인은 BloC으로 더 잘 쓸 수 있습니다
+          </h2>
+        </div>
+        <div class="grid grid-cols-3 gap-5">
+          <div class="rounded-2xl border border-primary-400 overflow-hidden">
+            <NuxtImg src="/inside01.png" alt="" class="w-full" />
+            <div class="p-8">
+              <h4 class="text-2xl font-semibold mb-4">BloC (블럭)</h4>
+              <ul class="flex flex-col gap-y-3">
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  원고 생성, 배포, 일부 고급 기능 이용 시 사용되는 재화입니다.
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  요금제마다 기본 제공량이 다르며, 필요한 경우 추가 구매할 수
+                  있습니다.
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  충전한 블럭은 1년 동안 유효합니다.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-primary-400 overflow-hidden">
+            <NuxtImg src="/inside02.png" alt="" class="w-full" />
+            <div class="p-8">
+              <h4 class="text-2xl font-semibold mb-4">블로그 순위 추적 횟수</h4>
+              <ul class="flex flex-col gap-y-3">
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  게시글이 검색 결과에서 몇 위에 노출되는 지를 자동으로
+                  추적합니다.
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  요금제별로 월간 추적 기능 횟수가 달라집니다.
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-primary-400 overflow-hidden">
+            <NuxtImg src="/inside01.png" alt="" class="w-full" />
+            <div class="p-8">
+              <h4 class="text-2xl font-semibold mb-4">추가 기능 제공 범위</h4>
+              <ul class="flex flex-col gap-y-3">
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  스마트 원고 생성
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  AI 추천 키워드 제공
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  상위노출 패턴 인사이트 제공
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  상위노출 패턴 인사이트 제공
+                </li>
+                <li class="pl-6 relative">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="16"
+                    class="absolute left-0 top-1 text-primary-500"
+                  />
+                  상위노출 패턴 인사이트 제공
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="py-[120px] bg-[#F1F4FA]">
+      <div class="container mx-auto max-w-7xl">
+        <div class="text-center mb-12">
+          <span class="inline-block text-primary-500 font-medium text-xl">
+            Pricing
+          </span>
+          <h2 class="text-[32px] font-bold mb-4">
+            필요한 만큼, 원하는 방식으로 제공하는 유연한 요금제
+          </h2>
+          <p class="text-lg">
+            키워드 분석부터 순위추적까지 업무량과 운영 규모에 맞게 플랜을
+            선택하세요.
+          </p>
+        </div>
+        <div class="grid grid-cols-4 gap-x-6 mb-16">
+          <article class="px-8 bg-white rounded-2xl h-[647px] py-10">
+            <header>
+              <div>
+                <h4 class="text-[28px] font-semibold mb-1">Free</h4>
+                <p class="text-lg text-gray-600 mb-6 leading-tight">
+                  AI 원고 작성과 순위 추적을 가볍게 시작해보세요.
+                </p>
+                <div
+                  class="flex justify-center items-center bg-[#EFF6FF] rounded-lg border border-[#DBEAFE] gap-x-2 py-2"
+                >
+                  <NuxtImg src="/icon_bloc.png" alt="" />
+                  <span class="text-lg font-medium text-primary">50 BloC</span>
+                </div>
+              </div>
+            </header>
+            <hr class="border-t border-[#E5E7EB] mt-8 mb-5" />
+            <p class="flex items-center gap-x-1 mb-3">
+              <span class="text-[30px] font-bold">무료</span>
+              <span class="text-sm text-gray-600">(가입 즉시 14일간 무료)</span>
+            </p>
+            <UButton block class="rounded py-2.5" size="lg" color="neutral">
               무료로 시작하기
             </UButton>
-            <UButton
-              to="/pricing"
-              color="neutral"
-              variant="outline"
-              size="xl"
-              icon="i-heroicons-currency-dollar"
-            >
-              요금제 확인하기
+            <div class="mt-8">
+              <h5 class="font-semibold mb-3">제공 혜택</h5>
+              <ul class="flex flex-col gap-y-2">
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  순위 추적: 10회
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  스마트 원고 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  블로그 배포 신청 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  해지 시 데이터 3개월 보관
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  이미지 50건 생성 가능
+                </li>
+              </ul>
+            </div>
+          </article>
+          <article class="px-8 bg-white rounded-2xl h-[647px] py-10">
+            <header>
+              <div>
+                <h4 class="text-[28px] font-semibold mb-1">Starter - 입문용</h4>
+                <p class="text-lg text-gray-600 mb-6 leading-tight">
+                  안정적인 상위 노출 분석과 AI 원고 작성 환경을 제공합니다.
+                </p>
+                <div
+                  class="flex justify-center items-center bg-[#EFF6FF] rounded-lg border border-[#DBEAFE] gap-x-2 py-2"
+                >
+                  <NuxtImg src="/icon_bloc.png" alt="" />
+                  <span class="text-lg font-medium text-primary">100 BloC</span>
+                </div>
+              </div>
+            </header>
+            <hr class="border-t border-[#E5E7EB] mt-8 mb-5" />
+            <p class="flex items-center gap-x-1 mb-3">
+              <span class="text-[30px] font-bold">9,900원</span>
+              <span class="text-sm text-gray-600">/월</span>
+            </p>
+            <UButton block class="rounded py-2.5" size="lg" color="neutral">
+              시작하기
             </UButton>
+            <div class="mt-8">
+              <h5 class="font-semibold mb-3">제공 혜택</h5>
+              <ul class="flex flex-col gap-y-2">
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  순위 추적: 50회
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  스마트 원고 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  블로그 배포 신청 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  기본 상위노출 인사이트 제공
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  해지 시 데이터 6개월 보관
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  이미지 50건 생성 가능
+                </li>
+              </ul>
+            </div>
+          </article>
+          <article class="px-8 bg-white rounded-2xl h-[647px] py-10">
+            <header>
+              <div>
+                <h4 class="text-[28px] font-semibold mb-1">Pro - 성장형</h4>
+                <p class="text-lg text-gray-600 mb-6 leading-tight">
+                  다중 블로그 운영과 고급 분석을 위한 확장형 플랜입니다.
+                </p>
+                <div
+                  class="flex justify-center items-center bg-[#EFF6FF] rounded-lg border border-[#DBEAFE] gap-x-2 py-2"
+                >
+                  <NuxtImg src="/icon_bloc.png" alt="" />
+                  <span class="text-lg font-medium text-primary">500 BloC</span>
+                </div>
+              </div>
+            </header>
+            <hr class="border-t border-[#E5E7EB] mt-8 mb-5" />
+            <p class="flex items-center gap-x-1 mb-3">
+              <span class="text-[30px] font-bold">49,900원</span>
+              <span class="text-sm text-gray-600">/월</span>
+            </p>
+            <UButton block class="rounded py-2.5" size="lg" color="neutral">
+              Pro로 업그레이드
+            </UButton>
+            <div class="mt-8">
+              <h5 class="font-semibold mb-3">제공 혜택</h5>
+              <ul class="flex flex-col gap-y-2">
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  순위 추적: 150회
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  상위노출 인사이트 자동 반영
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  스마트 원고 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  원고 다량 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  블로그 배포 신청 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  해지 시 데이터 1년 보관
+                </li>
+              </ul>
+            </div>
+          </article>
+          <article class="px-8 bg-white rounded-2xl h-[647px] py-10">
+            <header>
+              <div>
+                <h4 class="text-[28px] font-semibold mb-1">Pro + 운영자용</h4>
+                <p class="text-lg text-gray-600 mb-6 leading-tight">
+                  대규모 블로그 운영에 최적화된 성능과 관리 기능을 제공합니다.
+                </p>
+                <div
+                  class="flex justify-center items-center bg-[#EFF6FF] rounded-lg border border-[#DBEAFE] gap-x-2 py-2"
+                >
+                  <NuxtImg src="/icon_bloc.png" alt="" />
+                  <span class="text-lg font-medium text-primary">
+                    1,500 BloC
+                  </span>
+                </div>
+              </div>
+            </header>
+            <hr class="border-t border-[#E5E7EB] mt-8 mb-5" />
+            <p class="flex items-center gap-x-1 mb-3">
+              <span class="text-[30px] font-bold">149,900원</span>
+              <span class="text-sm text-gray-600">/월</span>
+            </p>
+            <UButton block class="rounded py-2.5" size="lg" color="neutral">
+              시작하기
+            </UButton>
+            <div class="mt-8">
+              <h5 class="font-semibold mb-3">제공 혜택</h5>
+              <ul class="flex flex-col gap-y-2">
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  순위 추적: 500회
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  대량 원고 생성 및 배포
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  상위노출 인사이트 자동 반영
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  스마트 원고 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  원고 다량 생성 가능
+                </li>
+                <li class="pl-5 relative text-sm">
+                  <UIcon
+                    name="i-heroicons-check-20-solid"
+                    size="14"
+                    class="absolute left-0 top-[3px] text-primary-500"
+                  />
+                  해지 시 데이터 1년 보관
+                </li>
+              </ul>
+            </div>
+          </article>
+        </div>
+        <div class="bg-white rounded-2xl py-10 px-8">
+          <div class="flex gap-x-12">
+            <div class="w-[320px]">
+              <h4 class="text-[28px] font-semibold mb-1">
+                Enterprise - 기업용 요금제
+              </h4>
+              <p class="text-sm text-gray-600 mb-8 tracking-tight">
+                조직 및 에이전시 운영에 맞춘 맞춤형 AI·SEO 솔루션입니다.
+              </p>
+              <UButton block color="neutral" size="lg" class="rounded py-2.5">
+                비즈니스 문의하기
+              </UButton>
+            </div>
+            <div class="flex-1">
+              <p class="mb-8 text-lg font-semibold">
+                1500 BloC 이상 필요시 문의 주시면 비즈니스 규모에 맞춰 사용
+                가능합니다.
+              </p>
+              <div>
+                <h5 class="font-semibold mb-3">제공 혜택:</h5>
+                <ul class="flex flex-wrap gap-y-2 gap-x-6">
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    순위 추적 커스터마이징
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    대량 원고 생성 및 배포 지원
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    상위노출 인사이트 자동 반영
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    해지 시 데이터 무제한 보관
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    스마트 원고 생성 가능
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    상위노출 블로그 배포 신청
+                  </li>
+                  <li class="pl-5 relative text-sm">
+                    <UIcon
+                      name="i-heroicons-check-20-solid"
+                      size="14"
+                      class="absolute left-0 top-[3px] text-primary-500"
+                    />
+                    전용 CS 지원
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
+        </div>
+      </div>
+    </section>
 
-          <!-- Trust Signals -->
-          <div
-            class="pt-8 flex flex-wrap items-center justify-center gap-6 text-sm text-white/80"
+    <!-- FAQ Section -->
+    <section class="py-[120px] bg-white dark:bg-neutral-900">
+      <div class="container mx-auto max-w-7xl">
+        <div class="text-center mb-10">
+          <h2 class="text-[40px] font-bold">FAQ</h2>
+        </div>
+
+        <ul class="flex flex-col gap-y-5">
+          <li
+            v-for="item in [
+              {
+                label: 'Q. 블로그마인은 어떤 분들이 사용하면 좋나요?',
+                defaultOpen: true,
+                content:
+                  '오프라인 매장 사장님부터 콘텐츠 제작자까지, 글 작성과 블로그 운영이 부담되는 모든 분들에게 도움이 됩니다.',
+              },
+              {
+                label: 'Q2. 블로그 운영 경험이 없어도 사용할 수 있나요?',
+                content:
+                  '네, 가능합니다. 블로그마인은 초보자도 쉽게 사용할 수 있도록 직관적인 인터페이스로 설계되었습니다. 키워드만 입력하시면 AI가 자동으로 최적화된 원고를 생성해드립니다.',
+              },
+              {
+                label:
+                  'Q3. 생성된 원고를 업로드할 블로그 계정을 선택할 수 있나요?',
+
+                content:
+                  '네. 원고 생성 후 바로 배포할 블로그 계정을 선택할 수 있습니다. 최적화된 고품질 원고를 업로드해 상위노출 가능성을 더욱 높여보세요.',
+              },
+              {
+                label: 'Q4. BloC(블록)은 어떤 기능을 사용할 때 차감되나요?',
+
+                content:
+                  '원고 생성, 배포 등 핵심 기능을 사용할 때 BloC이 차감됩니다. 부족할 경우 언제든 추가 충전하여 사용할 수 있습니다.',
+              },
+              {
+                label: 'Q5. 배포 후 순위 추적은 어떻게 진행되나요?',
+
+                content:
+                  '게시 즉시 자동으로 추적이 시작되며, 설정한 키워드를 기준으로 매일 순위 변화를 기록하고 최대 30일간 누적 데이터를 제공합니다.',
+              },
+            ]"
+            :key="item.label"
           >
-            <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-check-circle-solid" />
-              <span>신용카드 불필요</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-check-circle-solid" />
-              <span>언제든지 취소 가능</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-check-circle-solid" />
-              <span>24시간 고객 지원</span>
-            </div>
-          </div>
+            <FaqItem
+              :label="item.label"
+              :description="item.content"
+              :default-open="item.defaultOpen"
+            />
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Final CTA Section -->
+    <section
+      class="py-[120px]"
+      :style="{
+        background: `url('/cta_bg.png') center center no-repeat`,
+        backgroundSize: 'cover',
+      }"
+    >
+      <div class="container mx-auto max-w-7xl">
+        <div class="flex items-center justify-center gap-1.5 mb-5">
+          <h3 class="text-[21px] font-bold text-[#7FB3FF]">BlogMine</h3>
+          <NuxtImg src="/icon_logo2.png" alt="" />
+        </div>
+        <h2 class="text-[40px] font-bold text-white text-center mb-12">
+          지금, 블로그마인으로
+          <br />
+          블로그 상위 노출을 시작해보세요
+        </h2>
+
+        <div class="w-[238px] mx-auto">
+          <UButton
+            to="/auth/register"
+            size="xl"
+            class="dark py-4"
+            block
+            color="neutral"
+          >
+            지금 바로 시작하기
+            <UIcon name="i-heroicons-chevron-right-16-solid" size="20" />
+          </UButton>
         </div>
       </div>
     </section>

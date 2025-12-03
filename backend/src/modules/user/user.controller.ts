@@ -10,7 +10,13 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { UpdateBusinessInfoDto, ChangePasswordDto } from './dto';
+import {
+  UpdateBusinessInfoDto,
+  ChangePasswordDto,
+  ChangeEmailRequestDto,
+  VerifyEmailChangeDto,
+  SetPasswordDto,
+} from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
@@ -43,6 +49,7 @@ export class UserController {
       kakaoNickname: userWithBusinessInfo.kakaoNickname,
       kakaoProfileImage: userWithBusinessInfo.kakaoProfileImage,
       kakaoConnectedAt: userWithBusinessInfo.kakaoConnectedAt,
+      hasPassword: userWithBusinessInfo.password !== null,
     };
   }
 
@@ -78,5 +85,44 @@ export class UserController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.userService.changePassword(user.id, dto);
+  }
+
+  /**
+   * 이메일 변경 요청 (인증 코드 전송)
+   * POST /user/request-email-change
+   */
+  @Post('request-email-change')
+  @HttpCode(HttpStatus.OK)
+  async requestEmailChange(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: ChangeEmailRequestDto,
+  ) {
+    return this.userService.requestEmailChange(user.id, dto);
+  }
+
+  /**
+   * 이메일 변경 확인 (인증 코드 검증 후 이메일 업데이트)
+   * POST /user/verify-email-change
+   */
+  @Post('verify-email-change')
+  @HttpCode(HttpStatus.OK)
+  async verifyEmailChange(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: VerifyEmailChangeDto,
+  ) {
+    return this.userService.verifyAndChangeEmail(user.id, dto);
+  }
+
+  /**
+   * 비밀번호 설정/변경 (카카오 사용자용)
+   * POST /user/set-password
+   */
+  @Post('set-password')
+  @HttpCode(HttpStatus.OK)
+  async setPassword(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: SetPasswordDto,
+  ) {
+    return this.userService.setPassword(user.id, dto);
   }
 }

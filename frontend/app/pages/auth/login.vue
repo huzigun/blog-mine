@@ -8,6 +8,7 @@ definePageMeta({
 });
 
 const toast = useToast();
+const config = useRuntimeConfig();
 
 const state = reactive<LoginSchema>({
   email: '',
@@ -48,6 +49,46 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
     },
   );
 }
+
+// Kakao OAuth login
+const KAKAO_AUTH_URL = 'https://kauth.kakao.com/oauth/authorize';
+const [isKakaoLoading, startKakaoLogin] = useTransition();
+
+const handleKakaoLogin = async () => {
+  if (isKakaoLoading.value || isPending.value) return;
+
+  await startKakaoLogin(
+    async () => {
+      const clientId = config.public.kakaoClientId;
+      if (!clientId) {
+        throw new Error('카카오 클라이언트 ID가 설정되지 않았습니다.');
+      }
+
+      // 프론트엔드 콜백 URL로 리다이렉트
+      const frontendUrl = window.location.origin;
+      const redirectUri = `${frontendUrl}/auth/kakao-callback`;
+
+      const url = new URL(KAKAO_AUTH_URL);
+      url.searchParams.set('client_id', clientId);
+      url.searchParams.set('redirect_uri', redirectUri);
+      url.searchParams.set('response_type', 'code');
+      url.searchParams.set('scope', 'account_email,profile_nickname,profile_image');
+
+      // 카카오 로그인 페이지로 리다이렉트
+      window.location.href = url.toString();
+    },
+    {
+      onError: (err) => {
+        toast.add({
+          title: '카카오 로그인 실패',
+          description: err.message || '카카오 로그인에 실패했습니다.',
+          color: 'error',
+        });
+      },
+      minDuration: 300,
+    }
+  );
+};
 </script>
 
 <template>
@@ -135,8 +176,10 @@ async function onSubmit(event: FormSubmitEvent<LoginSchema>) {
           type="button"
           size="xl"
           block
-          :disabled="isPending"
+          :disabled="isPending || isKakaoLoading"
+          :loading="isKakaoLoading"
           color="warning"
+          @click="handleKakaoLogin"
         >
           카카오로 시작하기
         </UButton>

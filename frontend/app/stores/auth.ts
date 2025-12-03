@@ -79,6 +79,23 @@ export const useAuth = defineStore('auth', {
       return data;
     },
 
+    // 카카오 로그인
+    async kakaoLogin(code: string, redirectUri: string): Promise<AuthResponse & { isAccountLinked?: boolean }> {
+      // Nuxt server API 호출 (쿠키는 서버에서 자동 설정됨)
+      const data = await $fetch<AuthResponse & { isAccountLinked?: boolean }>('/api/auth/kakao-login', {
+        method: 'POST',
+        body: { code, redirectUri },
+      });
+
+      this.setAccessToken(data.accessToken);
+      this.setUser(data.user);
+
+      // 로그인 시 구독 정보 함께 로드
+      await this.fetchSubscription();
+
+      return data;
+    },
+
     async logout() {
       try {
         // Nuxt API를 통해 로그아웃 (httpOnly 쿠키 삭제)

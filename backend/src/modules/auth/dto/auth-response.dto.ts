@@ -6,4 +6,5 @@ export class AuthResponseDto {
     email: string;
     name: string | null;
   };
+  isAccountLinked?: boolean; // 카카오 로그인 시 기존 계정 연동 여부
 }

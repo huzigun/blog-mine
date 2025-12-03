@@ -190,6 +190,28 @@ export class AuthController {
   }
 
   /**
+   * Kakao 로그인/회원가입
+   * POST /auth/kakao-login
+   * - 카카오 인가 코드로 로그인 또는 자동 회원가입
+   */
+  @Post('/kakao-login')
+  @HttpCode(HttpStatus.OK)
+  async kakaoLogin(
+    @Body() body: { code: string; redirectUri?: string },
+    @Req() req: Request,
+  ): Promise<AuthResponseDto> {
+    const ipAddress = this.extractIpAddress(req);
+    const userAgent = req.headers['user-agent'];
+
+    return await this.authService.kakaoLogin(
+      body.code,
+      body.redirectUri,
+      ipAddress,
+      userAgent,
+    );
+  }
+
+  /**
    * Kakao 계정 연결 해제
    * POST /auth/disconnect-kakao
    */
