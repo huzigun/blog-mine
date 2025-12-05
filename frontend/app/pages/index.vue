@@ -28,26 +28,13 @@ const points = [
 </script>
 
 <template>
-  <div>
+  <div class="min-w-7xl">
     <!-- Hero Section -->
-    <section class="relative h-[604px]">
-      <!-- Background Pattern -->
-      <div class="absolute inset-0 grid grid-cols-2">
-        <div class="col-span-1"></div>
-        <div
-          class="col-span-1 h-full bg-cover"
-          :style="{
-            backgroundImage: `url('/hero01.jpg')`,
-          }"
-        >
-          <!-- <NuxtImg src="/hero01.jpg" alt="" class="w-full" /> -->
-        </div>
-      </div>
-
-      <div class="relative container mx-auto max-w-7xl">
+    <section id="hero" class="py-[120px]">
+      <div class="container mx-auto max-w-7xl">
         <div class="grid grid-cols-2">
           <!-- Left Content -->
-          <div class="pt-[107px] font-medium">
+          <div class="font-medium col-span-1">
             <!-- Stats Badge -->
             <div
               class="inline-flex items-center gap-2 h-[34px] px-4 rounded-full bg-primary-100 border border-primary-200 mb-6"
@@ -86,12 +73,15 @@ const points = [
               지금 바로 시작하기
             </UButton>
           </div>
+          <div class="col-span-1">
+            <NuxtImg src="/hero01.jpg" alt="" />
+          </div>
         </div>
       </div>
     </section>
 
     <!-- Pain Points Section -->
-    <section class="pt-[120px] pb-[168px] bg-whit">
+    <section id="pain-points" class="pt-[120px] pb-[168px] bg-whit">
       <div class="container mx-auto max-w-7xl">
         <!-- Section Header -->
         <div class="text-center mb-10">
@@ -133,7 +123,7 @@ const points = [
     </section>
 
     <!-- How It Works Section -->
-    <section class="py-[120px] bg-[#EFF1F5]">
+    <section id="features" class="py-[120px] bg-[#EFF1F5]">
       <div class="container mx-auto max-w-7xl px-[70px]">
         <!-- Section Header -->
         <div class="text-center mb-12">
@@ -252,7 +242,7 @@ const points = [
       </div>
     </section>
 
-    <section class="py-[120px]">
+    <section id="bloc" class="py-[120px]">
       <div class="container mx-auto max-w-7xl">
         <div class="text-center mb-10">
           <span class="inline-block text-primary-500 font-medium text-xl">
@@ -373,7 +363,7 @@ const points = [
       </div>
     </section>
 
-    <section class="py-[120px] bg-[#F1F4FA]">
+    <section id="pricing" class="py-[120px] bg-[#F1F4FA]">
       <div class="container mx-auto max-w-7xl">
         <div class="text-center mb-12">
           <span class="inline-block text-primary-500 font-medium text-xl">
@@ -777,7 +767,7 @@ const points = [
     </section>
 
     <!-- FAQ Section -->
-    <section class="py-[120px] bg-white dark:bg-neutral-900">
+    <section id="faq" class="py-[120px] bg-white dark:bg-neutral-900">
       <div class="container mx-auto max-w-7xl">
         <div class="text-center mb-10">
           <h2 class="text-[40px] font-bold">FAQ</h2>
@@ -831,6 +821,7 @@ const points = [
 
     <!-- Final CTA Section -->
     <section
+      id="cta"
       class="py-[120px]"
       :style="{
         background: `url('/cta_bg.png') center center no-repeat`,

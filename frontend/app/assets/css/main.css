@@ -20,6 +20,19 @@
   --color-brand-900: #2a2170;
   --color-brand-950: #1f184e;
 
+  /* Custom success color - flatter, more muted green */
+  --color-success-50: #f0fdf4;
+  --color-success-100: #dcfce7;
+  --color-success-200: #bbf7d0;
+  --color-success-300: #86efac;
+  --color-success-400: #4ade80;
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-success-700: #15803d;
+  --color-success-800: #166534;
+  --color-success-900: #14532d;
+  --color-success-950: #052e16;
+
   --ui-text: var(--color-zinc-950);
 }
 

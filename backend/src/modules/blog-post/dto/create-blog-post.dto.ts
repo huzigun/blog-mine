@@ -9,16 +9,25 @@ import {
   IsObject,
   ArrayMinSize,
   ArrayMaxSize,
+  IsBoolean,
+  ValidateIf,
 } from 'class-validator';
 
 export class CreateBlogPostDto {
   @IsString()
   postType: string;
 
+  // personaId와 useRandomPersona 중 하나만 필수
+  @ValidateIf((o) => !o.useRandomPersona)
   @IsNumber()
   @IsInt()
   @Min(1)
-  personaId: number;
+  personaId?: number;
+
+  // personaId가 없을 때 랜덤 페르소나 사용 플래그
+  @ValidateIf((o) => !o.personaId)
+  @IsBoolean()
+  useRandomPersona?: boolean;
 
   @IsString()
   keyword: string;

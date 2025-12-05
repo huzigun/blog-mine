@@ -93,7 +93,7 @@ export class SchedulerService {
    * 예제: 매일 kst 오전 07:00에 실행되는 작업
    * Cron 표현식을 사용하여 원하는 시간에 작업을 스케줄링할 수 있습니다.
    */
-  @Cron('0 0 7 * * *')
+  @Cron('0 0 22 * * *')
   async handleDailyTask() {
     const taskName = 'daily-blog-rank-collection';
     let taskLog: { id: number } | null = null;

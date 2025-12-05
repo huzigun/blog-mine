@@ -11,6 +11,7 @@ import { DateService } from '../../lib/date/date.service';
 import { CreditService } from '@modules/credit/credit.service';
 import { PromptLogService } from '@lib/integrations/openai/prompt-log';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
+import { generateRandomPersona } from './random-persona.util';
 
 @Injectable()
 export class BlogPostService {
@@ -35,17 +36,49 @@ export class BlogPostService {
    * 블로그 원고 생성 요청 생성
    */
   async create(userId: number, dto: CreateBlogPostDto) {
-    // 1. 페르소나 조회
-    const persona = await this.prisma.persona.findFirst({
-      where: {
-        id: dto.personaId,
-        userId, // 본인의 페르소나만 사용 가능
-      },
-    });
+    let personaSnapshot: any;
 
-    if (!persona) {
-      throw new NotFoundException(
-        `Persona with id ${dto.personaId} not found or access denied`,
+    // 1. 페르소나 처리 (DB 조회 또는 랜덤 플래그 설정)
+    if (dto.personaId) {
+      // 기존 페르소나 ID 사용
+      const persona = await this.prisma.persona.findFirst({
+        where: {
+          id: dto.personaId,
+          userId, // 본인의 페르소나만 사용 가능
+        },
+      });
+
+      if (!persona) {
+        throw new NotFoundException(
+          `Persona with id ${dto.personaId} not found or access denied`,
+        );
+      }
+
+      // 페르소나 스냅샷 생성
+      personaSnapshot = {
+        gender: persona.gender,
+        age: persona.age,
+        isMarried: persona.isMarried,
+        hasChildren: persona.hasChildren,
+        occupation: persona.occupation,
+        blogStyle: persona.blogStyle,
+        blogTone: persona.blogTone,
+        additionalInfo: persona.additionalInfo,
+        isRandom: false,
+      };
+    } else if (dto.useRandomPersona) {
+      // 랜덤 페르소나 플래그 설정 (실제 생성은 각 원고마다)
+      // 플레이스홀더 스냅샷 (실제로는 사용되지 않음)
+      personaSnapshot = {
+        isRandom: true,
+      };
+
+      this.logger.log(
+        `Random persona generation enabled - each post will get unique persona`,
+      );
+    } else {
+      throw new BadRequestException(
+        'personaId 또는 useRandomPersona 중 하나는 필수입니다.',
       );
     }
 
@@ -64,23 +97,11 @@ export class BlogPostService {
       );
     }
 
-    // 2. 키워드로 오늘 날짜 블로그 순위 수집 (없으면 수집)
+    // 4. 키워드로 오늘 날짜 블로그 순위 수집 (없으면 수집)
     this.logger.log(
       `Collecting blog ranks for keyword: "${dto.keyword}" before generating posts`,
     );
     await this.blogRankService.collectBlogRanks(dto.keyword, 40);
-
-    // 3. 페르소나 스냅샷 생성
-    const personaSnapshot = {
-      gender: persona.gender,
-      age: persona.age,
-      isMarried: persona.isMarried,
-      hasChildren: persona.hasChildren,
-      occupation: persona.occupation,
-      blogStyle: persona.blogStyle,
-      blogTone: persona.blogTone,
-      additionalInfo: persona.additionalInfo,
-    };
 
     // 4. BlogPost 생성
     const blogPost = await this.prisma.blogPost.create({
@@ -398,6 +419,7 @@ export class BlogPostService {
   /**
    * 단일 원고 생성 (exponential backoff 재시도)
    * - 배치 처리 시 blogPost와 referenceContents를 재사용하여 DB 조회 최소화
+   * - 랜덤 페르소나 모드에서는 각 원고마다 새로운 랜덤 페르소나 생성
    */
   private async generateSinglePostWithRetry(
     blogPostId: number,
@@ -437,6 +459,18 @@ export class BlogPostService {
           referenceContents ||
           (await this.fetchReferenceContents(post.keyword));
 
+        // 랜덤 페르소나 모드인 경우 각 원고마다 새로운 랜덤 페르소나 생성
+        const isRandomMode = post.persona?.isRandom === true;
+        const actualPersona = isRandomMode
+          ? generateRandomPersona()
+          : post.persona;
+
+        if (isRandomMode) {
+          this.logger.log(
+            `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.occupation} (${actualPersona.age}세, ${actualPersona.gender})`,
+          );
+        }
+
         this.logger.log(
           `Generating post ${postIndex}/${totalCount} with diversity strategy (existing titles: ${existingTitles.length})`,
         );
@@ -447,7 +481,7 @@ export class BlogPostService {
         const result = await this.openaiService.generatePost({
           keyword: post.keyword,
           postType: post.postType,
-          persona: post.persona, // Prisma JsonValue -> Persona 타입 변환
+          persona: actualPersona, // 랜덤 모드면 새로 생성된 페르소나, 아니면 기존 페르소나
           subKeywords: post.subKeywords,
           length: post.length,
           additionalFields: post.additionalFields as Record<string, any>,
@@ -581,13 +615,23 @@ export class BlogPostService {
     for (const blogRank of topBlogs) {
       const blog = blogRank.blog;
 
-      // summary가 이미 있으면 재사용 (200자로 제한)
+      // summary가 이미 있고 작성 기법 분석 버전인지 확인
+      // 작성 기법 분석 버전은 "글 구성:", "문체와 어조:" 등의 키워드를 포함
       if (blog.summary) {
-        referenceContents.push(blog.summary.substring(0, 200));
-        continue;
+        const isNewStyleSummary =
+          blog.summary.includes('글 구성') ||
+          blog.summary.includes('문체와 어조') ||
+          blog.summary.includes('작성 기법');
+
+        if (isNewStyleSummary) {
+          // 이미 새로운 방식으로 생성된 summary 재사용
+          referenceContents.push(blog.summary);
+          continue;
+        }
+        // summary가 있지만 구버전이면 아래에서 재생성
       }
 
-      // summary가 없고 content가 있으면 요약 생성
+      // summary가 없거나 구버전이면 새로 생성
       if (blog.content && blog.content.length > 200) {
         try {
           this.logger.debug(
@@ -605,20 +649,20 @@ export class BlogPostService {
             data: { summary },
           });
 
-          // 프롬프트 크기 제한을 위해 200자로 제한
-          referenceContents.push(summary.substring(0, 200));
+          // 생성된 전체 요약 사용 (400-600자, 작성 기법 분석 결과)
+          referenceContents.push(summary);
 
           this.logger.debug(`Summary generated and saved for blog ${blog.id}`);
         } catch (error) {
           this.logger.warn(
             `Failed to generate summary for blog ${blog.id}: ${error.message}`,
           );
-          // 요약 실패 시 원본 앞부분 사용 (200자)
-          referenceContents.push(blog.content.substring(0, 200));
+          // 요약 실패 시 원본 앞부분 사용 (문장 단위로 최대 600자)
+          referenceContents.push(this.truncateAtSentence(blog.content, 600));
         }
       } else if (blog.content) {
-        // content가 짧으면 200자로 제한해서 사용
-        referenceContents.push(blog.content.substring(0, 200));
+        // content가 짧으면 그대로 사용 (문장 단위로 최대 600자)
+        referenceContents.push(this.truncateAtSentence(blog.content, 600));
       }
     }
 
@@ -627,6 +671,36 @@ export class BlogPostService {
     );
 
     return referenceContents;
+  }
+
+  /**
+   * 문장 단위로 텍스트를 자르기
+   * 마지막 완전한 문장까지만 포함하여 중간 단절 방지
+   * @param text - 원본 텍스트
+   * @param maxLength - 최대 길이
+   * @returns 문장 단위로 잘린 텍스트
+   */
+  private truncateAtSentence(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    let truncated = text.substring(0, maxLength);
+
+    // 마지막 완전한 문장 찾기
+    const lastPeriod = truncated.lastIndexOf('.');
+    const lastExclamation = truncated.lastIndexOf('!');
+    const lastQuestion = truncated.lastIndexOf('?');
+
+    const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
+
+    // 최소 길이 보장 (maxLength의 60% 이상)
+    const minLength = Math.floor(maxLength * 0.6);
+    if (lastSentenceEnd > minLength) {
+      truncated = truncated.substring(0, lastSentenceEnd + 1);
+    }
+
+    return truncated.trim();
   }
 
   /**

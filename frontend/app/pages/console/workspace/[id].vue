@@ -362,7 +362,20 @@ const totalPages = computed(() => {
           >
             사용된 페르소나 정보
           </h3>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+
+          <!-- Random Persona Display -->
+          <div v-if="blogPost.persona.isRandom" class="text-sm">
+            <UBadge color="primary" variant="soft" size="lg">
+              <UIcon name="i-heroicons-sparkles" class="mr-1" />
+              랜덤 페르소나
+            </UBadge>
+            <p class="mt-2 text-neutral-500">
+              각 원고마다 랜덤하게 생성된 페르소나가 사용되었습니다.
+            </p>
+          </div>
+
+          <!-- Fixed Persona Display -->
+          <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
             <div v-if="blogPost.persona.gender">
               <span class="text-neutral-500">성별:</span>
               <span class="ml-2 text-neutral-900 dark:text-neutral-100">

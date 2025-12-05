@@ -429,9 +429,7 @@ export class AuthService {
         kakaoUserInfo.kakao_account?.profile?.profile_image_url || null;
 
       // 3. 중복 연결 확인 - 다른 사용자가 이미 연결한 Kakao 계정인지 확인
-      const existingConnection = await this.prisma.user.findUnique({
-        where: { kakaoId },
-      });
+      const existingConnection = await this.userService.findByKakaoId(kakaoId);
 
       if (existingConnection && existingConnection.id !== userId) {
         throw new ConflictException(
@@ -440,9 +438,7 @@ export class AuthService {
       }
 
       // 4. 현재 사용자 조회
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userService.findById(userId);
 
       if (!user) {
         throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
@@ -496,9 +492,7 @@ export class AuthService {
   ): Promise<{ message: string; success: boolean }> {
     try {
       // 1. 현재 사용자 조회
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userService.findById(userId);
 
       if (!user) {
         throw new UnauthorizedException('사용자를 찾을 수 없습니다.');
@@ -591,16 +585,12 @@ export class AuthService {
         kakaoUserInfo.kakao_account?.profile?.profile_image_url || null;
 
       // 4. 카카오 ID로 기존 사용자 찾기
-      let user = await this.prisma.user.findUnique({
-        where: { kakaoId },
-      });
+      let user = await this.userService.findByKakaoId(kakaoId);
 
       // 5. 카카오 ID로 사용자를 찾지 못한 경우, 이메일로 찾아보기
       let isAccountLinked = false;
       if (!user) {
-        user = await this.prisma.user.findUnique({
-          where: { email: kakaoEmail },
-        });
+        user = await this.userService.findByEmail(kakaoEmail);
 
         // 이메일로 찾은 사용자가 있으면 카카오 정보 연결
         if (user) {

@@ -75,11 +75,18 @@ This is a pnpm workspace monorepo blog application with two main packages:
 
 ### Frontend (Nuxt)
 - **Framework**: Nuxt 4 with Vue 3 Composition API
-- **UI Library**: @nuxt/ui 4.1.0 (built on Tailwind CSS)
+- **UI Library**: @nuxt/ui 4.1.0 (built on Tailwind CSS v4)
   - **IMPORTANT**: Use Nuxt UI v4 documentation at https://ui.nuxt.com (NOT v2 docs)
   - v4 unified Nuxt UI and Nuxt UI Pro into a single package
   - Breaking changes from v2/v3: See "Nuxt UI v4 Specific Guidelines" section below
   - **Color System**: Uses semantic colors (`success`, `error`, `neutral`) instead of descriptive (`green`, `red`, `gray`)
+- **Styling**: Tailwind CSS v4 with `@theme static` configuration in CSS files
+  - **IMPORTANT**: v4 uses CSS-based configuration, NOT `tailwind.config.ts`
+  - Design tokens configured in `app/assets/css/main.css`
+  - Figma design tokens applied: See [LANDING-PAGE-IMPLEMENTATION.md](LANDING-PAGE-IMPLEMENTATION.md)
+- **Typography**: Pretendard Variable font loaded from jsDelivr CDN
+  - Korean/Latin variable font with weight 400-900
+  - Configured in `nuxt.config.ts` and CSS custom properties
 - **Validation**: Zod for type-safe schema validation
   - Schemas organized in `app/schemas/` (auth, user, blog)
   - See [frontend/VALIDATION.md](frontend/VALIDATION.md) for details

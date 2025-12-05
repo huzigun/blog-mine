@@ -18,6 +18,9 @@ const auth = useAuth();
 interface SimplePersona
   extends Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'> {}
 
+// 특별한 값으로 "임의 생성" 옵션 구분
+const RANDOM_PERSONA_VALUE = -1;
+
 const { data: personas } = await useApiFetch<
   {
     label: string;
@@ -27,10 +30,16 @@ const { data: personas } = await useApiFetch<
   method: 'GET',
   lazy: true,
   transform: (data: any) => {
-    return data.map((item: SimplePersona) => ({
+    const personaList = data.map((item: SimplePersona) => ({
       label: `${item.occupation} (${item.age}세, ${item.gender})`,
       value: item.id,
     }));
+
+    // "임의 생성" 옵션을 맨 위에 추가
+    return [
+      { label: '✨ 임의 생성', value: RANDOM_PERSONA_VALUE },
+      ...personaList,
+    ];
   },
 });
 
@@ -125,9 +134,21 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
     }
   });
 
+  // 페르소나 처리: 임의 생성인 경우 플래그 설정
+  let personaId = e.data.personaId;
+  let useRandomPersona = false;
+
+  if (personaId === RANDOM_PERSONA_VALUE) {
+    // 임의 생성 선택 시 플래그 설정 (백엔드에서 각 원고마다 랜덤 생성)
+    useRandomPersona = true;
+    personaId = undefined; // personaId는 undefined로
+  }
+
   // 서브 키워드 입력 방식에 따라 null 처리
   const finalData = {
     ...e.data,
+    personaId,
+    useRandomPersona,
     subKeywords: useAIRecommendation.value ? null : e.data.subKeywords,
     additionalFields: hasFields ? cleanedFields : null, // 비어있으면 null
   };
@@ -216,7 +237,16 @@ const onSubmit = () => {
                   placeholder="포스트 유형을 선택해 주세요."
                 />
               </UFormField>
-              <UFormField label="페르소나" name="personaId" required>
+              <UFormField
+                label="페르소나"
+                name="personaId"
+                required
+                :description="
+                  state.personaId === RANDOM_PERSONA_VALUE
+                    ? '각 원고마다 임의의 다른 페르소나가 자동으로 설정됩니다.'
+                    : undefined
+                "
+              >
                 <USelect
                   v-model="state.personaId"
                   name="personaId"
@@ -392,7 +422,7 @@ const onSubmit = () => {
               </div>
             </form>
           </div>
-          <div class="space-y-3">
+          <div class="space-y-3 mt-4">
             <!-- BloC 잔액 표시 -->
             <div
               v-if="auth.creditBalance"

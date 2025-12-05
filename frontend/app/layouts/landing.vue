@@ -1,16 +1,17 @@
 <script setup lang="ts">
 const auth = useAuth();
 const colorMode = useColorMode();
+const { scrollToSection } = useSmoothScroll();
 
 // 모바일 메뉴 상태
 const isMobileMenuOpen = ref(false);
 
 // 네비게이션 메뉴
 const navItems = [
-  { label: '기능', to: '/#features' },
-  { label: '요금제', to: '/pricing' },
-  { label: '블로그', to: '/blog' },
-  { label: '고객센터', to: '/support' },
+  { label: '기능', section: 'features' },
+  { label: '요금제', section: 'pricing' },
+  { label: 'BloC', section: 'bloc' },
+  { label: 'FAQ', section: 'faq' },
 ];
 
 // 스크롤 감지 (헤더 스타일 변경)
@@ -60,14 +61,15 @@ const closeMobileMenu = () => {
 
           <!-- Desktop Navigation -->
           <div class="hidden md:flex items-center gap-8">
-            <NuxtLink
+            <a
               v-for="item in navItems"
-              :key="item.to"
-              :to="item.to"
-              class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors"
+              :key="item.section"
+              href="#"
+              class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors cursor-pointer"
+              @click="(e) => { e.preventDefault(); scrollToSection(item.section); }"
             >
               {{ item.label }}
-            </NuxtLink>
+            </a>
           </div>
 
           <!-- Desktop Auth Buttons -->
@@ -151,15 +153,15 @@ const closeMobileMenu = () => {
 
               <!-- Navigation Links -->
               <nav class="flex-1 overflow-y-auto p-4 space-y-2">
-                <NuxtLink
+                <a
                   v-for="item in navItems"
-                  :key="item.to"
-                  :to="item.to"
-                  class="block px-4 py-3 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                  @click="closeMobileMenu"
+                  :key="item.section"
+                  href="#"
+                  class="block px-4 py-3 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection(item.section); closeMobileMenu(); }"
                 >
                   {{ item.label }}
-                </NuxtLink>
+                </a>
               </nav>
 
               <!-- Auth Buttons -->
@@ -220,160 +222,125 @@ const closeMobileMenu = () => {
     </main>
 
     <!-- Footer -->
-    <footer
-      class="bg-neutral-50 dark:bg-neutral-900 border-t border-neutral-200 dark:border-neutral-800"
-    >
-      <div class="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+    <footer class="bg-[#212121] dark">
+      <div class="container mx-auto max-w-7xl px-8 py-12">
+        <div class="flex justify-between items-start">
           <!-- Company Info -->
-          <div class="space-y-4">
-            <div class="flex items-center gap-2 text-xl font-bold">
-              <div class="i-heroicons-sparkles text-2xl text-primary" />
-              <span>Blog Mine</span>
-            </div>
-            <p class="text-sm text-neutral-600 dark:text-neutral-400">
-              AI 기반 블로그 원고 자동 생성 서비스
-            </p>
-            <div class="flex items-center gap-3">
-              <a
-                href="#"
-                class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                aria-label="Twitter"
-              >
-                <div class="i-heroicons-share text-xl" />
-              </a>
-              <a
-                href="#"
-                class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                aria-label="Facebook"
-              >
-                <div class="i-heroicons-share text-xl" />
-              </a>
-              <a
-                href="#"
-                class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                aria-label="Instagram"
-              >
-                <div class="i-heroicons-share text-xl" />
-              </a>
-            </div>
+          <div class="w-md">
+            <dl class="mb-[54px]">
+              <dt class="text-xl font-medium mb-6 text-white">BlogMine</dt>
+              <dd class="text-sm text-gray-400">
+                상위 노출 블로그의 패턴을 학습하고 원고를 생성하며, 블로그
+                성과까지 추적합니다
+              </dd>
+            </dl>
+            <dl class="">
+              <dt class="text-xl font-medium mb-6 text-white">사업자 정보</dt>
+              <dd>
+                <ul class="flex flex-wrap text-sm text-gray-400 gap-y-1">
+                  <li
+                    class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
+                  >
+                    회사명: 리클릭
+                  </li>
+                  <li
+                    class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
+                  >
+                    주소: 광주광역시 북구 매곡로 233-1, 3층(오치동)
+                  </li>
+                  <li
+                    class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
+                  >
+                    대표: 신준섭
+                  </li>
+                  <li
+                    class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
+                  >
+                    사업자등록번호: 246-86-00094
+                  </li>
+                  <li>통신판매업신고번호: 2020-광주북구-0662</li>
+                </ul>
+              </dd>
+            </dl>
           </div>
 
           <!-- Product -->
-          <div class="space-y-4">
-            <h3 class="font-semibold text-neutral-900 dark:text-neutral-100">
-              제품
+          <div class="">
+            <h3
+              class="font-medium text-neutral-900 dark:text-neutral-100 text-xl mb-6"
+            >
+              서비스
             </h3>
-            <ul class="space-y-2 text-sm">
+            <ul class="flex flex-col gap-y-4 text-sm">
               <li>
-                <NuxtLink
-                  to="/#features"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+                <a
+                  href="#"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection('hero'); }"
                 >
-                  기능
-                </NuxtLink>
+                  소개
+                </a>
               </li>
               <li>
-                <NuxtLink
-                  to="/pricing"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+                <a
+                  href="#"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection('features'); }"
+                >
+                  서비스
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection('features'); }"
+                >
+                  이용방법
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection('pricing'); }"
                 >
                   요금제
-                </NuxtLink>
+                </a>
               </li>
               <li>
-                <NuxtLink
-                  to="/api-docs"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+                <a
+                  href="#"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
+                  @click="(e) => { e.preventDefault(); scrollToSection('faq'); }"
                 >
-                  API 문서
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/changelog"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  업데이트 내역
-                </NuxtLink>
+                  FAQ
+                </a>
               </li>
             </ul>
           </div>
 
           <!-- Resources -->
-          <div class="space-y-4">
-            <h3 class="font-semibold text-neutral-900 dark:text-neutral-100">
-              리소스
+          <div class="">
+            <h3
+              class="font-medium text-neutral-900 dark:text-neutral-100 text-xl mb-6"
+            >
+              정보
             </h3>
             <ul class="space-y-2 text-sm">
               <li>
                 <NuxtLink
-                  to="/blog"
+                  to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088166aaebcae54bd460f4"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  블로그
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/guides"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  사용 가이드
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/tutorials"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  튜토리얼
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/support"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  고객센터
-                </NuxtLink>
-              </li>
-            </ul>
-          </div>
-
-          <!-- Company -->
-          <div class="space-y-4">
-            <h3 class="font-semibold text-neutral-900 dark:text-neutral-100">
-              회사
-            </h3>
-            <ul class="space-y-2 text-sm">
-              <li>
-                <NuxtLink
-                  to="/about"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  회사 소개
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/contact"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
-                >
-                  문의하기
-                </NuxtLink>
-              </li>
-              <li>
-                <NuxtLink
-                  to="/terms"
-                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+                  target="_blank"
                 >
                   이용약관
                 </NuxtLink>
               </li>
               <li>
                 <NuxtLink
-                  to="/privacy"
+                  to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088178a1aeef9df3fbab5b"
+                  target="_blank"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
                 >
                   개인정보처리방침
@@ -381,12 +348,34 @@ const closeMobileMenu = () => {
               </li>
             </ul>
           </div>
+
+          <!-- Company -->
+          <div class="">
+            <h3
+              class="font-medium text-neutral-900 dark:text-neutral-100 text-xl mb-6"
+            >
+              고객지원
+            </h3>
+            <ul class="space-y-2 text-sm">
+              <li>
+                <a
+                  href="mailto:help@atomos.com"
+                  class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+                >
+                  이메일: help@atomos.com
+                </a>
+              </li>
+              <li
+                class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors"
+              >
+                영업시간: 평일 10:00 - 18:00
+              </li>
+            </ul>
+          </div>
         </div>
 
         <!-- Copyright -->
-        <div
-          class="mt-12 pt-8 border-t border-neutral-200 dark:border-neutral-800"
-        >
+        <div class="mt-12 pt-8 border-t border-neutral-600">
           <div
             class="flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-neutral-600 dark:text-neutral-400"
           >
@@ -396,22 +385,6 @@ const closeMobileMenu = () => {
                 reserved.
               </p>
             </ClientOnly>
-            <div class="flex items-center gap-6">
-              <NuxtLink
-                to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088166aaebcae54bd460f4"
-                class="hover:text-primary transition-colors"
-                target="_blank"
-              >
-                이용약관
-              </NuxtLink>
-              <NuxtLink
-                to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088178a1aeef9df3fbab5b?pvs=74"
-                class="hover:text-primary transition-colors"
-                target="_blank"
-              >
-                개인정보처리방침
-              </NuxtLink>
-            </div>
           </div>
         </div>
       </div>

@@ -38,27 +38,21 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'visitDate',
-        label: '방문 시간대',
+        label: '방문한 시간',
         type: 'text',
         placeholder:
           '아침, 점심, 저녁 등 언제 방문했는지 적어주세요 분위기 표현에 사용돼요 (예시: 저녁 7시, 주말 오후)',
       },
       {
-        name: 'visitPurpose',
-        label: '방문 목적',
-        type: 'text',
-        placeholder: '데이트, 친구 모임, 혼밥 등 방문한 이유를 알려주세요',
-      },
-      {
-        name: 'ambience',
-        label: '분위기',
+        name: 'menus',
+        label: '대표 메뉴',
         type: 'text',
         placeholder:
-          '조용함, 활기참, 감성적 등 가게의 분위기에 대해 적어주세요',
+          '대표 메뉴를 최대 3개까지 알려주세요. 간단한 설명까지 적어주시면 원고에 그대로 반영됩니다',
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -103,7 +97,7 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -138,7 +132,7 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -159,7 +153,7 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -184,8 +178,15 @@ export const fieldConfigsByType: Record<
         placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
       },
       {
+        name: 'menus',
+        label: '대표 메뉴',
+        type: 'text',
+        placeholder:
+          '대표 메뉴를 최대 3개까지 알려주세요. 간단한 설명까지 적어주시면 원고에 그대로 반영됩니다',
+      },
+      {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -214,7 +215,7 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -249,7 +250,7 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -272,11 +273,11 @@ export const fieldConfigsByType: Record<
         name: 'companyName',
         label: '기업 이름',
         type: 'text',
-        placeholder: '첨고할 법률 사무소, 기관, 변호사명을 적어주세요',
+        placeholder: '참고할 법률 사무소, 기관, 변호사명을 적어주세요',
       },
       {
         name: 'extra',
-        label: '추가 정보',
+        label: '강조할 내용',
         type: 'textarea',
         placeholder:
           '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
@@ -300,14 +301,20 @@ export const postTypes = [
 /**
  * AI 포스트 생성 메인 폼 스키마 (동적 필드 제외)
  */
-// 기본 스키마 (AI 추천 모드용)
-const baseAiPostSchema = z.object({
+// 베이스 객체 스키마 (refine 전)
+const baseObjectSchema = z.object({
   postType: z
     .string({ required_error: '포스트 유형을 선택해주세요' })
     .min(1, '포스트 유형을 선택해주세요'),
+  // personaId와 useRandomPersona 중 하나는 필수
+  // -1은 "임의 생성" 선택을 나타내는 특수 값으로 허용
   personaId: z
-    .number({ required_error: '페르소나를 선택해주세요' })
-    .positive('페르소나를 선택해주세요'),
+    .number()
+    .refine((val) => val === undefined || val === -1 || val > 0, {
+      message: '올바른 페르소나를 선택해주세요',
+    })
+    .optional(),
+  useRandomPersona: z.boolean().optional(),
   keyword: z
     .string({ required_error: '검색 키워드를 입력해주세요' })
     .min(1, '검색 키워드를 입력해주세요')
@@ -341,26 +348,26 @@ const baseAiPostSchema = z.object({
     .max(100, '원고 수는 최대 100개까지 입력 가능합니다'),
 });
 
+// AI 추천 모드용 스키마 (기본)
+export const aiPostSchema = baseObjectSchema.refine(
+  (data) => data.personaId || data.useRandomPersona,
+  {
+    message: '페르소나를 선택하거나 임의 생성을 선택해주세요',
+    path: ['personaId'],
+  },
+);
+
 // 직접 입력 모드용 스키마 (서브 키워드 필수)
-const manualInputSchema = baseAiPostSchema.extend({
-  subKeywords: z
-    .array(z.string())
-    .min(1, '최소 1개 이상의 서브 키워드를 입력해주세요')
-    .max(5, '서브 키워드는 최대 5개까지 입력 가능합니다'),
-});
-
-// AI 추천 모드용 스키마 (서브 키워드 optional, null 허용)
-const aiRecommendationSchema = baseAiPostSchema.extend({
-  subKeywords: z
-    .union([z.null(), z.array(z.string()).length(0)])
-    .nullable()
-    .transform(() => null),
-});
-
-// 기본 export는 AI 추천 모드 스키마
-export const aiPostSchema = baseAiPostSchema;
-
-// 직접 입력 모드용 스키마 export
-export const manualInputPostSchema = manualInputSchema;
+export const manualInputPostSchema = baseObjectSchema
+  .extend({
+    subKeywords: z
+      .array(z.string())
+      .min(1, '최소 1개 이상의 서브 키워드를 입력해주세요')
+      .max(5, '서브 키워드는 최대 5개까지 입력 가능합니다'),
+  })
+  .refine((data) => data.personaId || data.useRandomPersona, {
+    message: '페르소나를 선택하거나 임의 생성을 선택해주세요',
+    path: ['personaId'],
+  });
 
 export type AiPostSchema = z.infer<typeof aiPostSchema>;

@@ -1,10 +1,15 @@
 <script lang="ts" setup>
+import { CardForm } from '#components';
+
 definePageMeta({
   layout: 'default',
   middleware: ['auth'],
 });
 
 const toast = useToast();
+const router = useRouter();
+const overlay = useOverlay();
+const cardFormModal = overlay.create(CardForm);
 
 // 크레딧 잔액 타입 정의
 interface CreditBalance {
@@ -30,11 +35,63 @@ const { data: balance, refresh: refreshBalance } =
     useApi<CreditBalance>('/credits/balance'),
   );
 
+// 등록된 카드 목록 조회
+const {
+  data: cards,
+  refresh: refreshCards,
+  pending: cardsLoading,
+} = await useApiFetch<Card[]>('/cards', {
+  // @ts-ignore
+  default: () => [] as Card[],
+  lazy: true,
+});
+
+// 카드 등록 여부
+const hasRegisteredCard = computed(() => cards.value && cards.value.length > 0);
+
 // 충전 중 상태
 const isPurchasing = ref(false);
 
+// 카드 등록 모달 열기
+const openCardRegistration = async () => {
+  const instance = cardFormModal.open({
+    existingCardsCount: cards.value?.length || 0,
+  });
+
+  const result = (await instance.result) as boolean;
+
+  if (result) {
+    // 카드 등록 성공 시 카드 목록 새로고침
+    await refreshCards();
+
+    toast.add({
+      title: '카드 등록 완료',
+      description: '이제 BloC를 충전할 수 있습니다.',
+      color: 'success',
+    });
+  }
+};
+
+// 카드 관리 페이지로 이동
+const goToCardManagement = () => {
+  router.push('/mypage/cards');
+};
+
 // 패키지 추가 (누적)
 const addCredits = (credits: number) => {
+  // 카드 미등록 시 카드 등록 유도
+  if (!hasRegisteredCard.value) {
+    toast.add({
+      title: '카드 등록 필요',
+      description: '크레딧 충전을 위해 먼저 카드를 등록해주세요.',
+      color: 'warning',
+    });
+
+    // 카드 등록 모달 자동 오픈
+    openCardRegistration();
+    return;
+  }
+
   totalCreditsToCharge.value += credits;
 };
 
@@ -55,6 +112,19 @@ const creditsToCharge = computed(() => {
 
 // 충전 실행
 const handlePurchase = async () => {
+  // 카드 미등록 시 카드 등록 유도
+  if (!hasRegisteredCard.value) {
+    toast.add({
+      title: '카드 등록 필요',
+      description: '결제를 위해 먼저 카드를 등록해주세요.',
+      color: 'warning',
+    });
+
+    // 카드 등록 모달 자동 오픈
+    openCardRegistration();
+    return;
+  }
+
   if (creditsToCharge.value <= 0) {
     toast.add({
       title: '오류',
@@ -113,6 +183,38 @@ const formatNumber = (num: number) => {
         BloC(크레딧)을 충전하여 다양한 서비스를 이용하세요
       </p>
     </div>
+
+    <!-- 카드 미등록 안내 배너 -->
+    <UAlert
+      v-if="!hasRegisteredCard && !cardsLoading"
+      color="warning"
+      variant="subtle"
+      title="카드 등록이 필요합니다"
+      description="크레딧 충전을 위해 먼저 결제 카드를 등록해주세요."
+      icon="i-heroicons-credit-card"
+      class="mb-6"
+    >
+      <template #actions>
+        <UButton
+          color="warning"
+          variant="solid"
+          size="sm"
+          @click="openCardRegistration"
+          icon="i-heroicons-plus"
+        >
+          카드 등록하기
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="outline"
+          size="sm"
+          @click="goToCardManagement"
+          icon="i-heroicons-arrow-right"
+        >
+          카드 관리 페이지
+        </UButton>
+      </template>
+    </UAlert>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- 왼쪽: 충전 옵션 -->
@@ -183,7 +285,13 @@ const formatNumber = (num: number) => {
               <button
                 v-for="pkg in creditPackages"
                 :key="pkg.credits"
-                class="relative p-6 border-2 rounded-lg transition-all hover:shadow-lg border-neutral-200 dark:border-neutral-800 hover:border-primary/50 active:scale-95"
+                :class="[
+                  'relative p-6 border-2 rounded-lg transition-all hover:shadow-lg active:scale-95',
+                  hasRegisteredCard
+                    ? 'border-neutral-200 dark:border-neutral-800 hover:border-primary/50'
+                    : 'border-neutral-200 dark:border-neutral-800 opacity-60 cursor-not-allowed',
+                ]"
+                :disabled="!hasRegisteredCard"
                 @click="addCredits(pkg.credits)"
               >
                 <!-- 인기 뱃지 -->
@@ -262,9 +370,13 @@ const formatNumber = (num: number) => {
 
             <!-- 안내 -->
             <UAlert
-              color="warning"
+              :color="hasRegisteredCard ? 'info' : 'warning'"
               variant="subtle"
-              title="원하는 패키지를 클릭하여 수량을 추가하세요 (1 BloC = 100원)"
+              :title="
+                hasRegisteredCard
+                  ? '원하는 패키지를 클릭하여 수량을 추가하세요 (1 BloC = 100원)'
+                  : '크레딧 충전을 위해 먼저 카드를 등록해주세요'
+              "
               icon="i-heroicons-information-circle"
             />
           </div>
@@ -332,11 +444,14 @@ const formatNumber = (num: number) => {
                 color="primary"
                 size="lg"
                 block
-                :disabled="creditsToCharge <= 0 || isPurchasing"
+                :disabled="creditsToCharge <= 0 || isPurchasing || !hasRegisteredCard"
                 :loading="isPurchasing"
                 @click="handlePurchase"
               >
-                <template v-if="isPurchasing">충전 중...</template>
+                <template v-if="!hasRegisteredCard">
+                  카드 등록 후 충전 가능
+                </template>
+                <template v-else-if="isPurchasing">충전 중...</template>
                 <template v-else>
                   {{ formatNumber(creditsToCharge) }} BloC 충전하기
                 </template>

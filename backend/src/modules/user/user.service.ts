@@ -72,15 +72,30 @@ export class UserService implements OnModuleInit {
     }
   }
 
-  async findById(id: number) {
+  async findById(id: number, includeDeleted: boolean = false) {
     return this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
     });
   }
 
-  async findByEmail(email: string) {
+  async findByEmail(email: string, includeDeleted: boolean = false) {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: {
+        email,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
+    });
+  }
+
+  async findByKakaoId(kakaoId: string, includeDeleted: boolean = false) {
+    return this.prisma.user.findUnique({
+      where: {
+        kakaoId,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
     });
   }
 
@@ -115,13 +130,31 @@ export class UserService implements OnModuleInit {
   }
 
   /**
-   * 사용자 정보 조회 (사업자 정보 포함)
+   * 사용자 정보 조회 (사업자 정보, 구독, 크레딧 포함)
    */
-  async findByIdWithBusinessInfo(id: number) {
+  async findByIdWithBusinessInfo(id: number, includeDeleted: boolean = false) {
     return this.prisma.user.findUnique({
-      where: { id },
+      where: {
+        id,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
       include: {
         businessInfo: true,
+        subscriptions: {
+          where: {
+            status: {
+              in: ['ACTIVE', 'TRIAL'],
+            },
+          },
+          include: {
+            plan: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+        creditAccount: true,
       },
     });
   }
@@ -312,5 +345,43 @@ export class UserService implements OnModuleInit {
     );
 
     return { success: true, message };
+  }
+
+  /**
+   * 회원 탈퇴 (Soft Delete)
+   * - deletedAt 필드를 현재 시각으로 설정
+   * - 실제 데이터는 삭제하지 않음
+   * - 모든 refresh token 삭제
+   */
+  async softDeleteUser(userId: number) {
+    // 탈퇴 여부 확인을 위해 탈퇴된 사용자도 조회
+    const user = await this.findById(userId, true);
+
+    if (!user) {
+      throw new NotFoundException('사용자를 찾을 수 없습니다.');
+    }
+
+    if (user.deletedAt) {
+      throw new BadRequestException('이미 탈퇴한 사용자입니다.');
+    }
+
+    // Soft delete 처리 및 refresh token 삭제
+    await this.prisma.$transaction([
+      // 사용자 soft delete
+      this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          deletedAt: new Date(),
+        },
+      }),
+      // 모든 refresh token 삭제 (로그아웃 처리)
+      this.prisma.refreshToken.deleteMany({
+        where: { userId },
+      }),
+    ]);
+
+    this.logger.log(`User ${userId} (${user.email}) soft deleted`);
+
+    return { success: true, message: '회원 탈퇴가 완료되었습니다.' };
   }
 }

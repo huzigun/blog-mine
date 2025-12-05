@@ -3,6 +3,7 @@ import {
   Get,
   Put,
   Post,
+  Delete,
   Body,
   UseGuards,
   NotFoundException,
@@ -39,6 +40,13 @@ export class UserController {
       throw new NotFoundException('User not found');
     }
 
+    // Get the first active subscription (if any)
+    const activeSubscription =
+      userWithBusinessInfo.subscriptions &&
+      userWithBusinessInfo.subscriptions.length > 0
+        ? userWithBusinessInfo.subscriptions[0]
+        : undefined;
+
     return {
       id: userWithBusinessInfo.id,
       email: userWithBusinessInfo.email,
@@ -50,6 +58,17 @@ export class UserController {
       kakaoProfileImage: userWithBusinessInfo.kakaoProfileImage,
       kakaoConnectedAt: userWithBusinessInfo.kakaoConnectedAt,
       hasPassword: userWithBusinessInfo.password !== null,
+      subscription: activeSubscription,
+      creditBalance: userWithBusinessInfo.creditAccount
+        ? {
+            totalCredits: userWithBusinessInfo.creditAccount.totalCredits,
+            subscriptionCredits:
+              userWithBusinessInfo.creditAccount.subscriptionCredits,
+            purchasedCredits:
+              userWithBusinessInfo.creditAccount.purchasedCredits,
+            bonusCredits: userWithBusinessInfo.creditAccount.bonusCredits,
+          }
+        : undefined,
     };
   }
 
@@ -124,5 +143,19 @@ export class UserController {
     @Body() dto: SetPasswordDto,
   ) {
     return this.userService.setPassword(user.id, dto);
+  }
+
+  /**
+   * 회원 탈퇴 (Soft Delete)
+   * DELETE /user
+   */
+  @Delete()
+  @HttpCode(HttpStatus.OK)
+  async deleteAccount(@GetRequestUser() user: RequestUser) {
+    await this.userService.softDeleteUser(user.id);
+    return {
+      message: '회원 탈퇴가 완료되었습니다.',
+      success: true,
+    };
   }
 }

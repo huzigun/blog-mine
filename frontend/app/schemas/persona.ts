@@ -29,6 +29,21 @@ export type UpdatePersonaSchema = z.infer<typeof updatePersonaSchema>;
 // 선택 옵션들
 export const genderOptions = ['남성', '여성', '기타'];
 
+export const occupationOptions = [
+  '학생',
+  '직장인',
+  '음식점 사장님',
+  '카페 사장님',
+  '온라인 쇼핑몰 사장님',
+  '여행가',
+  '요리사',
+  '패션 전문가',
+  '콘텐츠 크리에이터',
+  '교사',
+  '강사',
+  '마케팅 담당자',
+];
+
 export const blogStyleOptions = [
   '따뜻한 공감형',
   '객관 정보형',

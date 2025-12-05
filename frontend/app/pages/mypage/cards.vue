@@ -215,9 +215,13 @@ function getCardTypeText(cardType: string | null) {
       <!-- 카드 없음 상태 -->
       <div v-if="!cards?.length" class="text-center py-12">
         <div
-          class="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100"
+          class="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-gray-50"
         >
-          <div class="i-heroicons-credit-card text-gray-400 text-3xl" />
+          <UIcon
+            name="i-heroicons-credit-card"
+            size="32"
+            class="text-primary-600"
+          />
         </div>
         <h3 class="text-lg font-semibold text-gray-900 mb-2">
           등록된 카드가 없습니다

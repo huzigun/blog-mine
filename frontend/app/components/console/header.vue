@@ -63,7 +63,7 @@ const notificationItems = [
 
 const quickActions = [
   {
-    label: '새 게시글',
+    label: '새 원고 생성',
     icon: 'i-heroicons-plus',
     color: 'neutral' as const,
     click: () => navigateTo('/console/ai-post'),
@@ -180,7 +180,7 @@ onMounted(() => {
         </UButton>
 
         <!-- Notifications -->
-        <UDropdownMenu :items="notificationItems">
+        <UDropdownMenu :items="notificationItems" class="ml-4">
           <UButton
             color="neutral"
             variant="ghost"
@@ -217,10 +217,26 @@ onMounted(() => {
               </template>
             </UAvatar>
             <div class="hidden text-left lg:block">
-              <div
-                class="text-[13px] font-medium text-neutral-900 dark:text-white"
-              >
-                {{ user?.name || 'User' }}
+              <div class="flex items-center gap-2">
+                <span
+                  class="text-[13px] font-medium text-neutral-900 dark:text-white"
+                >
+                  {{ user?.name || 'User' }}
+                </span>
+                <UBadge
+                  v-if="user?.subscription?.plan"
+                  :color="
+                    user.subscription.plan.name === 'FREE'
+                      ? 'neutral'
+                      : user.subscription.plan.name === 'PRO'
+                        ? 'primary'
+                        : 'success'
+                  "
+                  size="xs"
+                  variant="soft"
+                >
+                  {{ user.subscription.plan.displayName }}
+                </UBadge>
               </div>
             </div>
             <UIcon

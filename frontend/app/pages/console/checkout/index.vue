@@ -12,7 +12,9 @@ const overlay = useOverlay();
 
 // 쿼리 파라미터에서 플랜 정보 가져오기
 const planId = computed(() => Number(route.query.planId));
-const billingPeriod = computed(() => (route.query.period as 'monthly' | 'yearly') || 'monthly');
+const billingPeriod = computed(
+  () => (route.query.period as 'monthly' | 'yearly') || 'monthly',
+);
 
 // 플랜이 없으면 pricing 페이지로 리다이렉트
 if (!planId.value) {
@@ -53,7 +55,11 @@ interface Card {
   isAuthenticated: boolean;
 }
 
-const { data: cards, pending: cardsLoading, refresh: refreshCards } = await useApiFetch<Card[]>('/cards');
+const {
+  data: cards,
+  pending: cardsLoading,
+  refresh: refreshCards,
+} = await useApiFetch<Card[]>('/cards');
 
 // 선택된 카드
 const selectedCardId = ref<number | null>(null);
@@ -134,10 +140,7 @@ const handleCheckout = async () => {
     });
 
     // 구독 정보 및 사용자 정보 갱신 (병렬 처리)
-    await Promise.all([
-      auth.fetchUser(),
-      auth.fetchSubscription(),
-    ]);
+    await Promise.all([auth.fetchUser(), auth.fetchSubscription()]);
 
     toast.add({
       title: '구독 완료',
@@ -234,7 +237,9 @@ const openCardModal = async () => {
             <div class="flex items-start justify-between">
               <div class="space-y-2">
                 <div class="flex items-center gap-2">
-                  <h3 class="text-lg font-semibold">{{ selectedPlan.displayName }}</h3>
+                  <h3 class="text-lg font-semibold">
+                    {{ selectedPlan.displayName }}
+                  </h3>
                   <UBadge
                     v-if="billingPeriod === 'yearly' && discountRate > 0"
                     color="success"
@@ -243,7 +248,10 @@ const openCardModal = async () => {
                     {{ discountRate }}% 할인
                   </UBadge>
                 </div>
-                <p v-if="selectedPlan.description" class="text-sm text-neutral-600 dark:text-neutral-400">
+                <p
+                  v-if="selectedPlan.description"
+                  class="text-sm text-neutral-600 dark:text-neutral-400"
+                >
                   {{ selectedPlan.description }}
                 </p>
               </div>
@@ -251,33 +259,50 @@ const openCardModal = async () => {
                 <div class="text-2xl font-bold text-primary">
                   {{ totalPrice.toLocaleString() }}원
                 </div>
-                <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                <div
+                  class="text-xs text-neutral-500 dark:text-neutral-400 mt-1"
+                >
                   / {{ billingPeriod === 'yearly' ? '년' : '월' }}
                 </div>
               </div>
             </div>
 
             <!-- 플랜 특징 -->
-            <div class="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+            <div
+              class="pt-4 border-t border-neutral-200 dark:border-neutral-800"
+            >
               <h4 class="text-sm font-semibold mb-3">포함된 혜택</h4>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                 <div class="flex items-center gap-2">
                   <div class="i-heroicons-check-circle-solid text-success" />
-                  <span>월 {{ selectedPlan.monthlyCredits.toLocaleString() }} BloC</span>
+                  <span>
+                    월 {{ selectedPlan.monthlyCredits.toLocaleString() }} BloC
+                  </span>
                 </div>
-                <div v-if="selectedPlan.maxBlogPostsPerMonth" class="flex items-center gap-2">
+                <div
+                  v-if="selectedPlan.maxBlogPostsPerMonth"
+                  class="flex items-center gap-2"
+                >
                   <div class="i-heroicons-check-circle-solid text-success" />
-                  <span>월 최대 {{ selectedPlan.maxBlogPostsPerMonth }}개 원고</span>
+                  <span>
+                    월 최대 {{ selectedPlan.maxBlogPostsPerMonth }}개 원고
+                  </span>
                 </div>
                 <div v-else class="flex items-center gap-2">
                   <div class="i-heroicons-check-circle-solid text-success" />
                   <span>무제한 원고 생성</span>
                 </div>
-                <div v-if="selectedPlan.hasPriorityQueue" class="flex items-center gap-2">
+                <div
+                  v-if="selectedPlan.hasPriorityQueue"
+                  class="flex items-center gap-2"
+                >
                   <div class="i-heroicons-check-circle-solid text-success" />
                   <span>우선 처리 큐</span>
                 </div>
-                <div v-if="selectedPlan.hasAdvancedAnalytics" class="flex items-center gap-2">
+                <div
+                  v-if="selectedPlan.hasAdvancedAnalytics"
+                  class="flex items-center gap-2"
+                >
                   <div class="i-heroicons-check-circle-solid text-success" />
                   <span>고급 분석 기능</span>
                 </div>
@@ -324,28 +349,51 @@ const openCardModal = async () => {
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
-                      <div class="i-heroicons-credit-card text-lg text-neutral-500" />
+                      <div
+                        class="i-heroicons-credit-card text-lg text-neutral-500"
+                      />
                       <div>
                         <div class="flex items-center gap-2">
-                          <span class="font-medium">{{ card.cardCompany || '카드사 정보 없음' }}</span>
-                          <UBadge v-if="card.isDefault" color="primary" variant="soft" size="sm">
+                          <span class="font-medium">
+                            {{ card.cardCompany || '카드사 정보 없음' }}
+                          </span>
+                          <UBadge
+                            v-if="card.isDefault"
+                            color="primary"
+                            variant="soft"
+                            size="sm"
+                          >
                             기본
                           </UBadge>
                         </div>
-                        <div v-if="card.number" class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5 font-mono">
+                        <div
+                          v-if="card.number"
+                          class="text-sm text-neutral-600 dark:text-neutral-400 mt-0.5 font-mono"
+                        >
                           {{ card.number }}
                         </div>
-                        <div v-else class="text-sm text-neutral-400 dark:text-neutral-500 mt-0.5 italic">
+                        <div
+                          v-else
+                          class="text-sm text-neutral-400 dark:text-neutral-500 mt-0.5 italic"
+                        >
                           카드번호 없음
                         </div>
                       </div>
                     </div>
                     <UBadge
-                      :color="card.cardType?.toLowerCase() === 'credit' ? 'info' : 'success'"
+                      :color="
+                        card.cardType?.toLowerCase() === 'credit'
+                          ? 'info'
+                          : 'success'
+                      "
                       variant="soft"
                       size="sm"
                     >
-                      {{ card.cardType?.toLowerCase() === 'credit' ? '신용' : '체크' }}
+                      {{
+                        card.cardType?.toLowerCase() === 'credit'
+                          ? '신용'
+                          : '체크'
+                      }}
                     </UBadge>
                   </div>
                 </div>
@@ -355,7 +403,9 @@ const openCardModal = async () => {
 
           <!-- 카드 없음 -->
           <div v-else class="text-center py-8">
-            <div class="i-heroicons-credit-card text-4xl text-neutral-400 mx-auto mb-3" />
+            <div
+              class="i-heroicons-credit-card text-4xl text-neutral-400 mx-auto mb-3"
+            />
             <p class="text-neutral-600 dark:text-neutral-400 mb-4">
               등록된 카드가 없습니다.
             </p>
@@ -379,11 +429,15 @@ const openCardModal = async () => {
             <div class="flex items-start gap-3">
               <UCheckbox v-model="autoRenewal" />
               <div class="flex-1">
-                <label class="font-medium cursor-pointer" @click="autoRenewal = !autoRenewal">
+                <label
+                  class="font-medium cursor-pointer"
+                  @click="autoRenewal = !autoRenewal"
+                >
                   자동 갱신
                 </label>
                 <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                  구독 기간이 만료되면 자동으로 갱신됩니다. 언제든지 해지할 수 있습니다.
+                  구독 기간이 만료되면 자동으로 갱신됩니다. 언제든지 해지할 수
+                  있습니다.
                 </p>
               </div>
             </div>
@@ -403,26 +457,44 @@ const openCardModal = async () => {
             <div class="space-y-3">
               <div class="flex items-center justify-between text-sm">
                 <span class="text-neutral-600 dark:text-neutral-400">
-                  {{ selectedPlan.displayName }} ({{ billingPeriod === 'yearly' ? '연간' : '월간' }})
+                  {{ selectedPlan.displayName }} ({{
+                    billingPeriod === 'yearly' ? '연간' : '월간'
+                  }})
                 </span>
                 <span class="font-medium">
-                  {{ (billingPeriod === 'yearly' ? selectedPlan.price * 12 : selectedPlan.price).toLocaleString() }}원
+                  {{
+                    (billingPeriod === 'yearly'
+                      ? selectedPlan.price * 12
+                      : selectedPlan.price
+                    ).toLocaleString()
+                  }}원
                 </span>
               </div>
 
-              <div v-if="discountAmount > 0" class="flex items-center justify-between text-sm">
-                <span class="text-success">연간 구독 할인 ({{ discountRate }}%)</span>
-                <span class="font-medium text-success">-{{ discountAmount.toLocaleString() }}원</span>
+              <div
+                v-if="discountAmount > 0"
+                class="flex items-center justify-between text-sm"
+              >
+                <span class="text-success">
+                  연간 구독 할인 ({{ discountRate }}%)
+                </span>
+                <span class="font-medium text-success">
+                  -{{ discountAmount.toLocaleString() }}원
+                </span>
               </div>
 
-              <div class="pt-3 border-t border-neutral-200 dark:border-neutral-800">
+              <div
+                class="pt-3 border-t border-neutral-200 dark:border-neutral-800"
+              >
                 <div class="flex items-center justify-between">
                   <span class="font-semibold">총 결제 금액</span>
                   <div class="text-right">
                     <div class="text-2xl font-bold text-primary">
                       {{ totalPrice.toLocaleString() }}원
                     </div>
-                    <div class="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                    <div
+                      class="text-xs text-neutral-500 dark:text-neutral-400 mt-1"
+                    >
                       부가세 포함
                     </div>
                   </div>
@@ -431,16 +503,29 @@ const openCardModal = async () => {
             </div>
 
             <!-- 약관 동의 -->
-            <div class="pt-4 border-t border-neutral-200 dark:border-neutral-800">
+            <div
+              class="pt-4 border-t border-neutral-200 dark:border-neutral-800"
+            >
               <div class="flex items-start gap-3">
                 <UCheckbox v-model="termsAgreed" />
                 <div class="flex-1 text-sm">
-                  <label class="cursor-pointer" @click="termsAgreed = !termsAgreed">
-                    <NuxtLink to="/terms" class="text-primary hover:underline" target="_blank">
+                  <label
+                    class="cursor-pointer"
+                    @click="termsAgreed = !termsAgreed"
+                  >
+                    <NuxtLink
+                      to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088166aaebcae54bd460f4"
+                      class="text-primary hover:underline"
+                      target="_blank"
+                    >
                       이용약관
                     </NuxtLink>
                     및
-                    <NuxtLink to="/privacy" class="text-primary hover:underline" target="_blank">
+                    <NuxtLink
+                      to="https://atomosads.notion.site/_BlogMine_v1-0-2b13f8c41f088178a1aeef9df3fbab5b"
+                      class="text-primary hover:underline"
+                      target="_blank"
+                    >
                       개인정보처리방침
                     </NuxtLink>
                     에 동의합니다.
@@ -463,7 +548,9 @@ const openCardModal = async () => {
             </UButton>
 
             <!-- 안내 메시지 -->
-            <div class="text-xs text-neutral-500 dark:text-neutral-400 space-y-1">
+            <div
+              class="text-xs text-neutral-500 dark:text-neutral-400 space-y-1"
+            >
               <p>• 결제는 안전하게 암호화되어 처리됩니다.</p>
               <p>• 구독은 언제든지 해지할 수 있습니다.</p>
               <p>• 환불 정책은 이용약관을 참고해주세요.</p>
@@ -472,6 +559,5 @@ const openCardModal = async () => {
         </UCard>
       </div>
     </div>
-
   </section>
 </template>

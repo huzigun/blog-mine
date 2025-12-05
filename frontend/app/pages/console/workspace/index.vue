@@ -314,7 +314,7 @@ const updateQueryParams = (params: Record<string, any>) => {
         icon="i-heroicons-arrow-path"
         @click="resetFilters"
       >
-        초기화
+        새로고침
       </UButton>
       <UButton color="primary" to="/console/ai-post" icon="ic:round-add">
         원고 생성

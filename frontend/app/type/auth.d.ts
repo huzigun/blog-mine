@@ -2,6 +2,13 @@ interface User {
   id: number;
   email: string;
   name: string | null;
+  subscription?: Subscription;
+  creditBalance?: {
+    totalCredits: number;
+    subscriptionCredits: number;
+    purchasedCredits: number;
+    bonusCredits: number;
+  };
 }
 
 interface AuthResponse {

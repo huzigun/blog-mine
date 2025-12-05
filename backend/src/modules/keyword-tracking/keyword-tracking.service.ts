@@ -284,10 +284,11 @@ export class KeywordTrackingService {
     // 1. 사용자 존재 확인 (최소 컬럼만 조회)
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true },
+      select: { id: true, deletedAt: true },
     });
 
-    if (!user) {
+    // Soft delete된 사용자 제외
+    if (!user || user.deletedAt) {
       throw new NotFoundException('사용자를 찾을 수 없습니다.');
     }
 

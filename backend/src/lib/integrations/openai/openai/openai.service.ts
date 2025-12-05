@@ -117,7 +117,7 @@ export class OpenAIService {
       try {
         const url = new URL(request.additionalFields['placeUrl']);
         const paths = url.pathname.split('/');
-        const targetId = paths[paths.length - 1];
+        const targetId = paths[paths.length - 2];
         this.logger.debug(`Fetching place info for placeId: ${targetId}`);
         placeInfo = await this.crawler.getPlaceInfo(targetId);
         if (placeInfo) {
@@ -315,7 +315,7 @@ export class OpenAIService {
 
   /**
    * 상위 블로그 참조 프롬프트 생성 (캐싱 대상)
-   * @param referenceContents - 상위 블로그 요약 내용
+   * @param referenceContents - 상위 블로그 구조화된 요약 내용 (작성 노하우 학습용)
    * @param keyword - 검색 키워드
    * @returns 참조 블로그 프롬프트 (system 메시지용)
    */
@@ -327,13 +327,27 @@ export class OpenAIService {
       return '';
     }
 
-    let prompt = `[참고할 내용]\n\n`;
-    prompt += `아래는 "${keyword}" 상위 노출 블로그들의 공통 패턴을 요약한 참고 정보이다.\n\n`;
-    prompt += `흐름·구성·트렌드 파악용으로만 활용하며, 특정 문장·표현은 복사하지 않는다.\n\n`;
+    let prompt = `[상위 노출 블로그 작성 노하우 분석]\n\n`;
+    prompt += `[중요] 아래 블로그들은 다른 매장/주제를 다룬 사례입니다.\n`;
+    prompt += `목적: "${keyword}" 키워드로 상위 노출된 블로그들의 작성 기법을 학습\n`;
+    prompt += `활용: 문체, 구성, 패턴만 참고 (장소명, 메뉴, 가격 등 구체 내용은 절대 사용 금지)\n\n`;
+
+    prompt += `[학습 대상]\n`;
+    prompt += `1. 글 구성: 정보 배치 순서, 소제목 활용, 문단 흐름\n`;
+    prompt += `2. 문체와 어조: 말투, 독자 소통 방식, 감정 표현\n`;
+    prompt += `3. 정보 전달: 우선순위, 설명 방식, 궁금증 해결 패턴\n`;
+    prompt += `4. 키워드 활용: 자연스러운 녹임, 빈도, 제목/소제목 배치\n`;
+    prompt += `5. 차별화: 독특한 관점, 강조 포인트\n\n`;
 
     referenceContents.forEach((content, index) => {
-      prompt += `[참고 ${index + 1}] ${content}\n\n`;
+      prompt += `[참고 블로그 ${index + 1}]\n`;
+      prompt += `${content}\n\n`;
     });
+
+    prompt += `[활용 지침]\n`;
+    prompt += `학습 대상: 글 구조, 문장 스타일, 정보 배치 순서, 키워드 활용 기법, 독자 참여 유도\n`;
+    prompt += `복사 금지: 장소명, 업체명, 메뉴, 가격, 주소, 전화번호, 영업시간, 특정 문장\n`;
+    prompt += `실제 정보 출처: [방문 매장 상세 정보] 또는 [원고 정보 입력] 섹션만 사용\n`;
 
     return prompt;
   }
@@ -465,25 +479,63 @@ export class OpenAIService {
     prompt += `2. 도입–본문–마무리 구조를 명확히 한다.\n`;
     prompt += `3. 핵심 키워드와 서브 키워드는 자연스럽게 녹여쓴다.\n`;
     prompt += `4. ${request.postType}의 작성 목적에 충실하며, 실제 방문 또는 이용한 사용자 관점에서 자연스럽고 구체적으로 묘사한다.\n`;
-    prompt += `5. 강조가 필요한 부분은 <strong> 태그 사용.\n`;
+    prompt += `5. 강조가 필요한 부분은 <strong> 태그 사용.\n\n`;
+
+    prompt += `[생성 제한 규칙 - 반드시 준수]\n\n`;
+    prompt += `⚠️ 환각(Hallucination) 방지를 위한 엄격한 규칙:\n\n`;
+    prompt += `1. 실제 내용 vs 작성 기법 구분:\n`;
+    prompt += `   ✅ 실제 글의 구체적 내용:\n`;
+    prompt += `      - [방문 매장 상세 정보] 또는 [원고 정보 입력] 섹션의 정보만 사용\n`;
+    prompt += `      - 장소명, 메뉴, 가격, 영업시간, 위치 등 모든 사실 정보의 출처\n`;
+    prompt += `   \n`;
+    prompt += `   ✅ 참고 블로그의 작성 기법만 학습:\n`;
+    prompt += `      - [상위 노출 블로그 작성 노하우 분석] → 문체, 구성, 패턴만 참고\n`;
+    prompt += `      - 참고 블로그의 구체적 내용(장소명, 메뉴, 가격 등)은 절대 사용 금지\n`;
+    prompt += `   \n`;
+    prompt += `   ❌ 절대 금지:\n`;
+    prompt += `      - 제공되지 않은 구체적 사실, 수치, 데이터 작성\n`;
+    prompt += `      - 참고 블로그의 내용을 실제 글에 복사\n`;
+    prompt += `      - 추측이나 상상으로 정보 생성\n\n`;
+    prompt += `2. 일반적 감성 표현은 허용:\n`;
+    prompt += `   ✅ 허용: "분위기가 좋다", "맛있다", "친절하다" 등 일반적 평가\n`;
+    prompt += `   ✅ 허용: "추천한다", "인기 있다" 등 일반적 의견\n`;
+    prompt += `   ❌ 금지: 제공되지 않은 구체적 메뉴명, 가격, 영업시간, 위치, 전화번호\n`;
+    prompt += `   ❌ 금지: 제공되지 않은 수치 데이터 (방문자 수, 평점, 순위 등)\n\n`;
+    prompt += `3. 키워드 중심 작성:\n`;
+    prompt += `   - 주요 키워드: "${request.keyword}"\n`;
+    prompt += `   - 글 종류: "${request.postType}"\n`;
+    prompt += `   - 위 두 가지를 중심으로 작성하며, 무관한 정보는 배제\n\n`;
+    prompt += `4. 불확실한 정보 처리:\n`;
+    prompt += `   - 참고 정보가 불명확하면 → 일반적 표현으로 대체\n`;
+    prompt += `   - 확실하지 않은 사실은 → 작성하지 않음\n`;
+    prompt += `   - 추측성 표현 사용 금지 (예: "~인 것 같다", "아마도 ~일 것이다")\n\n`;
+
+    prompt += `[상세 작성 지침]\n\n`;
 
     // 플레이스 정보가 있는 경우 특별 지침
     if (placeInfo) {
-      prompt += `6. [방문 매장 상세 정보]에 제공된 실제 데이터를 적극 활용한다:\n`;
+      prompt += `※ 플레이스 정보 활용:\n`;
+      prompt += `1. [방문 매장 상세 정보]에 제공된 실제 데이터를 적극 활용한다:\n`;
       prompt += `   - 메뉴명과 가격은 정확하게 언급하되 자연스러운 문맥으로 녹여쓴다.\n`;
       prompt += `   - 인기 토픽 키워드를 활용하여 독자가 궁금해할 내용을 다룬다.\n`;
       prompt += `   - 리뷰 현황을 참고하여 매장의 신뢰도와 인기를 간접적으로 전달한다.\n`;
       prompt += `   - 카테고리와 서비스 정보를 바탕으로 매장 특징을 구체적으로 묘사한다.\n`;
-      prompt += `7. 메뉴 설명 시 구체적인 가격대와 특징을 함께 언급하여 정보성을 높인다.\n`;
-      prompt += `8. 태그(tags)는 매장 정보, 메뉴, 인기 토픽을 반영하여 30개 생성하며 "#단어" 형태를 따른다.\n`;
-      prompt += `9. 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
+      prompt += `2. 메뉴 설명 시 구체적인 가격대와 특징을 함께 언급하여 정보성을 높인다.\n`;
+      prompt += `3. 제공된 정보 외 추가 메뉴나 가격은 절대 작성하지 않는다.\n\n`;
+      prompt += `※ 출력 형식:\n`;
+      prompt += `- 태그(tags)는 매장 정보, 메뉴, 인기 토픽을 반영하여 30개 생성하며 "#단어" 형태를 따른다.\n`;
+      prompt += `- 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
     } else if (request.additionalFields && request.additionalFields.placeLink) {
-      prompt += `6. 플레이스 링크 정보는 반드시 실제 확인한 내용만 반영한다 (메뉴·가격·위치·주차·영업시간 등).\n`;
-      prompt += `7. 태그(tags)는 글 내용과 SEO에 맞게 30개 생성하며 "#단어" 형태를 따른다.\n`;
-      prompt += `8. 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
+      prompt += `※ 플레이스 링크 활용:\n`;
+      prompt += `- 플레이스 링크 정보는 반드시 실제 확인한 내용만 반영한다 (메뉴·가격·위치·주차·영업시간 등).\n`;
+      prompt += `- 확인되지 않은 정보는 일반적 표현으로만 작성한다.\n\n`;
+      prompt += `※ 출력 형식:\n`;
+      prompt += `- 태그(tags)는 글 내용과 SEO에 맞게 30개 생성하며 "#단어" 형태를 따른다.\n`;
+      prompt += `- 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
     } else {
-      prompt += `6. 태그(tags)는 글 내용과 SEO에 맞게 30개 생성하며 "#단어" 형태를 따른다.\n`;
-      prompt += `7. 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
+      prompt += `※ 출력 형식:\n`;
+      prompt += `- 태그(tags)는 글 내용과 SEO에 맞게 30개 생성하며 "#단어" 형태를 따른다.\n`;
+      prompt += `- 최종 출력은 JSON 형식 하나로만 제공하며, HTML은 content 안에만 넣는다.\n`;
     }
 
     return prompt;
@@ -613,10 +665,11 @@ export class OpenAIService {
   }
 
   /**
-   * 블로그 콘텐츠를 LLM으로 요약
-   * @param content - 원본 콘텐츠
+   * 블로그 작성 기법을 LLM으로 분석
+   * ⚠️ 참조 블로그는 다른 매장/주제를 다룬 사례입니다 (내용 복사 금지)
+   * @param content - 원본 블로그 콘텐츠
    * @param keyword - 검색 키워드 (맥락 제공용)
-   * @returns 요약된 콘텐츠 (최대 200자)
+   * @returns 작성 기법 분석 결과 (문체, 구성, 패턴 등, 400-600자)
    */
   async summarizeContent(content: string, keyword: string): Promise<string> {
     try {
@@ -625,8 +678,8 @@ export class OpenAIService {
         return content;
       }
 
-      // 프롬프트 크기 제한 (토큰 제한 방지)
-      const truncatedContent = content.substring(0, 2000);
+      // 프롬프트 크기 제한 확대 (더 많은 맥락 제공)
+      const truncatedContent = content.substring(0, 5000);
 
       this.logger.debug(
         `Summarizing content (${truncatedContent.length} chars) for keyword: ${keyword}`,
@@ -637,29 +690,52 @@ export class OpenAIService {
         messages: [
           {
             role: 'system',
-            content:
-              '당신은 블로그 콘텐츠를 간결하게 요약하는 전문가입니다. 핵심 정보만 추출하여 200자 이내로 간단히 요약해주세요.',
+            content: `블로그 작성 기법을 분석하는 전문가입니다.
+제공된 블로그에서 "어떻게 글을 쓰는가"에 대한 노하우를 추출해 요약하세요.
+
+[중요] 이 블로그는 다른 매장/주제를 다룬 사례입니다.
+목적: 작성 기법 학습 (문체, 구성, 패턴 등)
+금지: 구체적 내용 복사 (장소명, 메뉴, 가격 등)
+
+[분석 규칙]
+1. 분석 요소:
+   a) 글 구성: 도입부, 본문 전개 순서, 소제목 활용, 마무리 기법
+   b) 문체와 어조: 말투, 문장 길이, 리듬감, 감정 표현
+   c) 정보 전달: 우선순위, 설명 방식, 궁금증 해결 패턴
+   d) 키워드 활용: 자연스러운 녹임, 빈도, 제목/소제목 배치
+   e) 차별화: 독특한 관점, 강조 포인트
+
+3. 제외 대상: 장소명, 업체명, 메뉴, 가격, 주소, 전화번호, 영업시간, 특정 문장 인용
+
+[출력 규칙]
+1. 분석한 규칙을 400자 미만으로 요약하여 작성한다.
+2. 요약 내용에 제외 대상을 포함하지 않는다.
+3. 문장을 중간에 끊지 말고 완결된 형태로 출력`,
           },
           {
             role: 'user',
-            content: `다음은 "${keyword}" 키워드로 검색된 블로그 글입니다. 이 글의 핵심 내용을 200자 이내로 요약해주세요:\n\n${truncatedContent}`,
+            content: `다음은 "${keyword}" 키워드로 검색된 상위 노출 블로그입니다.
+이 블로그의 작성 기법(문체, 구성, 패턴)을 분석하여 요약해주세요.
+구체적인 내용(장소명, 메뉴, 가격 등)은 제외하고, 어떻게 글을 쓰는지에 집중해주세요:
+
+${truncatedContent}`,
           },
         ],
-        // temperature: 0.3, // 일관성 있는 요약을 위해 낮은 temperature
-        max_completion_tokens: 350, // 한글 200자 ≈ 286 토큰 + 여유분
+        // temperature: 0.3, // 일관성 있는 요약
+        max_completion_tokens: 1000, // 한글 600자 ≈ 840 토큰 + 여유분
       });
 
       const choice = completion.choices?.[0];
 
       if (!choice) {
         this.logger.warn('No choices in summary response');
-        return content.substring(0, 200);
+        return this.fallbackSummary(content);
       }
 
       // refusal 체크
       if (choice.message?.refusal) {
         this.logger.warn(`Summary refused: ${choice.message.refusal}`);
-        return content.substring(0, 200);
+        return this.fallbackSummary(content);
       }
 
       const summary = choice.message?.content?.trim();
@@ -668,18 +744,47 @@ export class OpenAIService {
         this.logger.warn(
           `No summary generated, finish_reason: ${choice.finish_reason}`,
         );
-        return content.substring(0, 200);
+        return this.fallbackSummary(content);
       }
 
-      this.logger.debug(`Summary generated: ${summary.length} chars`);
+      this.logger.debug(
+        `Summary generated: ${summary.length} chars (tokens: prompt=${completion.usage?.prompt_tokens}, completion=${completion.usage?.completion_tokens})`,
+      );
       return summary;
     } catch (error: any) {
       this.logger.error(
         `Failed to summarize content: ${error.message}`,
         error.stack,
       );
-      // 요약 실패 시 원본의 앞부분 반환 (200자)
-      return content.substring(0, 200);
+      // 요약 실패 시 fallback 요약 반환
+      return this.fallbackSummary(content);
     }
+  }
+
+  /**
+   * LLM 요약 실패 시 사용할 fallback 요약
+   * 핵심 정보를 최대한 보존하면서 앞부분 추출
+   */
+  private fallbackSummary(content: string): string {
+    // 최대 800자까지 추출 (더 많은 컨텍스트 제공)
+    let summary = content.substring(0, 800);
+
+    // 문장이 중간에 끊기지 않도록 마지막 완전한 문장까지만 포함
+    const lastPeriod = summary.lastIndexOf('.');
+    const lastExclamation = summary.lastIndexOf('!');
+    const lastQuestion = summary.lastIndexOf('?');
+
+    const lastSentenceEnd = Math.max(lastPeriod, lastExclamation, lastQuestion);
+
+    if (lastSentenceEnd > 400) {
+      // 최소 400자는 보장하면서 문장 완결
+      summary = summary.substring(0, lastSentenceEnd + 1);
+    }
+
+    this.logger.debug(
+      `Using fallback summary: ${summary.length} chars (from ${content.length} chars)`,
+    );
+
+    return summary.trim();
   }
 }

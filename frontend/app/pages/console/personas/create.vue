@@ -4,6 +4,7 @@ import {
   createPersonaSchema,
   type CreatePersonaSchema,
   genderOptions,
+  occupationOptions,
   blogStyleOptions,
   blogToneOptions,
 } from '~/schemas/persona';
@@ -14,6 +15,7 @@ definePageMeta({
 
 const [isPending, startTransition] = useTransition();
 const toast = useToast();
+const { generateRandomPersona } = useRandomPersona();
 
 const state = reactive<CreatePersonaSchema>({
   gender: genderOptions[0]!,
@@ -25,6 +27,18 @@ const state = reactive<CreatePersonaSchema>({
   blogTone: blogToneOptions[0]!,
   additionalInfo: '',
 });
+
+// 랜덤 페르소나 생성 핸들러
+const handleRandomGenerate = () => {
+  const randomPersona = generateRandomPersona();
+  Object.assign(state, randomPersona);
+
+  toast.add({
+    title: '랜덤 페르소나 생성',
+    description: '페르소나 정보가 랜덤으로 생성되었습니다.',
+    color: 'success',
+  });
+};
 
 const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
   startTransition(async () => {
@@ -65,6 +79,21 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
 
       <div class="grid grid-cols-2 gap-x-5">
         <article>
+          <!-- Random Generate Button -->
+          <div class="mb-6">
+            <UButton
+              type="button"
+              size="xl"
+              block
+              color="neutral"
+              variant="outline"
+              @click="handleRandomGenerate"
+              icon="i-heroicons-sparkles"
+            >
+              랜덤 페르소나 생성
+            </UButton>
+          </div>
+
           <UForm
             :state="state"
             :schema="createPersonaSchema"
@@ -127,13 +156,13 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
               </div>
 
               <UFormField label="직업" name="occupation" required>
-                <UInput
+                <USelect
                   v-model="state.occupation"
-                  type="text"
-                  placeholder="예: 소프트웨어 엔지니어, 프리랜서 작가 등"
-                  size="xl"
-                  class="w-full"
+                  :items="occupationOptions"
+                  placeholder="직업을 선택해주세요"
                   variant="soft"
+                  class="w-full"
+                  size="xl"
                 />
               </UFormField>
             </div>
