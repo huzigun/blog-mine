@@ -67,24 +67,23 @@ RUN addgroup -g 1001 -S nodejs && \
 
 WORKDIR /app
 
-# Copy workspace root files
-COPY --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./
+# Copy workspace root files with ownership
+COPY --chown=nuxt:nodejs --from=build /app/pnpm-workspace.yaml /app/package.json /app/pnpm-lock.yaml ./
 
-# Copy frontend package.json
-COPY --from=build /app/frontend/package.json ./frontend/
+# Copy frontend package.json with ownership
+COPY --chown=nuxt:nodejs --from=build /app/frontend/package.json ./frontend/
 
-# Copy production node_modules from build
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/frontend/node_modules ./frontend/node_modules
+# Install production dependencies only (avoids copying large node_modules)
+RUN pnpm install --prod --frozen-lockfile
 
-# Copy built application from build stage
-COPY --from=build /app/frontend/.output ./frontend/.output
+# Copy built application from build stage with ownership
+COPY --chown=nuxt:nodejs --from=build /app/frontend/.output ./frontend/.output
 
-# Copy public assets (if any)
-COPY --from=build /app/frontend/public ./frontend/public
+# Copy public assets (if any) with ownership
+COPY --chown=nuxt:nodejs --from=build /app/frontend/public ./frontend/public
 
-# Change ownership to non-root user
-RUN chown -R nuxt:nodejs /app
+# Change ownership of installed node_modules
+RUN chown -R nuxt:nodejs /app/node_modules /app/frontend/node_modules 2>/dev/null || true
 
 # Switch to non-root user
 USER nuxt

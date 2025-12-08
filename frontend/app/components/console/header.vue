@@ -84,9 +84,14 @@ const userMenuItems = [
       to: '/mypage/profile',
     },
     {
-      label: '카드 관리',
+      label: 'BloC 관리',
+      icon: 'i-heroicons-wallet',
+      to: '/mypage/credits',
+    },
+    {
+      label: '결제 관리',
       icon: 'i-heroicons-credit-card',
-      to: '/mypage/cards',
+      to: '/mypage/payment',
     },
     // {
     //   label: '설정',

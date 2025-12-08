@@ -170,13 +170,13 @@ async function onSubmit(event: FormSubmitEvent<RegisterSchema>) {
       });
     },
     {
-      onSuccess: () => {
+      onSuccess: async () => {
         toast.add({
           title: '회원가입 성공',
           description: '환영합니다! 로그인되었습니다.',
           color: 'success',
         });
-        return navigateTo('/console/dashboard');
+        await navigateTo('/console/dashboard');
       },
       onError: (err) => {
         const errorMessage =

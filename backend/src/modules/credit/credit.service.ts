@@ -11,7 +11,11 @@ import {
   Prisma,
   SubscriptionStatus,
 } from '@prisma/client';
-import { PurchaseCreditDto, CreditTransactionFilterDto } from './dto';
+import {
+  PurchaseCreditDto,
+  CreditTransactionFilterDto,
+  TransactionFilterDto,
+} from './dto';
 
 @Injectable()
 export class CreditService {
@@ -376,66 +380,6 @@ export class CreditService {
     };
   }
 
-  /**
-   * 크레딧 거래 내역 조회
-   */
-  async getTransactions(userId: number, filter: CreditTransactionFilterDto) {
-    const {
-      type,
-      creditType,
-      startDate,
-      endDate,
-      page = 1,
-      limit = 20,
-    } = filter;
-
-    const account = await this.getCreditAccount(userId);
-
-    // 필터 조건 구성
-    const where: Prisma.CreditTransactionWhereInput = {
-      accountId: account.id,
-      userId,
-    };
-
-    if (type) {
-      where.type = type;
-    }
-
-    if (creditType) {
-      where.creditType = creditType;
-    }
-
-    if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) {
-        where.createdAt.gte = new Date(startDate);
-      }
-      if (endDate) {
-        where.createdAt.lte = new Date(endDate);
-      }
-    }
-
-    // 전체 개수 조회
-    const total = await this.prisma.creditTransaction.count({ where });
-
-    // 페이징 처리된 거래 내역 조회
-    const transactions = await this.prisma.creditTransaction.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
-    });
-
-    return {
-      data: transactions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
-  }
 
   /**
    * 특정 거래 내역 조회
@@ -539,4 +483,56 @@ export class CreditService {
       transaction: result.transaction,
     };
   }
+
+  /**
+   * 크레딧 거래 내역 조회 (페이지네이션)
+   * @param userId 사용자 ID
+   * @param filter 필터 조건
+   */
+  async getTransactions(userId: number, filter: TransactionFilterDto) {
+    const { page = 1, limit = 10, type, startDate, endDate } = filter;
+
+    const where: Prisma.CreditTransactionWhereInput = { userId };
+
+    if (type) where.type = type;
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        where.createdAt.lte = end;
+      }
+    }
+
+    const total = await this.prisma.creditTransaction.count({ where });
+    const data = await this.prisma.creditTransaction.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+      include: {
+        account: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPreviousPage: page > 1,
+      },
+    };
+  }
+
 }

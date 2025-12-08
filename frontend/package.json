@@ -12,6 +12,7 @@
     "clean": "rm -rf .nuxt .output node_modules"
   },
   "dependencies": {
+    "@internationalized/date": "^3.10.0",
     "@nuxt/image": "2.0.0",
     "@nuxt/ui": "4.1.0",
     "@pinia/nuxt": "^0.11.3",

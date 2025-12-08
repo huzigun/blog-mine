@@ -72,6 +72,7 @@ const onSubmit = async (event: FormSubmitEvent<ProfileEditFormData>) => {
             placeholder="이름을 입력하세요"
             icon="i-heroicons-user"
             size="lg"
+            class="w-full"
           />
         </UFormField>
 

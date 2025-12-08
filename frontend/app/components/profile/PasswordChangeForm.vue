@@ -126,6 +126,7 @@ const onSubmit = async (event: FormSubmitEvent<PasswordChangeFormData>) => {
             placeholder="현재 비밀번호를 입력하세요"
             icon="i-heroicons-lock-closed"
             size="lg"
+            class="w-full"
           />
         </UFormField>
 
@@ -136,6 +137,7 @@ const onSubmit = async (event: FormSubmitEvent<PasswordChangeFormData>) => {
             placeholder="새 비밀번호를 입력하세요 (최소 8자)"
             icon="i-heroicons-key"
             size="lg"
+            class="w-full"
           />
         </UFormField>
 
@@ -146,6 +148,7 @@ const onSubmit = async (event: FormSubmitEvent<PasswordChangeFormData>) => {
             placeholder="새 비밀번호를 다시 입력하세요"
             icon="i-heroicons-key"
             size="lg"
+            class="w-full"
           />
         </UFormField>
 
@@ -163,9 +166,7 @@ const onSubmit = async (event: FormSubmitEvent<PasswordChangeFormData>) => {
             type="submit"
             color="primary"
             size="md"
-            :icon="
-              hasPassword ? 'i-heroicons-arrow-path' : 'i-heroicons-check'
-            "
+            :icon="hasPassword ? 'i-heroicons-arrow-path' : 'i-heroicons-check'"
             :loading="isPending"
           >
             {{ hasPassword ? '변경' : '설정' }}

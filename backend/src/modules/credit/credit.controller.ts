@@ -13,7 +13,11 @@ import {
 import { JwtAuthGuard } from '@modules/auth/guards/jwt-auth.guard';
 import { GetRequestUser } from '@modules/auth/decorators/request-user.decorator';
 import { CreditService } from './credit.service';
-import { PurchaseCreditDto, CreditTransactionFilterDto } from './dto';
+import {
+  PurchaseCreditDto,
+  CreditTransactionFilterDto,
+  TransactionFilterDto,
+} from './dto';
 
 @Controller('credits')
 @UseGuards(JwtAuthGuard)
@@ -44,13 +48,15 @@ export class CreditController {
   }
 
   /**
-   * 크레딧 거래 내역 조회 (페이징)
+   * 크레딧 거래 내역 조회 (페이징 및 필터링)
    * GET /credits/transactions
+   * - type 파라미터로 거래 타입 필터링 가능 (전체/충전/사용/환불 등)
+   * - startDate, endDate로 날짜 범위 필터링 가능
    */
   @Get('transactions')
   async getTransactions(
     @GetRequestUser('id') userId: number,
-    @Query() filter: CreditTransactionFilterDto,
+    @Query() filter: TransactionFilterDto,
   ) {
     return this.creditService.getTransactions(userId, filter);
   }

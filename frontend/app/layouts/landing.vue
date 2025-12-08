@@ -66,7 +66,12 @@ const closeMobileMenu = () => {
               :key="item.section"
               href="#"
               class="text-sm font-medium text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-100 transition-colors cursor-pointer"
-              @click="(e) => { e.preventDefault(); scrollToSection(item.section); }"
+              @click="
+                (e) => {
+                  e.preventDefault();
+                  scrollToSection(item.section);
+                }
+              "
             >
               {{ item.label }}
             </a>
@@ -158,7 +163,13 @@ const closeMobileMenu = () => {
                   :key="item.section"
                   href="#"
                   class="block px-4 py-3 rounded-lg text-sm font-medium text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection(item.section); closeMobileMenu(); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection(item.section);
+                      closeMobileMenu();
+                    }
+                  "
                 >
                   {{ item.label }}
                 </a>
@@ -241,12 +252,12 @@ const closeMobileMenu = () => {
                   <li
                     class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
                   >
-                    회사명: 리클릭
+                    회사명: 아토모스
                   </li>
                   <li
                     class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
                   >
-                    주소: 광주광역시 북구 매곡로 233-1, 3층(오치동)
+                    주소: 광주광역시 북구 하백로29번길 38, 3층 3호(매곡동)
                   </li>
                   <li
                     class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
@@ -256,7 +267,7 @@ const closeMobileMenu = () => {
                   <li
                     class="after:content-[''] after:inline-block after:mx-2.5 after:w-px after:h-2.5 after:bg-[#C7C7C780] flex items-center"
                   >
-                    사업자등록번호: 246-86-00094
+                    사업자등록번호: 241-86-00094
                   </li>
                   <li>통신판매업신고번호: 2020-광주북구-0662</li>
                 </ul>
@@ -276,7 +287,12 @@ const closeMobileMenu = () => {
                 <a
                   href="#"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection('hero'); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection('hero');
+                    }
+                  "
                 >
                   소개
                 </a>
@@ -285,7 +301,12 @@ const closeMobileMenu = () => {
                 <a
                   href="#"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection('features'); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection('features');
+                    }
+                  "
                 >
                   서비스
                 </a>
@@ -294,7 +315,12 @@ const closeMobileMenu = () => {
                 <a
                   href="#"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection('features'); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection('features');
+                    }
+                  "
                 >
                   이용방법
                 </a>
@@ -303,7 +329,12 @@ const closeMobileMenu = () => {
                 <a
                   href="#"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection('pricing'); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection('pricing');
+                    }
+                  "
                 >
                   요금제
                 </a>
@@ -312,7 +343,12 @@ const closeMobileMenu = () => {
                 <a
                   href="#"
                   class="text-neutral-600 dark:text-neutral-400 hover:text-primary transition-colors cursor-pointer"
-                  @click="(e) => { e.preventDefault(); scrollToSection('faq'); }"
+                  @click="
+                    (e) => {
+                      e.preventDefault();
+                      scrollToSection('faq');
+                    }
+                  "
                 >
                   FAQ
                 </a>
