@@ -103,6 +103,11 @@ model BlogPost {
   createdAt        DateTime   @default(now()) @map("created_at")
   updatedAt        DateTime   @updatedAt @map("updated_at")
   creditCost       Int?       @map("credit_cost")
+  // 에러 추적 필드
+  lastError        String?    @map("last_error")
+  errorAt          DateTime?  @map("error_at")
+  startedAt        DateTime?  @map("started_at")
+  completedAt      DateTime?  @map("completed_at")
   posts            AIPost[]
   user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 

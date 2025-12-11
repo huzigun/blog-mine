@@ -23,6 +23,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"    # 로그 파일 최대 크기
+        max-file: "5"       # 보관할 로그 파일 개수
+        compress: "true"    # 오래된 로그 압축
 
   # Frontend (Nuxt)
   frontend:
@@ -47,6 +53,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        compress: "true"
 
   # Nginx (통합 리버스 프록시)
   nginx:
@@ -58,6 +70,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx-unified.conf:/etc/nginx/nginx.conf:ro
+      - ./logs/nginx:/var/log/nginx  # Nginx 로그 볼륨 마운트
     depends_on:
       frontend:
         condition: service_healthy
@@ -71,6 +84,12 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        compress: "true"
 
 networks:
   blog-mine-network:

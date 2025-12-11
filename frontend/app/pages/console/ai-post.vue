@@ -172,8 +172,8 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
         color: 'success',
       });
 
-      // BloC 잔액 새로고침
-      await auth.fetchCreditBalance();
+      // BloC 잔액 새로고침 (fetchUser가 creditBalance도 포함)
+      await auth.fetchUser();
 
       // 성공 후 폼 초기화
       state.personaId = undefined;

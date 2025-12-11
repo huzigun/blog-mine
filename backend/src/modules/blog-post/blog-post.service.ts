@@ -18,7 +18,9 @@ export class BlogPostService {
   private readonly logger = new Logger(BlogPostService.name);
   private readonly MAX_RETRY = 3; // 최대 재시도 횟수
   private readonly RETRY_DELAY = 2000; // 재시도 간격 (ms)
-  private readonly BATCH_SIZE = 5; // 동시 생성할 원고 개수 (캐싱 효과 + Rate Limit 고려)
+  private readonly BATCH_SIZE = 1; // 순차 생성 (메모리 안정성 확보, 4GB 인스턴스 OOM 방지)
+  private readonly SINGLE_POST_TIMEOUT = 180000; // 단일 원고 생성 타임아웃 (3분, OpenAI 응답 시간 고려)
+  private readonly TOTAL_TIMEOUT = 1200000; // 전체 프로세스 타임아웃 (20분, 순차 처리 고려)
 
   // BloC 비용 정의 (원고당 고정 비용)
   private readonly CREDIT_COST_PER_POST = 5; // 원고 1개당 1 BloC
@@ -147,13 +149,68 @@ export class BlogPostService {
       throw error;
     }
 
-    // 6. 백그라운드에서 원고 생성 시작 (비동기)
+    // 6. 시작 시간 기록
+    await this.prisma.blogPost.update({
+      where: { id: blogPost.id },
+      data: { startedAt: new Date() },
+    });
+
+    // 7. 백그라운드에서 원고 생성 시작 (비동기, 에러 핸들링 강화)
     this.generatePostsWithRetry(blogPost.id, dto.count, userId).catch(
-      (error) => {
+      async (error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
         this.logger.error(
-          `Failed to generate posts for blogPost ${blogPost.id}:`,
+          `Failed to generate posts for blogPost ${blogPost.id}: ${errorMessage}`,
           error.stack,
         );
+
+        // 실제 생성된 원고 개수 확인
+        const actualCount = await this.prisma.aIPost.count({
+          where: { blogPostId: blogPost.id },
+        });
+
+        // 에러 발생 시 상태 업데이트 (FAILED로 마킹)
+        try {
+          await this.prisma.blogPost.update({
+            where: { id: blogPost.id },
+            data: {
+              status: 'FAILED',
+              completedCount: actualCount,
+              lastError: errorMessage.substring(0, 500), // 에러 메시지 저장 (최대 500자)
+              errorAt: new Date(),
+            },
+          });
+          this.logger.log(
+            `BlogPost ${blogPost.id} marked as FAILED due to: ${errorMessage}`,
+          );
+        } catch (updateError) {
+          this.logger.error(
+            `Failed to update blogPost ${blogPost.id} status to FAILED`,
+            updateError,
+          );
+        }
+
+        // 실패한 원고에 대한 BloC 환불
+        const failedCount = dto.count - actualCount;
+        if (failedCount > 0) {
+          const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
+          try {
+            await this.creditService.grantBonusCredits(
+              userId,
+              refundAmount,
+              `원고 생성 실패 환불 (${failedCount}/${dto.count}개 실패, BlogPost ${blogPost.id})`,
+            );
+            this.logger.log(
+              `Refunded ${refundAmount} BloC to user ${userId} for ${failedCount} failed posts (blogPost ${blogPost.id})`,
+            );
+          } catch (refundError) {
+            this.logger.error(
+              `Failed to refund ${refundAmount} BloC to user ${userId}`,
+              refundError,
+            );
+          }
+        }
       },
     );
 
@@ -260,7 +317,7 @@ export class BlogPostService {
   }
 
   /**
-   * 진행 상황 조회
+   * 진행 상황 조회 (에러 정보 포함)
    */
   async getProgress(id: number, userId: number) {
     const blogPost = await this.prisma.blogPost.findFirst({
@@ -279,311 +336,363 @@ export class BlogPostService {
       throw new NotFoundException(`BlogPost with id ${id} not found`);
     }
 
+    // 실행 시간 계산 (진행 중이면 현재까지, 완료/실패면 총 소요 시간)
+    let elapsedTime: number | null = null;
+    if (blogPost.startedAt) {
+      const endTime =
+        blogPost.completedAt || blogPost.errorAt || new Date();
+      elapsedTime = Math.floor(
+        (endTime.getTime() - blogPost.startedAt.getTime()) / 1000,
+      ); // 초 단위
+    }
+
     return {
       status: blogPost.status,
       completed: blogPost.completedCount,
       target: blogPost.targetCount,
-      progress: (blogPost.completedCount / blogPost.targetCount) * 100,
+      progress: Math.round(
+        (blogPost.completedCount / blogPost.targetCount) * 100,
+      ),
       postsCreated: blogPost._count.posts,
+      // 시간 정보
+      startedAt: blogPost.startedAt,
+      completedAt: blogPost.completedAt,
+      elapsedTime, // 초 단위
+      // 에러 정보 (실패 시에만)
+      ...(blogPost.status === 'FAILED' && {
+        error: {
+          message: blogPost.lastError,
+          occurredAt: blogPost.errorAt,
+        },
+      }),
     };
   }
 
   /**
-   * 재시도 로직이 포함된 원고 생성 (준-배치 처리)
-   * - BATCH_SIZE 단위로 병렬 처리하여 속도 향상
-   * - 캐싱 효과 유지 및 Rate Limit 준수
-   * - 실패 시 부분 환불 처리
+   * 재시도 로직이 포함된 원고 생성
+   * - 전체 원고 생성 시도 후 실패한 것만 재시도 (최대 3회)
+   * - BATCH_SIZE 단위로 병렬 처리
+   * - 최종 실패 시 환불 처리
    */
   private async generatePostsWithRetry(
     blogPostId: number,
     targetCount: number,
     userId: number,
   ) {
-    let completedCount = 0;
+    const startTime = Date.now();
 
-    // BATCH_SIZE 단위로 배치 처리
-    while (completedCount < targetCount) {
-      const remainingCount = targetCount - completedCount;
-      const currentBatchSize = Math.min(this.BATCH_SIZE, remainingCount);
+    // BlogPost 정보 조회
+    const blogPost = await this.prisma.blogPost.findUnique({
+      where: { id: blogPostId },
+    });
+
+    if (!blogPost) {
+      throw new Error(`BlogPost ${blogPostId} not found`);
+    }
+
+    // 상위 블로그 참조 조회 (전체 프로세스에서 재사용)
+    const referenceContents = await this.fetchReferenceContents(
+      blogPost.keyword,
+    );
+
+    // 생성할 원고 인덱스 목록 (1부터 시작)
+    let pendingIndices = Array.from(
+      { length: targetCount },
+      (_, i) => i + 1,
+    );
+    let lastError: string | null = null;
+
+    // 최대 3번 시도 (1차 시도 + 2번 재시도)
+    for (let attempt = 1; attempt <= this.MAX_RETRY; attempt++) {
+      // 전체 타임아웃 체크
+      if (Date.now() - startTime > this.TOTAL_TIMEOUT) {
+        throw new Error(
+          `전체 프로세스 타임아웃 (${this.TOTAL_TIMEOUT / 60000}분 초과)`,
+        );
+      }
+
+      if (pendingIndices.length === 0) break;
 
       this.logger.log(
-        `Starting batch generation: ${completedCount + 1}-${completedCount + currentBatchSize}/${targetCount} for blogPost ${blogPostId}`,
+        `[시도 ${attempt}/${this.MAX_RETRY}] ${pendingIndices.length}개 원고 생성 시작 (blogPost ${blogPostId})`,
       );
 
-      try {
-        // BlogPost 정보 조회 (배치 전체에서 재사용)
-        const blogPost = await this.prisma.blogPost.findUnique({
-          where: { id: blogPostId },
-        });
+      // 이번 시도에서 실패한 인덱스 수집
+      const failedIndices: number[] = [];
 
-        if (!blogPost) {
-          throw new Error(`BlogPost ${blogPostId} not found`);
-        }
-
-        // 상위 블로그 참조 조회 (배치 전체에서 재사용 - 캐싱 효과 극대화)
-        const referenceContents = await this.fetchReferenceContents(
-          blogPost.keyword,
-        );
-
-        // 배치 내 원고들을 병렬로 생성
-        const batchPromises: Promise<void>[] = [];
-        for (let i = 0; i < currentBatchSize; i++) {
-          const postIndex = completedCount + i + 1;
-          batchPromises.push(
-            this.generateSinglePostWithRetry(
-              blogPostId,
-              postIndex,
-              targetCount,
-              blogPost,
-              referenceContents, // 배치 내 모든 원고가 동일한 참조 사용
-            ),
+      // BATCH_SIZE 단위로 나눠서 처리
+      for (let i = 0; i < pendingIndices.length; i += this.BATCH_SIZE) {
+        // 전체 타임아웃 체크
+        if (Date.now() - startTime > this.TOTAL_TIMEOUT) {
+          throw new Error(
+            `전체 프로세스 타임아웃 (${this.TOTAL_TIMEOUT / 60000}분 초과)`,
           );
         }
 
-        // 배치 내 모든 원고 생성 완료 대기
-        await Promise.all(batchPromises);
-
-        // 배치 성공 시 카운트 업데이트
-        completedCount += currentBatchSize;
-
-        // BlogPost 진행 상황 업데이트
-        await this.prisma.blogPost.update({
-          where: { id: blogPostId },
-          data: {
-            completedCount,
-            status:
-              completedCount === targetCount ? 'COMPLETED' : 'IN_PROGRESS',
-          },
-        });
+        const batchIndices = pendingIndices.slice(i, i + this.BATCH_SIZE);
 
         this.logger.log(
-          `Batch completed: ${completedCount}/${targetCount} posts for blogPost ${blogPostId}`,
+          `[시도 ${attempt}] 배치 처리: ${batchIndices.join(', ')} (blogPost ${blogPostId})`,
         );
 
-        // Rate Limit 방지를 위한 배치 간 짧은 대기 (마지막 배치 제외)
-        if (completedCount < targetCount) {
-          await this.sleep(1000); // 1초 대기
-        }
-      } catch (error) {
-        // 배치 실패 시 (일부 성공 가능)
-        // 실제 생성된 원고 개수 확인
+        // 배치 내 원고들을 병렬로 생성 (각 원고 결과 개별 수집)
+        const results = await Promise.allSettled(
+          batchIndices.map((postIndex) =>
+            this.withTimeout(
+              this.generateSinglePost(
+                blogPostId,
+                postIndex,
+                targetCount,
+                blogPost,
+                referenceContents,
+              ),
+              this.SINGLE_POST_TIMEOUT,
+              `원고 ${postIndex}/${targetCount} 생성 타임아웃 (${this.SINGLE_POST_TIMEOUT / 1000}초 초과)`,
+            ),
+          ),
+        );
+
+        // 결과 분석: 실패한 인덱스 수집
+        results.forEach((result, idx) => {
+          const postIndex = batchIndices[idx];
+          if (result.status === 'rejected') {
+            failedIndices.push(postIndex);
+            lastError = result.reason?.message || String(result.reason);
+            this.logger.warn(
+              `[시도 ${attempt}] 원고 ${postIndex} 생성 실패: ${lastError}`,
+            );
+          }
+        });
+
+        // 현재까지 생성된 원고 수 업데이트
         const actualCount = await this.prisma.aIPost.count({
           where: { blogPostId },
         });
 
-        this.logger.error(
-          `Batch generation failed for blogPost ${blogPostId}. Actual count: ${actualCount}/${targetCount}`,
-          error.stack,
-        );
-
-        // 실패로 마킹
         await this.prisma.blogPost.update({
           where: { id: blogPostId },
           data: {
-            status: 'FAILED',
             completedCount: actualCount,
+            status: 'IN_PROGRESS',
           },
         });
 
-        // 실패한 원고에 대한 BloC 환불 (원고당 1 BloC)
-        if (actualCount < targetCount) {
-          const failedCount = targetCount - actualCount;
-          const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
-
-          if (refundAmount > 0) {
-            try {
-              await this.creditService.grantBonusCredits(
-                userId,
-                refundAmount,
-                `원고 생성 실패 환불 (${failedCount}/${targetCount}개 실패, BlogPost ${blogPostId})`,
-              );
-
-              this.logger.log(
-                `Refunded ${refundAmount} BloC to user ${userId} for ${failedCount} failed posts (blogPost ${blogPostId})`,
-              );
-            } catch (refundError) {
-              this.logger.error(
-                `Failed to refund ${refundAmount} BloC to user ${userId}`,
-                refundError.stack,
-              );
-              // 환불 실패해도 원본 에러는 그대로 throw
-            }
-          }
+        // Rate Limit 방지를 위한 배치 간 대기
+        if (i + this.BATCH_SIZE < pendingIndices.length) {
+          await this.sleep(1000);
         }
-
-        throw error;
       }
+
+      // 다음 시도에서 처리할 인덱스 = 이번에 실패한 인덱스
+      pendingIndices = failedIndices;
+
+      if (pendingIndices.length === 0) {
+        this.logger.log(
+          `[시도 ${attempt}] 모든 원고 생성 완료 (blogPost ${blogPostId})`,
+        );
+        break;
+      }
+
+      // 재시도 전 대기 (exponential backoff)
+      if (attempt < this.MAX_RETRY) {
+        const delay = this.RETRY_DELAY * Math.pow(2, attempt - 1);
+        this.logger.log(
+          `[시도 ${attempt}] ${pendingIndices.length}개 실패. ${delay / 1000}초 후 재시도...`,
+        );
+        await this.sleep(delay);
+      }
+    }
+
+    // 최종 결과 확인
+    const finalCount = await this.prisma.aIPost.count({
+      where: { blogPostId },
+    });
+
+    if (finalCount === targetCount) {
+      // 모든 원고 생성 성공
+      await this.prisma.blogPost.update({
+        where: { id: blogPostId },
+        data: {
+          status: 'COMPLETED',
+          completedCount: finalCount,
+          completedAt: new Date(),
+        },
+      });
+      this.logger.log(
+        `BlogPost ${blogPostId} 완료: ${finalCount}/${targetCount}개 생성`,
+      );
+    } else {
+      // 일부 또는 전체 실패
+      const failedCount = targetCount - finalCount;
+
+      await this.prisma.blogPost.update({
+        where: { id: blogPostId },
+        data: {
+          status: 'FAILED',
+          completedCount: finalCount,
+          lastError: `${this.MAX_RETRY}회 시도 후 ${failedCount}개 실패. 마지막 에러: ${lastError ? String(lastError).substring(0, 400) : '알 수 없음'}`,
+          errorAt: new Date(),
+        },
+      });
+
+      // 실패한 원고에 대한 BloC 환불
+      const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
+      if (refundAmount > 0) {
+        try {
+          await this.creditService.grantBonusCredits(
+            userId,
+            refundAmount,
+            `원고 생성 실패 환불 (${failedCount}/${targetCount}개 실패, ${this.MAX_RETRY}회 시도, BlogPost ${blogPostId})`,
+          );
+          this.logger.log(
+            `Refunded ${refundAmount} BloC to user ${userId} for ${failedCount} failed posts`,
+          );
+        } catch (refundError) {
+          this.logger.error(
+            `Failed to refund ${refundAmount} BloC to user ${userId}`,
+            refundError,
+          );
+        }
+      }
+
+      throw new Error(
+        `${this.MAX_RETRY}회 시도 후 ${failedCount}/${targetCount}개 원고 생성 실패`,
+      );
     }
   }
 
   /**
-   * 단일 원고 생성 (exponential backoff 재시도)
-   * - 배치 처리 시 blogPost와 referenceContents를 재사용하여 DB 조회 최소화
-   * - 랜덤 페르소나 모드에서는 각 원고마다 새로운 랜덤 페르소나 생성
+   * 단일 원고 생성 (재시도 없이 1회 시도)
    */
-  private async generateSinglePostWithRetry(
+  private async generateSinglePost(
     blogPostId: number,
     postIndex: number,
     totalCount: number,
-    blogPost?: any, // 배치 처리 시 전달받음 (선택적)
-    referenceContents?: string[], // 배치 처리 시 전달받음 (선택적)
+    blogPost: any,
+    referenceContents: string[],
   ): Promise<void> {
-    let retryCount = 0;
-    let lastError: Error | null = null;
+    // 이미 생성된 원고인지 확인 (중복 방지)
+    const existingPost = await this.prisma.aIPost.findFirst({
+      where: {
+        blogPostId,
+        // postIndex 필드가 없으므로 생성된 원고 수로 체크
+      },
+      select: { id: true },
+    });
 
-    while (retryCount <= this.MAX_RETRY) {
-      try {
-        // blogPost가 전달되지 않은 경우에만 조회 (하위 호환성)
-        const post =
-          blogPost ||
-          (await this.prisma.blogPost.findUnique({
-            where: { id: blogPostId },
-          }));
-
-        if (!post) {
-          throw new Error(`BlogPost ${blogPostId} not found`);
-        }
-
-        // 이미 생성된 원고들의 제목 조회 (중복 방지)
-        const existingPosts = await this.prisma.aIPost.findMany({
-          where: { blogPostId },
-          select: { title: true },
-        });
-
-        const existingTitles: string[] = existingPosts
-          .map((post) => post.title)
-          .filter((title): title is string => !!title);
-
-        // referenceContents가 전달되지 않은 경우에만 조회 (하위 호환성)
-        const references =
-          referenceContents ||
-          (await this.fetchReferenceContents(post.keyword));
-
-        // 랜덤 페르소나 모드인 경우 각 원고마다 새로운 랜덤 페르소나 생성
-        const isRandomMode = post.persona?.isRandom === true;
-        const actualPersona = isRandomMode
-          ? generateRandomPersona()
-          : post.persona;
-
-        if (isRandomMode) {
-          this.logger.log(
-            `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.occupation} (${actualPersona.age}세, ${actualPersona.gender})`,
-          );
-        }
-
-        this.logger.log(
-          `Generating post ${postIndex}/${totalCount} with diversity strategy (existing titles: ${existingTitles.length})`,
-        );
-
-        const startTime = Date.now();
-
-        // LLM 호출 (다양성 전략 적용)
-        const result = await this.openaiService.generatePost({
-          keyword: post.keyword,
-          postType: post.postType,
-          persona: actualPersona, // 랜덤 모드면 새로 생성된 페르소나, 아니면 기존 페르소나
-          subKeywords: post.subKeywords,
-          length: post.length,
-          additionalFields: post.additionalFields as Record<string, any>,
-          referenceContents: references, // 상위 10개 블로그 컨텐츠 전달
-          postIndex, // 현재 원고 번호 (다양성 확보)
-          totalCount, // 전체 원고 개수
-          existingTitles, // 이미 생성된 제목들 (중복 방지)
-        });
-
-        const responseTime = Date.now() - startTime;
-
-        // JSON 파싱 (title과 content 분리)
-        let title: string | null = null;
-        let content: string = result.content;
-
-        try {
-          const parsed = JSON.parse(result.content) as {
-            title?: string;
-            content?: string;
-          };
-          title = parsed.title || null;
-          content = parsed.content || result.content;
-        } catch {
-          this.logger.warn(
-            `Failed to parse JSON response for blogPost ${blogPostId}, storing as-is`,
-          );
-          // 파싱 실패 시 전체를 content로 저장
-        }
-
-        // 성공 시 AIPost 생성 (title과 content 분리 저장, 토큰 사용량 포함)
-        const aiPost = await this.prisma.aIPost.create({
-          data: {
-            blogPostId,
-            title,
-            content,
-            retryCount, // 몇 번 재시도 후 성공했는지 기록
-            promptTokens: result.usage.promptTokens,
-            completionTokens: result.usage.completionTokens,
-            totalTokens: result.usage.totalTokens,
-          },
-        });
-
-        // 프롬프트 로깅 (백그라운드 처리 - 실패해도 메인 로직에 영향 없음)
-        if (result.prompts) {
-          this.promptLogService
-            .logPrompt({
-              userId: post.userId,
-              blogPostId,
-              aiPostId: aiPost.id,
-              systemPrompt: result.prompts.systemPrompt,
-              userPrompt: result.prompts.userPrompt,
-              fullPrompt: result.prompts.fullPrompt,
-              model: 'gpt-4o', // generationModel 사용 (환경변수에서 가져옴)
-              promptTokens: result.usage.promptTokens,
-              completionTokens: result.usage.completionTokens,
-              totalTokens: result.usage.totalTokens,
-              response: result.content,
-              responseTime,
-              success: true,
-              purpose: 'blog_generation',
-              metadata: {
-                keyword: post.keyword,
-                postType: post.postType,
-                length: post.length,
-                postIndex,
-                totalCount,
-                retryCount,
-              },
-            })
-            .catch((error) => {
-              this.logger.warn(
-                `Failed to log prompt for aiPost ${aiPost.id}: ${error.message}`,
-              );
-            });
-        }
-
-        this.logger.log(
-          `Post generated successfully after ${retryCount} retries for blogPost ${blogPostId}`,
-        );
-
-        return; // 성공 시 종료
-      } catch (error) {
-        lastError = error;
-        retryCount++;
-
-        if (retryCount <= this.MAX_RETRY) {
-          // Exponential backoff: 2초, 4초, 8초
-          const delay = this.RETRY_DELAY * Math.pow(2, retryCount - 1);
-
-          this.logger.warn(
-            `Retry ${retryCount}/${this.MAX_RETRY} for blogPost ${blogPostId} after ${delay}ms. Error: ${error.message}`,
-          );
-
-          await this.sleep(delay);
-        }
-      }
+    // 이미 해당 인덱스의 원고가 있으면 스킵
+    const currentCount = await this.prisma.aIPost.count({
+      where: { blogPostId },
+    });
+    if (currentCount >= postIndex) {
+      this.logger.log(`원고 ${postIndex} 이미 존재, 스킵`);
+      return;
     }
 
-    // 모든 재시도 실패
-    throw new Error(
-      `Failed after ${this.MAX_RETRY} retries. Last error: ${lastError?.message}`,
-    );
+    // 이미 생성된 원고들의 제목 조회 (중복 방지)
+    const existingPosts = await this.prisma.aIPost.findMany({
+      where: { blogPostId },
+      select: { title: true },
+    });
+
+    const existingTitles: string[] = existingPosts
+      .map((post) => post.title)
+      .filter((title): title is string => !!title);
+
+    // 랜덤 페르소나 모드인 경우 각 원고마다 새로운 랜덤 페르소나 생성
+    const isRandomMode = blogPost.persona?.isRandom === true;
+    const actualPersona = isRandomMode
+      ? generateRandomPersona()
+      : blogPost.persona;
+
+    if (isRandomMode) {
+      this.logger.log(
+        `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.occupation} (${actualPersona.age}세, ${actualPersona.gender})`,
+      );
+    }
+
+    const startTime = Date.now();
+
+    // LLM 호출
+    const result = await this.openaiService.generatePost({
+      keyword: blogPost.keyword,
+      postType: blogPost.postType,
+      persona: actualPersona,
+      subKeywords: blogPost.subKeywords,
+      length: blogPost.length,
+      additionalFields: blogPost.additionalFields as Record<string, any>,
+      referenceContents,
+      postIndex,
+      totalCount,
+      existingTitles,
+    });
+
+    const responseTime = Date.now() - startTime;
+
+    // JSON 파싱 (title과 content 분리)
+    let title: string | null = null;
+    let content: string = result.content;
+
+    try {
+      const parsed = JSON.parse(result.content) as {
+        title?: string;
+        content?: string;
+      };
+      title = parsed.title || null;
+      content = parsed.content || result.content;
+    } catch {
+      this.logger.warn(
+        `Failed to parse JSON response for blogPost ${blogPostId}, storing as-is`,
+      );
+    }
+
+    // AIPost 생성
+    const aiPost = await this.prisma.aIPost.create({
+      data: {
+        blogPostId,
+        title,
+        content,
+        retryCount: 0,
+        promptTokens: result.usage.promptTokens,
+        completionTokens: result.usage.completionTokens,
+        totalTokens: result.usage.totalTokens,
+      },
+    });
+
+    // 프롬프트 로깅
+    if (result.prompts) {
+      this.promptLogService
+        .logPrompt({
+          userId: blogPost.userId,
+          blogPostId,
+          aiPostId: aiPost.id,
+          systemPrompt: result.prompts.systemPrompt,
+          userPrompt: result.prompts.userPrompt,
+          fullPrompt: result.prompts.fullPrompt,
+          model: 'gpt-4o',
+          promptTokens: result.usage.promptTokens,
+          completionTokens: result.usage.completionTokens,
+          totalTokens: result.usage.totalTokens,
+          response: result.content,
+          responseTime,
+          success: true,
+          purpose: 'blog_generation',
+          metadata: {
+            keyword: blogPost.keyword,
+            postType: blogPost.postType,
+            length: blogPost.length,
+            postIndex,
+            totalCount,
+          },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to log prompt for aiPost ${aiPost.id}: ${error.message}`,
+          );
+        });
+    }
+
+    this.logger.log(`원고 ${postIndex}/${totalCount} 생성 완료 (blogPost ${blogPostId})`);
   }
 
   /**
@@ -615,23 +724,13 @@ export class BlogPostService {
     for (const blogRank of topBlogs) {
       const blog = blogRank.blog;
 
-      // summary가 이미 있고 작성 기법 분석 버전인지 확인
-      // 작성 기법 분석 버전은 "글 구성:", "문체와 어조:" 등의 키워드를 포함
+      // summary가 있으면 바로 재사용 (토큰 절약)
       if (blog.summary) {
-        const isNewStyleSummary =
-          blog.summary.includes('글 구성') ||
-          blog.summary.includes('문체와 어조') ||
-          blog.summary.includes('작성 기법');
-
-        if (isNewStyleSummary) {
-          // 이미 새로운 방식으로 생성된 summary 재사용
-          referenceContents.push(blog.summary);
-          continue;
-        }
-        // summary가 있지만 구버전이면 아래에서 재생성
+        referenceContents.push(blog.summary);
+        continue;
       }
 
-      // summary가 없거나 구버전이면 새로 생성
+      // summary가 없으면 새로 생성
       if (blog.content && blog.content.length > 200) {
         try {
           this.logger.debug(
@@ -708,5 +807,24 @@ export class BlogPostService {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 타임아웃이 적용된 Promise 래퍼
+   * @param promise - 원본 Promise
+   * @param ms - 타임아웃 (밀리초)
+   * @param errorMessage - 타임아웃 발생 시 에러 메시지
+   */
+  private withTimeout<T>(
+    promise: Promise<T>,
+    ms: number,
+    errorMessage: string,
+  ): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(errorMessage)), ms),
+      ),
+    ]);
   }
 }

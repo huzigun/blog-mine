@@ -643,25 +643,29 @@ export class OpenAIService {
     // (태그: <h2>, <h3>, <p>, <strong>, <ul>, <li>, <blockquote> 등)
     const htmlOverhead = Math.ceil(targetOutputTokens * 0.6);
 
-    // JSON 구조 오버헤드: {"title":"...","content":"..."}
-    const jsonOverhead = 150;
+    // JSON 구조 오버헤드: {"title":"...","content":"...","tags":[...]}
+    const jsonOverhead = 200;
 
-    // 여유분: 길이에 따라 동적 조정 (짧은 글: 50%, 긴 글: 40%)
+    // 여유분: 길이에 따라 동적 조정 (넉넉하게)
     const marginRate =
-      targetLength <= 500 ? 1.5 : targetLength <= 1500 ? 1.45 : 1.4;
+      targetLength <= 500 ? 1.8 : targetLength <= 1500 ? 1.7 : 1.6;
     const outputTokens = Math.ceil(
       (targetOutputTokens + htmlOverhead + jsonOverhead) * marginRate,
     );
 
-    // 최소 출력 토큰 보장 (동적 조정: 300자=4000, 3000자=12000)
-    const minTokens = Math.max(4000, Math.ceil(targetLength * 4));
+    // 최소 출력 토큰 보장 (동적 조정: 더 넉넉하게)
+    const minTokens = Math.max(6000, Math.ceil(targetLength * 5));
     const finalOutputTokens = Math.max(outputTokens, minTokens);
 
+    // gpt-4o 출력 토큰 제한 (16K) 이내로 제한
+    const maxOutputLimit = 16000;
+    const safeOutputTokens = Math.min(finalOutputTokens, maxOutputLimit);
+
     this.logger.debug(
-      `Token calculation: input=${inputTokens}, target=${targetLength}chars, target_tokens=${targetOutputTokens}, html_overhead=${htmlOverhead}, margin_rate=${marginRate}, final=${finalOutputTokens}`,
+      `Token calculation: input=${inputTokens}, target=${targetLength}chars, target_tokens=${targetOutputTokens}, html_overhead=${htmlOverhead}, margin_rate=${marginRate}, calculated=${finalOutputTokens}, final=${safeOutputTokens}`,
     );
 
-    return finalOutputTokens;
+    return safeOutputTokens;
   }
 
   /**
@@ -722,7 +726,7 @@ ${truncatedContent}`,
           },
         ],
         // temperature: 0.3, // 일관성 있는 요약
-        max_completion_tokens: 1000, // 한글 600자 ≈ 840 토큰 + 여유분
+        max_completion_tokens: 2000, // 한글 600자 ≈ 840 토큰이지만 여유분 충분히 확보
       });
 
       const choice = completion.choices?.[0];
