@@ -339,8 +339,7 @@ export class BlogPostService {
     // 실행 시간 계산 (진행 중이면 현재까지, 완료/실패면 총 소요 시간)
     let elapsedTime: number | null = null;
     if (blogPost.startedAt) {
-      const endTime =
-        blogPost.completedAt || blogPost.errorAt || new Date();
+      const endTime = blogPost.completedAt || blogPost.errorAt || new Date();
       elapsedTime = Math.floor(
         (endTime.getTime() - blogPost.startedAt.getTime()) / 1000,
       ); // 초 단위
@@ -396,10 +395,7 @@ export class BlogPostService {
     );
 
     // 생성할 원고 인덱스 목록 (1부터 시작)
-    let pendingIndices = Array.from(
-      { length: targetCount },
-      (_, i) => i + 1,
-    );
+    let pendingIndices = Array.from({ length: targetCount }, (_, i) => i + 1);
     let lastError: string | null = null;
 
     // 최대 3번 시도 (1차 시도 + 2번 재시도)
@@ -692,7 +688,9 @@ export class BlogPostService {
         });
     }
 
-    this.logger.log(`원고 ${postIndex}/${totalCount} 생성 완료 (blogPost ${blogPostId})`);
+    this.logger.log(
+      `원고 ${postIndex}/${totalCount} 생성 완료 (blogPost ${blogPostId})`,
+    );
   }
 
   /**

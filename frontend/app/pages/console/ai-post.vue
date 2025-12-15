@@ -7,6 +7,7 @@ import {
   manualInputPostSchema,
   type AiPostSchema,
 } from '~/schemas/post';
+import { PostDone } from '#components';
 
 definePageMeta({
   middleware: 'auth',
@@ -14,6 +15,8 @@ definePageMeta({
 
 const [isPending, startTransition] = useTransition();
 const auth = useAuth();
+const overlay = useOverlay();
+const postDoneModal = overlay.create(PostDone);
 
 interface SimplePersona
   extends Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'> {}
@@ -155,36 +158,29 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
 
   startTransition(async () => {
     try {
-      const { data, error } = await useApiFetch('/blog-posts', {
+      const result = await useApi<{
+        id: number;
+      }>('/blog-posts', {
         method: 'POST',
         body: finalData,
       });
 
-      if (error.value) {
-        throw new Error(
-          error.value.message || '원고 생성 요청에 실패했습니다.',
-        );
+      if (!result.id) {
+        throw new Error('원고 생성 요청에 실패했습니다.');
       }
 
-      toast.add({
-        title: '원고 생성 요청 완료',
-        description: `${finalData.count}개의 원고 생성이 시작되었습니다. 진행 상황은 목록에서 확인하실 수 있습니다.`,
-        color: 'success',
+      await auth.fetchUser();
+      resetForm(); // 폼 리셋
+
+      const instance = postDoneModal.open({
+        completedPostCount: finalData.count,
       });
 
-      // BloC 잔액 새로고침 (fetchUser가 creditBalance도 포함)
-      await auth.fetchUser();
+      const nextStep = (await instance.result) as boolean;
 
-      // 성공 후 폼 초기화
-      state.personaId = undefined;
-      state.keyword = '';
-      state.subKeywords = [];
-      state.length = 300;
-      state.count = 1;
-      state.fields = {};
-
-      // 목록 페이지로 이동 (선택사항)
-      // await navigateTo('/console/blog-posts');
+      if (nextStep) {
+        await navigateTo(`/console/orders/${result.id}`);
+      }
     } catch (err: any) {
       toast.add({
         title: '원고 생성 실패',
@@ -193,6 +189,16 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
       });
     }
   });
+};
+
+// 폼 초기화 함수
+const resetForm = () => {
+  state.personaId = undefined;
+  state.keyword = '';
+  state.subKeywords = [];
+  state.length = 1500;
+  state.count = 1;
+  state.fields = {};
 };
 
 const onSubmit = () => {
@@ -422,7 +428,7 @@ const onSubmit = () => {
               </div>
             </form>
           </div>
-          <div class="space-y-3 mt-4">
+          <div class="space-y-3 mt-6">
             <!-- BloC 잔액 표시 -->
             <div
               v-if="auth.creditBalance"
