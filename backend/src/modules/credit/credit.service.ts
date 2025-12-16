@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import {
+  Card,
   CreditTransactionType,
   CreditType,
+  PaymentStatus,
   Prisma,
   SubscriptionStatus,
 } from '@prisma/client';
@@ -16,10 +18,14 @@ import {
   CreditTransactionFilterDto,
   TransactionFilterDto,
 } from './dto';
+import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
 
 @Injectable()
 export class CreditService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly niceBillingService: NiceBillingService,
+  ) {}
 
   /**
    * 활성 구독 검증
@@ -95,27 +101,107 @@ export class CreditService {
 
   /**
    * 크레딧 구매
-   * TODO: 실제 결제 연동 구현 필요
-   * - Payment 모듈과 연동하여 결제 처리
+   * - 나이스페이 빌링 결제 연동
    * - 결제 성공 후 크레딧 지급
+   * @param userId 사용자 ID
+   * @param purchaseDto 구매 정보
    */
   async purchaseCredits(userId: number, purchaseDto: PurchaseCreditDto) {
     const { amount, paymentMethodId, metadata } = purchaseDto;
 
-    // TODO: 결제 처리 로직 구현
-    // 1. Payment 모듈을 통해 결제 요청
-    // 2. 결제 승인 대기
-    // 3. 결제 성공 시 아래 로직 실행
-    // 4. 결제 실패 시 예외 발생
+    // 1. 결제 수단(카드) 조회
+    let card: Card | null = null;
+    if (paymentMethodId) {
+      // 특정 카드 ID로 조회
+      card = await this.prisma.card.findFirst({
+        where: {
+          id: parseInt(paymentMethodId, 10),
+          userId,
+          isAuthenticated: true,
+        },
+      });
+    } else {
+      // 기본 카드 조회
+      card = await this.prisma.card.findFirst({
+        where: {
+          userId,
+          isDefault: true,
+          isAuthenticated: true,
+        },
+      });
 
-    // 임시: 결제 ID를 null로 설정 (실제 구현 시 결제 결과에서 가져옴)
-    const paymentId = null;
+      // 기본 카드가 없으면 인증된 카드 중 첫 번째 카드 사용
+      if (!card) {
+        card = await this.prisma.card.findFirst({
+          where: {
+            userId,
+            isAuthenticated: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    if (!card || !card.billingKey) {
+      throw new BadRequestException(
+        '등록된 결제 수단이 없습니다. 카드를 먼저 등록해주세요.',
+      );
+    }
+
+    // 2. 결제 금액 계산 (크레딧당 가격 - 예: 1크레딧 = 100원)
+    const CREDIT_PRICE = 100; // 크레딧당 가격 (원)
+    const paymentAmount = amount * CREDIT_PRICE;
+
+    // 3. 사용자 정보 조회 (결제 요청 시 필요)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    // 4. 나이스페이 결제 요청
+    const paymentResult = await this.niceBillingService.approvePayment(
+      card.billingKey,
+      {
+        amount: paymentAmount,
+        userId: String(userId),
+        name: user?.name || undefined,
+        email: user?.email || undefined,
+        goodsName: `BloC 크레딧 ${amount}개 충전`,
+      },
+    );
+
+    if (!paymentResult.success) {
+      throw new BadRequestException(
+        paymentResult.message || '결제 처리에 실패했습니다.',
+      );
+    }
 
     const account = await this.getCreditAccount(userId);
 
-    // 트랜잭션으로 크레딧 지급 처리
+    // 5. 트랜잭션으로 결제 기록 및 크레딧 지급 처리
     const transaction = await this.prisma.$transaction(async (tx) => {
-      // 1. 거래 내역 생성
+      // 5-1. Payment 기록 생성
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          amount: paymentAmount,
+          currency: 'KRW',
+          status: PaymentStatus.COMPLETED,
+          paymentMethod: 'card',
+          transactionId: paymentResult.originalData?.TID || null,
+          metadata: JSON.stringify({
+            creditAmount: amount,
+            cardId: card.id,
+            cardNumber: card.number,
+            cardCompany: card.cardCompany,
+            authCode: paymentResult.originalData?.AuthCode,
+            authDate: paymentResult.originalData?.AuthDate,
+            ...paymentResult.originalData,
+          }),
+        },
+      });
+
+      // 5-2. 크레딧 거래 내역 생성
       const creditTransaction = await tx.creditTransaction.create({
         data: {
           accountId: account.id,
@@ -125,13 +211,13 @@ export class CreditService {
           balanceBefore: account.totalCredits,
           balanceAfter: account.totalCredits + amount,
           creditType: CreditType.PURCHASED,
-          referenceType: paymentId ? 'payment' : undefined,
-          referenceId: paymentId,
+          referenceType: 'payment',
+          referenceId: payment.id,
           metadata: metadata || undefined,
         },
       });
 
-      // 2. 계정 잔액 업데이트
+      // 5-3. 크레딧 계정 잔액 업데이트
       const updatedAccount = await tx.creditAccount.update({
         where: { userId },
         data: {
@@ -140,7 +226,11 @@ export class CreditService {
         },
       });
 
-      return { transaction: creditTransaction, account: updatedAccount };
+      return {
+        payment,
+        transaction: creditTransaction,
+        account: updatedAccount,
+      };
     });
 
     return {
@@ -148,6 +238,11 @@ export class CreditService {
       message: `${amount} 크레딧이 충전되었습니다.`,
       balance: transaction.account.totalCredits,
       transaction: transaction.transaction,
+      payment: {
+        id: transaction.payment.id,
+        amount: transaction.payment.amount,
+        status: transaction.payment.status,
+      },
     };
   }
 
@@ -380,7 +475,6 @@ export class CreditService {
     };
   }
 
-
   /**
    * 특정 거래 내역 조회
    */
@@ -534,5 +628,4 @@ export class CreditService {
       },
     };
   }
-
 }

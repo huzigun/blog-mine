@@ -28,11 +28,11 @@ const openCardRegistration = async () => {
     // 카드 등록 성공 시 카드 목록 새로고침
     await refreshCards();
 
-    toast.add({
-      title: '카드 등록 완료',
-      description: '결제 카드가 성공적으로 등록되었습니다.',
-      color: 'success',
-    });
+    // toast.add({
+    //   title: '카드 등록 완료',
+    //   description: '결제 카드가 성공적으로 등록되었습니다.',
+    //   color: 'success',
+    // });
   }
 };
 
@@ -116,7 +116,11 @@ const formatDate = (date: string) => {
       <template #header>
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <UIcon name="i-heroicons-credit-card" class="text-primary" :size="20" />
+            <UIcon
+              name="i-heroicons-credit-card"
+              class="text-primary"
+              :size="20"
+            />
             <h3 class="text-lg font-semibold">등록된 카드</h3>
           </div>
           <UButton
@@ -132,14 +136,15 @@ const formatDate = (date: string) => {
 
       <!-- 로딩 상태 -->
       <div v-if="cardsLoading" class="flex justify-center py-12">
-        <UIcon name="i-heroicons-arrow-path" class="animate-spin text-primary" :size="32" />
+        <UIcon
+          name="i-heroicons-arrow-path"
+          class="animate-spin text-primary"
+          :size="32"
+        />
       </div>
 
       <!-- 빈 상태 -->
-      <div
-        v-else-if="!cards || cards.length === 0"
-        class="text-center py-12"
-      >
+      <div v-else-if="!cards || cards.length === 0" class="text-center py-12">
         <UIcon
           name="i-heroicons-credit-card"
           class="mx-auto mb-4 text-neutral-400"

@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { CardForm } from '#components';
+import { CardForm, PaymentConfirmModal } from '#components';
 
 definePageMeta({
   middleware: 'auth',
@@ -107,6 +107,17 @@ const termsAgreed = ref(false);
 // 결제 진행 중
 const isProcessing = ref(false);
 
+// 결제 확인 모달
+const paymentConfirmModal = overlay.create(PaymentConfirmModal);
+
+// 선택된 카드 정보
+const selectedCardInfo = computed(() => {
+  if (!selectedCardId.value || !cards.value) return '';
+  const card = cards.value.find((c) => c.id === selectedCardId.value);
+  if (!card) return '';
+  return `${card.cardCompany || ''} ${card.number || ''}`.trim();
+});
+
 // 결제 처리
 const handleCheckout = async () => {
   if (!selectedCardId.value) {
@@ -126,6 +137,17 @@ const handleCheckout = async () => {
     });
     return;
   }
+
+  // 결제 확인 모달 표시
+  const instance = paymentConfirmModal.open({
+    amount: totalPrice.value,
+    description: `${selectedPlan.value?.displayName} 플랜 구독`,
+    itemName: `${selectedPlan.value?.displayName} 플랜 (${billingPeriod.value === 'yearly' ? '연간' : '월간'})`,
+    cardInfo: selectedCardInfo.value,
+  });
+
+  const confirmed = await instance.result;
+  if (!confirmed) return;
 
   isProcessing.value = true;
 
@@ -205,6 +227,25 @@ const openCardModal = async () => {
         선택하신 플랜의 결제 정보를 확인하고 결제를 완료하세요.
       </p>
     </div>
+
+    <!-- 테스트 결제 안내 배너 -->
+    <UAlert
+      color="warning"
+      variant="subtle"
+      icon="i-heroicons-exclamation-triangle"
+      class="mb-6"
+    >
+      <template #title>
+        <span class="font-semibold">테스트 결제 안내</span>
+      </template>
+      <template #description>
+        <p>
+          현재 테스트 모드로 운영 중입니다. 결제된 금액은
+          <span class="font-semibold text-warning">매일 밤 11시에 자동으로 환불</span>
+          됩니다.
+        </p>
+      </template>
+    </UAlert>
 
     <!-- 로딩 상태 -->
     <div v-if="planLoading || cardsLoading" class="space-y-4">

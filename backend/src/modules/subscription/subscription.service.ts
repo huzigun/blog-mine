@@ -6,7 +6,13 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import { CreditService } from '@modules/credit/credit.service';
-import { SubscriptionStatus, SubscriptionAction } from '@prisma/client';
+import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
+import {
+  Card,
+  SubscriptionStatus,
+  SubscriptionAction,
+  PaymentStatus,
+} from '@prisma/client';
 import { StartSubscriptionDto, CancelSubscriptionDto } from './dto';
 
 @Injectable()
@@ -16,6 +22,7 @@ export class SubscriptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly creditService: CreditService,
+    private readonly niceBillingService: NiceBillingService,
   ) {}
 
   /**
@@ -76,13 +83,74 @@ export class SubscriptionService {
       );
     }
 
-    // TODO: 결제 처리
-    // 4. 결제 수단 확인
-    // 5. 결제 요청
-    // 6. 결제 승인 대기
+    // 4. 결제 수단(카드) 조회
+    let card: Card | null = null;
+    if (paymentMethodId) {
+      // 특정 카드 ID로 조회
+      card = await this.prisma.card.findFirst({
+        where: {
+          id: paymentMethodId,
+          userId,
+          isAuthenticated: true,
+        },
+      });
+    } else {
+      // 기본 카드 조회
+      card = await this.prisma.card.findFirst({
+        where: {
+          userId,
+          isDefault: true,
+          isAuthenticated: true,
+        },
+      });
 
-    // 7. 결제 성공 가정 하에 구독 처리
-    const paymentId = null; // TODO: 실제 결제 ID
+      // 기본 카드가 없으면 인증된 카드 중 첫 번째 카드 사용
+      if (!card) {
+        card = await this.prisma.card.findFirst({
+          where: {
+            userId,
+            isAuthenticated: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    if (!card || !card.billingKey) {
+      throw new BadRequestException(
+        '등록된 결제 수단이 없습니다. 카드를 먼저 등록해주세요.',
+      );
+    }
+
+    // 5. 결제 금액 확인
+    const paymentAmount = plan.price || 0;
+    if (paymentAmount <= 0) {
+      throw new BadRequestException('유효하지 않은 플랜 가격입니다.');
+    }
+
+    // 6. 사용자 정보 조회 (결제 요청 시 필요)
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    // 7. 나이스페이 결제 요청
+    const paymentResult = await this.niceBillingService.approvePayment(
+      card.billingKey,
+      {
+        amount: paymentAmount,
+        userId: String(userId),
+        name: user?.name || undefined,
+        email: user?.email || undefined,
+        goodsName: `BloC ${plan.displayName} 구독`,
+      },
+    );
+
+    if (!paymentResult.success) {
+      throw new BadRequestException(
+        paymentResult.message || '결제 처리에 실패했습니다.',
+      );
+    }
 
     // 8. 구독 시작 날짜 및 만료일 계산
     const startedAt = new Date();
@@ -93,7 +161,29 @@ export class SubscriptionService {
       let action: SubscriptionAction;
       let oldStatus: SubscriptionStatus | null = null;
 
-      // 8-1. 기존 구독이 있으면 취소 처리
+      // 8-1. Payment 기록 생성
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          amount: paymentAmount,
+          currency: 'KRW',
+          status: PaymentStatus.COMPLETED,
+          paymentMethod: 'card',
+          transactionId: paymentResult.originalData?.TID || null,
+          metadata: {
+            planId: plan.id,
+            planName: plan.displayName,
+            cardId: card.id,
+            cardNumber: card.number,
+            cardCompany: card.cardCompany,
+            authCode: paymentResult.originalData?.AuthCode,
+            authDate: paymentResult.originalData?.AuthDate,
+            ...paymentResult.originalData,
+          },
+        },
+      });
+
+      // 8-2. 기존 구독이 있으면 취소 처리
       if (currentSubscription) {
         oldStatus = currentSubscription.status;
 
@@ -118,7 +208,7 @@ export class SubscriptionService {
         action = SubscriptionAction.CREATED;
       }
 
-      // 8-2. 새 구독 생성
+      // 8-3. 새 구독 생성
       const newSubscription = await tx.userSubscription.create({
         data: {
           userId,
@@ -136,14 +226,14 @@ export class SubscriptionService {
         },
       });
 
-      // 8-3. 크레딧 지급
+      // 8-4. 크레딧 지급
       await this.creditService.grantSubscriptionCredits(
         userId,
         plan.monthlyCredits,
         newSubscription.id,
       );
 
-      // 8-4. 구독 히스토리 생성
+      // 8-5. 구독 히스토리 생성
       await tx.subscriptionHistory.create({
         data: {
           userId,
@@ -155,23 +245,28 @@ export class SubscriptionService {
           planName: plan.displayName,
           planPrice: plan.price,
           creditsGranted: plan.monthlyCredits,
-          paymentId,
+          paymentId: payment.id,
           startedAt,
           expiresAt,
         },
       });
 
-      return newSubscription;
+      return { subscription: newSubscription, payment };
     });
 
     this.logger.log(
-      `User ${userId} subscribed to ${plan.displayName} (${plan.price}원/월)`,
+      `User ${userId} subscribed to ${plan.displayName} (${plan.price}원/월), Payment ID: ${result.payment.id}`,
     );
 
     return {
       success: true,
       message: `${plan.displayName} 플랜 구독이 시작되었습니다.`,
-      subscription: result,
+      subscription: result.subscription,
+      payment: {
+        id: result.payment.id,
+        amount: result.payment.amount,
+        status: result.payment.status,
+      },
     };
   }
 

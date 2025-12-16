@@ -223,14 +223,10 @@ export class BlogRankService {
   }
 
   /**
-   * 오늘 날짜 문자열 반환 (YYYY-MM-DD)
+   * 오늘 날짜 문자열 반환 (YYYY-MM-DD, Asia/Seoul 타임존)
    */
   private getTodayDateStr(): string {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return this.dateService.getTodayDateStr();
   }
 
   /**

@@ -1,4 +1,7 @@
 <script lang="ts" setup>
+import type { TableColumn } from '@nuxt/ui';
+import { UBadge, UButton } from '#components';
+
 const toast = useToast();
 
 // 최근 일주일 날짜 계산
@@ -58,38 +61,6 @@ const {
 const payments = computed(() => paymentsData.value?.data || []);
 const meta = computed(() => paymentsData.value?.meta);
 
-// 상태 필터 옵션
-const statusOptions = [
-  { label: '전체', value: undefined },
-  { label: '완료', value: 'COMPLETED' },
-  { label: '대기중', value: 'PENDING' },
-  { label: '실패', value: 'FAILED' },
-  { label: '환불', value: 'REFUNDED' },
-];
-
-// 검색 실행
-const handleSearch = async () => {
-  searchParams.page = 1;
-  await refreshPayments();
-};
-
-// 검색 초기화
-const resetFilters = async () => {
-  const defaultDates = getLastWeekDates();
-  searchQuery.value = '';
-  searchParams.status = undefined;
-  searchParams.startDate = defaultDates.startDate;
-  searchParams.endDate = defaultDates.endDate;
-  searchParams.page = 1;
-  await refreshPayments();
-};
-
-// 페이지 변경
-const handlePageChange = async (page: number) => {
-  searchParams.page = page;
-  await refreshPayments();
-};
-
 // 결제 상태 뱃지 색상
 const getStatusColor = (status: PaymentStatus) => {
   switch (status) {
@@ -141,6 +112,129 @@ const formatDate = (date: string) => {
 const viewReceipt = (receiptUrl: string) => {
   window.open(receiptUrl, '_blank');
 };
+
+// 테이블 컬럼 정의 (TanStack Table 방식)
+const columns: TableColumn<Payment>[] = [
+  {
+    accessorKey: 'createdAt',
+    header: '결제일시',
+    cell: ({ row }) => {
+      const value = row.getValue('createdAt') as string;
+      return h('span', { class: 'text-sm' }, formatDate(value));
+    },
+  },
+  {
+    accessorKey: 'transactionId',
+    header: '거래번호',
+    cell: ({ row }) => {
+      const value = row.getValue('transactionId') as string | null;
+      return h(
+        'span',
+        { class: 'text-sm text-neutral-700 dark:text-neutral-300' },
+        value || '-',
+      );
+    },
+  },
+  {
+    accessorKey: 'paymentMethod',
+    header: '결제수단',
+    cell: ({ row }) => {
+      const value = row.getValue('paymentMethod') as string | null;
+      return h(
+        'span',
+        { class: 'text-sm text-neutral-700 dark:text-neutral-300' },
+        value || '카드',
+      );
+    },
+  },
+  {
+    accessorKey: 'amount',
+    header: '금액',
+    meta: {
+      class: {
+        th: 'text-right',
+        td: 'text-right',
+      },
+    },
+    cell: ({ row }) => {
+      const value = row.getValue('amount') as number;
+      return h(
+        'span',
+        { class: 'text-sm font-semibold' },
+        `${formatNumber(value)}원`,
+      );
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: '상태',
+    meta: {
+      class: {
+        th: 'text-center',
+        td: 'text-center',
+      },
+    },
+    cell: ({ row }) => {
+      const status = row.getValue('status') as PaymentStatus;
+      const receiptUrl = row.original.receiptUrl;
+
+      const children = [
+        h(
+          UBadge,
+          { color: getStatusColor(status), size: 'sm' },
+          () => getStatusText(status),
+        ),
+      ];
+
+      if (receiptUrl) {
+        children.push(
+          h(UButton, {
+            color: 'neutral',
+            variant: 'ghost',
+            size: 'xs',
+            icon: 'i-heroicons-document-text',
+            square: true,
+            onClick: () => viewReceipt(receiptUrl),
+          }),
+        );
+      }
+
+      return h('div', { class: 'flex items-center justify-center gap-2' }, children);
+    },
+  },
+];
+
+// 상태 필터 옵션
+const statusOptions = [
+  { label: '전체', value: undefined },
+  { label: '완료', value: 'COMPLETED' },
+  { label: '대기중', value: 'PENDING' },
+  { label: '실패', value: 'FAILED' },
+  { label: '환불', value: 'REFUNDED' },
+];
+
+// 검색 실행
+const handleSearch = async () => {
+  searchParams.page = 1;
+  await refreshPayments();
+};
+
+// 검색 초기화
+const resetFilters = async () => {
+  const defaultDates = getLastWeekDates();
+  searchQuery.value = '';
+  searchParams.status = undefined;
+  searchParams.startDate = defaultDates.startDate;
+  searchParams.endDate = defaultDates.endDate;
+  searchParams.page = 1;
+  await refreshPayments();
+};
+
+// 페이지 변경
+const handlePageChange = async (page: number) => {
+  searchParams.page = page;
+  await refreshPayments();
+};
 </script>
 
 <template>
@@ -185,18 +279,18 @@ const viewReceipt = (receiptUrl: string) => {
       <!-- 검색 버튼 -->
       <UButton
         color="primary"
-        @click="handleSearch"
         :disabled="paymentsLoading"
         icon="i-heroicons-magnifying-glass"
+        @click="handleSearch"
       >
         검색
       </UButton>
       <UButton
         color="neutral"
         variant="outline"
-        @click="resetFilters"
         :disabled="paymentsLoading"
         icon="i-heroicons-arrow-path"
+        @click="resetFilters"
       >
         초기화
       </UButton>
@@ -213,110 +307,37 @@ const viewReceipt = (receiptUrl: string) => {
       </span>
     </div>
 
-    <!-- 로딩 상태 -->
-    <div v-if="paymentsLoading" class="space-y-3">
-      <div
-        v-for="i in 5"
-        :key="i"
-        class="grid grid-cols-5 gap-4 py-3 border-b border-neutral-100 dark:border-neutral-900"
-      >
-        <USkeleton class="h-4 w-32" />
-        <USkeleton class="h-4 w-24" />
-        <USkeleton class="h-4 w-20" />
-        <USkeleton class="h-4 w-24" />
-        <USkeleton class="h-4 w-20" />
-      </div>
-    </div>
-
-    <!-- 데이터 -->
-    <div v-else-if="payments && payments.length > 0">
-      <!-- 테이블 헤더 -->
-      <div
-        class="grid grid-cols-5 gap-4 pb-3 mb-3 border-b border-neutral-200 dark:border-neutral-800 text-sm font-medium text-neutral-600 dark:text-neutral-400"
-      >
-        <div>결제일시</div>
-        <div>거래번호</div>
-        <div>결제수단</div>
-        <div class="text-right">금액</div>
-        <div class="text-center">상태</div>
-      </div>
-
-      <!-- 테이블 본문 -->
-      <div class="space-y-0">
-        <div
-          v-for="payment in payments"
-          :key="payment.id"
-          class="grid grid-cols-5 gap-4 py-3 border-b border-neutral-100 dark:border-neutral-900 last:border-0 hover:bg-neutral-50 dark:hover:bg-neutral-900/50 transition-colors"
-        >
-          <!-- 결제일시 -->
-          <div class="text-sm text-neutral-900 dark:text-white">
-            {{ formatDate(payment.createdAt) }}
-          </div>
-
-          <!-- 거래번호 -->
-          <div class="text-sm text-neutral-700 dark:text-neutral-300">
-            {{ payment.transactionId || '-' }}
-          </div>
-
-          <!-- 결제수단 -->
-          <div class="text-sm text-neutral-700 dark:text-neutral-300">
-            {{ payment.paymentMethod || '카드' }}
-          </div>
-
-          <!-- 금액 -->
-          <div class="text-sm text-right font-semibold text-neutral-900 dark:text-white">
-            {{ formatNumber(payment.amount) }}원
-          </div>
-
-          <!-- 상태 -->
-          <div class="flex items-center justify-center gap-2">
-            <UBadge :color="getStatusColor(payment.status)" size="sm">
-              {{ getStatusText(payment.status) }}
-            </UBadge>
-            <UButton
-              v-if="payment.receiptUrl"
-              color="neutral"
-              variant="ghost"
-              size="xs"
-              icon="i-heroicons-document-text"
-              @click="viewReceipt(payment.receiptUrl)"
-              square
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 데이터 없음 -->
-    <div
-      v-else
-      class="text-center py-12 text-neutral-500 dark:text-neutral-400"
+    <!-- UTable 사용 (TanStack Table 방식) -->
+    <UTable
+      :data="payments"
+      :columns="columns"
+      :loading="paymentsLoading"
+      loading-color="primary"
     >
-      <UIcon
-        name="i-heroicons-inbox"
-        class="mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
-        :size="48"
-      />
-      <p class="text-lg font-medium mb-1">결제 내역이 없습니다</p>
-      <p class="text-sm">결제가 발생하면 여기에 내역이 표시됩니다.</p>
-    </div>
+      <!-- 빈 상태 -->
+      <template #empty>
+        <div class="text-center py-12 text-neutral-500 dark:text-neutral-400">
+          <UIcon
+            name="i-heroicons-inbox"
+            class="mx-auto mb-4 text-neutral-400 dark:text-neutral-600"
+            :size="48"
+          />
+          <p class="text-lg font-medium mb-1">결제 내역이 없습니다</p>
+          <p class="text-sm">결제가 발생하면 여기에 내역이 표시됩니다.</p>
+        </div>
+      </template>
+    </UTable>
 
     <!-- 페이지네이션 -->
     <div
-      class="flex items-center justify-between"
       v-if="meta && meta.totalPages > 1"
+      class="flex items-center justify-between"
     >
       <div class="text-sm text-neutral-600 dark:text-neutral-400">
-        {{
-          (meta.page - 1) * meta.limit + 1
-        }}-{{
-          Math.min(
-            meta.page * meta.limit,
-            meta.total,
-          )
+        {{ (meta.page - 1) * meta.limit + 1 }}-{{
+          Math.min(meta.page * meta.limit, meta.total)
         }}
-        /
-        {{ meta.total }}
+        / {{ meta.total }}
       </div>
 
       <div class="flex gap-2">
@@ -325,8 +346,8 @@ const viewReceipt = (receiptUrl: string) => {
           variant="outline"
           size="sm"
           :disabled="!meta.hasPreviousPage || paymentsLoading"
-          @click="handlePageChange(searchParams.page! - 1)"
           icon="i-heroicons-chevron-left"
+          @click="handlePageChange(searchParams.page! - 1)"
         >
           이전
         </UButton>
@@ -338,8 +359,8 @@ const viewReceipt = (receiptUrl: string) => {
             :color="page === meta.page ? 'primary' : 'neutral'"
             :variant="page === meta.page ? 'solid' : 'outline'"
             size="sm"
-            @click="handlePageChange(page)"
             :disabled="paymentsLoading"
+            @click="handlePageChange(page)"
           >
             {{ page }}
           </UButton>
@@ -350,9 +371,9 @@ const viewReceipt = (receiptUrl: string) => {
           variant="outline"
           size="sm"
           :disabled="!meta.hasNextPage || paymentsLoading"
-          @click="handlePageChange(searchParams.page! + 1)"
           icon="i-heroicons-chevron-right"
           trailing
+          @click="handlePageChange(searchParams.page! + 1)"
         >
           다음
         </UButton>

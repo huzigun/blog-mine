@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { CardForm } from '#components';
+import { CardForm, PaymentConfirmModal } from '#components';
 
 definePageMeta({
   layout: 'default',
@@ -10,6 +10,7 @@ const toast = useToast();
 const router = useRouter();
 const overlay = useOverlay();
 const cardFormModal = overlay.create(CardForm);
+const paymentConfirmModal = overlay.create(PaymentConfirmModal);
 
 // 크레딧 잔액 타입 정의
 interface CreditBalance {
@@ -134,9 +135,19 @@ const handlePurchase = async () => {
     return;
   }
 
+  // 결제 확인 모달 표시
+  const instance = paymentConfirmModal.open({
+    amount: totalPrice.value,
+    description: 'BloC 크레딧 충전',
+    itemName: `${formatNumber(creditsToCharge.value)} BloC`,
+  });
+
+  const confirmed = await instance.result;
+  if (!confirmed) return;
+
   isPurchasing.value = true;
   try {
-    const result = await useApi('/credits/purchase', {
+    await useApi('/credits/purchase', {
       method: 'POST',
       body: {
         amount: creditsToCharge.value,
@@ -179,6 +190,25 @@ const formatNumber = (num: number) => {
 
     <!-- 실제 콘텐츠 -->
     <div v-else>
+      <!-- 테스트 결제 안내 배너 -->
+      <UAlert
+        color="warning"
+        variant="subtle"
+        icon="i-heroicons-exclamation-triangle"
+        class="mb-6"
+      >
+        <template #title>
+          <span class="font-semibold">테스트 결제 안내</span>
+        </template>
+        <template #description>
+          <p>
+            현재 테스트 모드로 운영 중입니다. 결제된 금액은
+            <span class="font-semibold text-warning">매일 밤 11시에 자동으로 환불</span>
+            됩니다.
+          </p>
+        </template>
+      </UAlert>
+
       <!-- 카드 미등록 안내 배너 -->
       <UAlert
         v-if="!hasRegisteredCard && !cardsLoading"
