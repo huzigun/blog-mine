@@ -9,7 +9,7 @@ export default defineNuxtRouteMiddleware(async (to, from) => {
 
   // 구독 정보가 없으면 먼저 로드
   if (!auth.subscription) {
-    await auth.fetchSubscription();
+    await auth.fetchUser();
   }
 
   // 활성 구독이 없으면 pricing 페이지로 리다이렉트

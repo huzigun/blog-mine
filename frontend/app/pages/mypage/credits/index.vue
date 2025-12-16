@@ -50,6 +50,14 @@ const {
 // 카드 등록 여부
 const hasRegisteredCard = computed(() => cards.value && cards.value.length > 0);
 
+// 기본 카드 정보
+const defaultCardInfo = computed(() => {
+  if (!cards.value || cards.value.length === 0) return '';
+  const defaultCard = cards.value.find((c) => c.isDefault) ?? cards.value[0];
+  if (!defaultCard) return '';
+  return `${defaultCard.cardCompany || ''} ${defaultCard.number || ''}`.trim();
+});
+
 // 충전 중 상태
 const isPurchasing = ref(false);
 
@@ -140,6 +148,9 @@ const handlePurchase = async () => {
     amount: totalPrice.value,
     description: 'BloC 크레딧 충전',
     itemName: `${formatNumber(creditsToCharge.value)} BloC`,
+    cardInfo: defaultCardInfo.value,
+    currentCredits: balance.value?.totalCredits ?? 0,
+    creditsToAdd: creditsToCharge.value,
   });
 
   const confirmed = await instance.result;

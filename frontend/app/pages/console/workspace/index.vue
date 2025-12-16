@@ -48,7 +48,7 @@ const resetFilters = () => {
 const searchParams = computed(() => {
   return {
     page: route.query.page || 1,
-    limit: route.query.limit || 3,
+    limit: route.query.limit || 10,
     startDate: route.query.startDate || undefined,
     endDate: route.query.endDate || undefined,
     postType: route.query.postType || undefined,
@@ -102,11 +102,12 @@ const getStatusText = (status: BlogPost['status']): string => {
 // Table columns definition
 const columns: ColumnDef<BlogPost>[] = [
   {
-    accessorKey: 'id',
-    header: 'ID',
+    accessorKey: 'displayId',
+    header: '원고 ID',
+    cell: ({ row }) => row.original.displayId,
     meta: {
       class: {
-        td: 'w-16',
+        td: 'w-28 font-mono text-xs',
       },
     },
   },

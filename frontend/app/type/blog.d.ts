@@ -1,5 +1,6 @@
 interface BlogPost {
   id: number;
+  displayId: string; // 고객용 고유 식별자 (YYYYMMDD + Base36)
   keyword: string;
   persona: Record<string, any>; // Persona snapshot
   postType: string;

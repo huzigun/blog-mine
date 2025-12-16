@@ -563,7 +563,7 @@ export class SubscriptionService {
     const totalDays = Math.ceil(totalMs / (1000 * 60 * 60 * 24));
 
     // 6. 일할 계산
-    // 현재 플랜의 남은 기간 가치
+    // 현재 플랜의 남은 기간 가치 (결제 금액)
     const currentPlanDailyRate = currentPlan.price / totalDays;
     const currentPlanCredit = Math.round(currentPlanDailyRate * remainingDays);
 
@@ -573,6 +573,23 @@ export class SubscriptionService {
     // 차액 계산 (대상 플랜 전체 가격 - 현재 플랜 남은 가치)
     const proratedAmount = Math.max(0, targetPlanPrice - currentPlanCredit);
 
+    // 7. BloC 크레딧 일할 계산
+    // 현재 플랜의 남은 BloC 가치 (일할 계산)
+    const currentPlanDailyCredits = currentPlan.monthlyCredits / totalDays;
+    const currentPlanRemainingCredits = Math.round(
+      currentPlanDailyCredits * remainingDays,
+    );
+
+    // 대상 플랜의 월간 BloC
+    const targetPlanMonthlyCredits = targetPlan.monthlyCredits;
+
+    // BloC 차액 계산 (대상 플랜 BloC - 현재 플랜 남은 BloC)
+    // 음수가 나오면 0으로 처리 (이미 받은 BloC가 더 많은 경우)
+    const proratedCredits = Math.max(
+      0,
+      targetPlanMonthlyCredits - currentPlanRemainingCredits,
+    );
+
     return {
       currentPlan: {
         id: currentPlan.id,
@@ -580,6 +597,7 @@ export class SubscriptionService {
         displayName: currentPlan.displayName,
         price: currentPlan.price,
         sortOrder: currentPlan.sortOrder,
+        monthlyCredits: currentPlan.monthlyCredits,
       },
       targetPlan: {
         id: targetPlan.id,
@@ -594,9 +612,13 @@ export class SubscriptionService {
       isTrial: false,
       remainingDays,
       totalDays,
-      currentPlanCredit, // 현재 플랜 잔여 가치
+      currentPlanCredit, // 현재 플랜 잔여 가치 (결제 금액)
       targetPlanPrice, // 대상 플랜 가격
       proratedAmount, // 실제 결제 금액
+      // BloC 관련 정보
+      currentPlanRemainingCredits, // 현재 플랜 잔여 BloC
+      targetPlanMonthlyCredits, // 대상 플랜 월간 BloC
+      proratedCredits, // 실제 지급할 BloC (차액)
       message: `${currentPlan.displayName}에서 ${targetPlan.displayName}으로 업그레이드합니다. 남은 ${remainingDays}일에 대한 차액이 적용됩니다.`,
     };
   }
@@ -612,16 +634,20 @@ export class SubscriptionService {
     // 1. 업그레이드 가격 계산
     const upgradeInfo = await this.calculateUpgradePrice(userId, targetPlanId);
 
-    // 2. 결제 금액이 0원 이하면 결제 없이 업그레이드
+    // 2. 지급할 BloC 계산 (일할 계산된 차액)
+    const creditsToGrant = upgradeInfo.proratedCredits ?? upgradeInfo.targetPlan.monthlyCredits;
+
+    // 3. 결제 금액이 0원 이하면 결제 없이 업그레이드
     if (upgradeInfo.proratedAmount <= 0) {
-      return this.executeUpgradeWithoutPayment(userId, targetPlanId);
+      return this.executeUpgradeWithoutPayment(userId, targetPlanId, creditsToGrant);
     }
 
-    // 3. startSubscription을 호출하되, 금액을 proratedAmount로 오버라이드
+    // 4. startSubscription을 호출하되, 금액을 proratedAmount로 오버라이드
     return this.executeUpgradeWithPayment(
       userId,
       targetPlanId,
       upgradeInfo.proratedAmount,
+      creditsToGrant,
       paymentMethodId,
     );
   }
@@ -632,6 +658,7 @@ export class SubscriptionService {
   private async executeUpgradeWithoutPayment(
     userId: number,
     targetPlanId: number,
+    creditsToGrant: number,
   ) {
     const targetPlan = await this.prisma.subscriptionPlan.findUnique({
       where: { id: targetPlanId },
@@ -675,12 +702,14 @@ export class SubscriptionService {
         include: { plan: true },
       });
 
-      // 크레딧 지급
-      await this.creditService.grantSubscriptionCredits(
-        userId,
-        targetPlan.monthlyCredits,
-        newSubscription.id,
-      );
+      // 크레딧 지급 (일할 계산된 차액만큼)
+      if (creditsToGrant > 0) {
+        await this.creditService.grantSubscriptionCredits(
+          userId,
+          creditsToGrant,
+          newSubscription.id,
+        );
+      }
 
       // 히스토리 기록
       await tx.subscriptionHistory.create({
@@ -693,7 +722,7 @@ export class SubscriptionService {
           planId: targetPlan.id,
           planName: targetPlan.displayName,
           planPrice: 0,
-          creditsGranted: targetPlan.monthlyCredits,
+          creditsGranted: creditsToGrant,
           startedAt,
           expiresAt,
         },
@@ -717,6 +746,7 @@ export class SubscriptionService {
     userId: number,
     targetPlanId: number,
     paymentAmount: number,
+    creditsToGrant: number,
     paymentMethodId?: number,
   ) {
     const targetPlan = await this.prisma.subscriptionPlan.findUnique({
@@ -826,12 +856,14 @@ export class SubscriptionService {
         include: { plan: true },
       });
 
-      // 크레딧 지급
-      await this.creditService.grantSubscriptionCredits(
-        userId,
-        targetPlan.monthlyCredits,
-        newSubscription.id,
-      );
+      // 크레딧 지급 (일할 계산된 차액만큼)
+      if (creditsToGrant > 0) {
+        await this.creditService.grantSubscriptionCredits(
+          userId,
+          creditsToGrant,
+          newSubscription.id,
+        );
+      }
 
       // 히스토리 기록
       await tx.subscriptionHistory.create({
@@ -844,7 +876,7 @@ export class SubscriptionService {
           planId: targetPlan.id,
           planName: targetPlan.displayName,
           planPrice: paymentAmount,
-          creditsGranted: targetPlan.monthlyCredits,
+          creditsGranted: creditsToGrant,
           paymentId: payment.id,
           startedAt,
           expiresAt,
@@ -855,7 +887,7 @@ export class SubscriptionService {
     });
 
     this.logger.log(
-      `User ${userId} upgraded to ${targetPlan.displayName} (${paymentAmount}원), Payment ID: ${result.payment.id}`,
+      `User ${userId} upgraded to ${targetPlan.displayName} (${paymentAmount}원, ${creditsToGrant} BloC), Payment ID: ${result.payment.id}`,
     );
 
     return {

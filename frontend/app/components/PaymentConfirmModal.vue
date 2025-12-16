@@ -4,6 +4,9 @@ interface Props {
   description: string;
   itemName?: string;
   cardInfo?: string;
+  // BloC 크레딧 정보
+  currentCredits?: number;
+  creditsToAdd?: number;
 }
 
 const props = defineProps<Props>();
@@ -15,6 +18,19 @@ const emit = defineEmits<{
 const formatNumber = (num: number) => {
   return new Intl.NumberFormat('ko-KR').format(num);
 };
+
+// 충전 후 예상 BloC
+const creditsAfterCharge = computed(() => {
+  if (props.currentCredits === undefined || props.creditsToAdd === undefined) {
+    return undefined;
+  }
+  return props.currentCredits + props.creditsToAdd;
+});
+
+// BloC 정보가 있는지 여부
+const hasCreditsInfo = computed(() => {
+  return props.currentCredits !== undefined && props.creditsToAdd !== undefined;
+});
 
 const confirm = () => {
   emit('close', true);
@@ -80,6 +96,50 @@ const cancel = () => {
             </span>
             <span class="text-lg font-bold text-primary">
               {{ formatNumber(props.amount) }}원
+            </span>
+          </div>
+        </div>
+
+        <!-- BloC 크레딧 정보 -->
+        <div
+          v-if="hasCreditsInfo"
+          class="p-4 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg space-y-3"
+        >
+          <div class="flex items-center gap-2 mb-2">
+            <UIcon name="i-heroicons-wallet" class="text-primary" :size="20" />
+            <span class="font-semibold text-neutral-900 dark:text-white">
+              BloC 변동 내역
+            </span>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <span class="text-neutral-600 dark:text-neutral-400">
+              현재 보유
+            </span>
+            <span class="font-medium text-neutral-900 dark:text-white">
+              {{ formatNumber(props.currentCredits!) }} BloC
+            </span>
+          </div>
+
+          <div class="flex justify-between items-center">
+            <span class="text-neutral-600 dark:text-neutral-400">
+              충전 예정
+            </span>
+            <span class="font-medium text-success">
+              +{{ formatNumber(props.creditsToAdd!) }} BloC
+            </span>
+          </div>
+
+          <div
+            class="flex justify-between items-center pt-3 border-t border-primary/20"
+          >
+            <span
+              class="text-base font-semibold text-neutral-900 dark:text-white"
+            >
+              충전 후 예상
+            </span>
+            <span class="text-lg font-bold text-primary">
+              {{ formatNumber(creditsAfterCharge!) }} BloC
             </span>
           </div>
         </div>

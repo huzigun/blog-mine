@@ -8,7 +8,7 @@ onMounted(() => {
   if (auth.isAuthenticated) {
     intervalId = setInterval(
       async () => {
-        await auth.fetchSubscription();
+        await auth.fetchUser();
       },
       10 * 60 * 1000, // 10분
     );

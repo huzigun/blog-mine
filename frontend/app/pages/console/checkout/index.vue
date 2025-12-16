@@ -10,6 +10,19 @@ const auth = useAuth();
 const toast = useToast();
 const overlay = useOverlay();
 
+// 크레딧 잔액 타입 정의
+interface CreditBalance {
+  totalCredits: number;
+  subscriptionCredits: number;
+  purchasedCredits: number;
+  bonusCredits: number;
+}
+
+// 크레딧 잔액 조회
+const { data: creditBalance } = await useApiFetch<CreditBalance>(
+  '/credits/balance',
+);
+
 // 쿼리 파라미터에서 플랜 정보 가져오기
 const planId = computed(() => Number(route.query.planId));
 const billingPeriod = computed(
@@ -44,7 +57,7 @@ interface Plan {
 
 // 업그레이드 가격 정보 타입
 interface UpgradePriceInfo {
-  currentPlan: Plan | null;
+  currentPlan: (Plan & { monthlyCredits?: number }) | null;
   targetPlan: Plan;
   isUpgrade: boolean;
   isNewSubscription: boolean;
@@ -54,6 +67,10 @@ interface UpgradePriceInfo {
   currentPlanCredit: number;
   targetPlanPrice: number;
   proratedAmount: number;
+  // BloC 일할 계산 정보
+  currentPlanRemainingCredits?: number;
+  targetPlanMonthlyCredits?: number;
+  proratedCredits?: number;
   message: string;
 }
 
@@ -200,6 +217,11 @@ const handleCheckout = async () => {
     ? `${upgradeInfo.value?.currentPlan?.displayName} → ${selectedPlan.value?.displayName} 업그레이드`
     : `${selectedPlan.value?.displayName} 플랜 (${billingPeriod.value === 'yearly' ? '연간' : '월간'})`;
 
+  // 지급될 BloC 계산 (업그레이드 시 일할 계산, 신규 시 전액)
+  const creditsToAdd = isUpgrade.value && upgradeInfo.value?.proratedCredits !== undefined
+    ? upgradeInfo.value.proratedCredits
+    : selectedPlan.value?.monthlyCredits ?? 0;
+
   const instance = paymentConfirmModal.open({
     amount: actualPaymentAmount.value,
     description: isUpgrade.value
@@ -207,6 +229,8 @@ const handleCheckout = async () => {
       : `${selectedPlan.value?.displayName} 플랜 구독`,
     itemName,
     cardInfo: selectedCardInfo.value,
+    currentCredits: creditBalance.value?.totalCredits ?? 0,
+    creditsToAdd,
   });
 
   const confirmed = await instance.result;
@@ -229,8 +253,8 @@ const handleCheckout = async () => {
       },
     });
 
-    // 구독 정보 및 사용자 정보 갱신 (병렬 처리)
-    await Promise.all([auth.fetchUser(), auth.fetchSubscription()]);
+    // 구독 정보 및 사용자 정보 갱신
+    await auth.fetchUser();
 
     toast.add({
       title: isUpgrade.value ? '업그레이드 완료' : '구독 완료',

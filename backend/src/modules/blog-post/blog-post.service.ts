@@ -12,6 +12,7 @@ import { CreditService } from '@modules/credit/credit.service';
 import { PromptLogService } from '@lib/integrations/openai/prompt-log';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 import { generateRandomPersona } from './random-persona.util';
+import { getDatePrefix, generateDisplayId } from './display-id.util';
 
 @Injectable()
 export class BlogPostService {
@@ -33,6 +34,49 @@ export class BlogPostService {
     private readonly creditService: CreditService,
     private readonly promptLogService: PromptLogService,
   ) {}
+
+  /**
+   * 해당 날짜의 다음 displayId 생성
+   * @param datePrefix - YYYYMMDD 형식 날짜 문자열
+   * @returns 새로운 displayId
+   */
+  private async generateNextDisplayId(datePrefix: string): Promise<string> {
+    // 해당 날짜로 시작하는 가장 마지막 displayId 조회
+    const lastPost = await this.prisma.blogPost.findFirst({
+      where: {
+        displayId: {
+          startsWith: datePrefix,
+        },
+      },
+      orderBy: {
+        displayId: 'desc',
+      },
+      select: {
+        displayId: true,
+      },
+    });
+
+    let sequence = 0;
+
+    if (lastPost) {
+      const lastShortCode = lastPost.displayId.substring(8);
+
+      // Base36 3자리인 경우 (예: 000, 00A, ZZZ)
+      if (lastShortCode.length === 3 && /^[0-9A-Z]{3}$/.test(lastShortCode)) {
+        // Base36 디코딩
+        const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const d2 = chars.indexOf(lastShortCode[0]);
+        const d1 = chars.indexOf(lastShortCode[1]);
+        const d0 = chars.indexOf(lastShortCode[2]);
+        sequence = d2 * 36 * 36 + d1 * 36 + d0 + 1;
+      } else {
+        // 숫자 확장 형태인 경우 (예: 46656, 46657)
+        sequence = parseInt(lastShortCode, 10) + 1;
+      }
+    }
+
+    return generateDisplayId(datePrefix, sequence);
+  }
 
   /**
    * 블로그 원고 생성 요청 생성
@@ -105,10 +149,15 @@ export class BlogPostService {
     );
     await this.blogRankService.collectBlogRanks(dto.keyword, 40);
 
-    // 4. BlogPost 생성
+    // 5. displayId 생성 (YYYYMMDD + Base36 단축코드)
+    const datePrefix = getDatePrefix();
+    const displayId = await this.generateNextDisplayId(datePrefix);
+
+    // 6. BlogPost 생성
     const blogPost = await this.prisma.blogPost.create({
       data: {
         userId,
+        displayId,
         keyword: dto.keyword,
         postType: dto.postType,
         subKeywords: dto.subKeywords || [],

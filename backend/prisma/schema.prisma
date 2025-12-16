@@ -89,6 +89,7 @@ model Persona {
 
 model BlogPost {
   id               Int        @id @default(autoincrement())
+  displayId        String     @unique @map("display_id")
   keyword          String
   persona          Json
   postType         String     @map("post_type")
