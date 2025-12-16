@@ -12,8 +12,25 @@ import {
   SubscriptionStatus,
   SubscriptionAction,
   PaymentStatus,
+  UserSubscription,
+  SubscriptionPlan,
 } from '@prisma/client';
 import { StartSubscriptionDto, CancelSubscriptionDto } from './dto';
+
+// 갱신 결과 타입
+export interface RenewalResult {
+  success: boolean;
+  subscriptionId: number;
+  userId: number;
+  action: 'renewed' | 'past_due' | 'expired' | 'skipped';
+  message: string;
+  error?: string;
+}
+
+// 갱신 대상 구독 타입 (plan 포함)
+type SubscriptionWithPlan = UserSubscription & {
+  plan: SubscriptionPlan;
+};
 
 @Injectable()
 export class SubscriptionService {
@@ -851,5 +868,492 @@ export class SubscriptionService {
         status: result.payment.status,
       },
     };
+  }
+
+  // ============================================
+  // 구독 자동 갱신 관련 메서드
+  // ============================================
+
+  /**
+   * Phase 1.1: 갱신 대상 구독 조회
+   * - status: ACTIVE
+   * - autoRenewal: true
+   * - expiresAt <= now
+   * - plan.name != 'FREE'
+   */
+  async findSubscriptionsToRenew(): Promise<SubscriptionWithPlan[]> {
+    const now = new Date();
+
+    const subscriptions = await this.prisma.userSubscription.findMany({
+      where: {
+        status: SubscriptionStatus.ACTIVE,
+        autoRenewal: true,
+        expiresAt: { lte: now },
+        plan: {
+          name: { not: 'FREE' },
+        },
+      },
+      include: {
+        plan: true,
+      },
+      orderBy: {
+        expiresAt: 'asc',
+      },
+    });
+
+    this.logger.log(`Found ${subscriptions.length} subscriptions to renew`);
+    return subscriptions;
+  }
+
+  /**
+   * Phase 1.2: 단일 구독 갱신
+   * - 카드 조회 → 결제 시도 → 성공 시 연장, 실패 시 PAST_DUE
+   */
+  async renewSubscription(subscriptionId: number): Promise<RenewalResult> {
+    // 1. 구독 조회
+    const subscription = await this.prisma.userSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true, user: true },
+    });
+
+    if (!subscription) {
+      return {
+        success: false,
+        subscriptionId,
+        userId: 0,
+        action: 'skipped',
+        message: '구독을 찾을 수 없습니다.',
+        error: 'SUBSCRIPTION_NOT_FOUND',
+      };
+    }
+
+    const { userId, plan } = subscription;
+
+    // 2. FREE 플랜은 갱신 불필요
+    if (plan.name === 'FREE') {
+      return {
+        success: true,
+        subscriptionId,
+        userId,
+        action: 'skipped',
+        message: 'FREE 플랜은 갱신이 필요하지 않습니다.',
+      };
+    }
+
+    // 3. 자동 갱신이 꺼져있으면 스킵
+    if (!subscription.autoRenewal) {
+      return {
+        success: true,
+        subscriptionId,
+        userId,
+        action: 'skipped',
+        message: '자동 갱신이 비활성화되어 있습니다.',
+      };
+    }
+
+    // 4. 결제 수단(카드) 조회
+    const card = await this.findPaymentCard(userId);
+
+    if (!card) {
+      // 카드가 없으면 PAST_DUE로 전환
+      await this.transitionToPastDue(subscription, '등록된 결제 수단이 없습니다.');
+      return {
+        success: false,
+        subscriptionId,
+        userId,
+        action: 'past_due',
+        message: '결제 수단이 없어 유예 상태로 전환되었습니다.',
+        error: 'NO_PAYMENT_METHOD',
+      };
+    }
+
+    // 5. 결제 시도
+    try {
+      const paymentResult = await this.niceBillingService.approvePayment(
+        card.billingKey!,
+        {
+          amount: plan.price,
+          userId: String(userId),
+          name: subscription.user?.name || undefined,
+          email: subscription.user?.email || undefined,
+          goodsName: `BloC ${plan.displayName} 구독 갱신`,
+        },
+      );
+
+      if (!paymentResult.success) {
+        // 결제 실패
+        return await this.handleRenewalFailure(
+          subscription,
+          paymentResult.message || '결제에 실패했습니다.',
+        );
+      }
+
+      // 6. 결제 성공 → 구독 연장
+      return await this.processSuccessfulRenewal(
+        subscription,
+        plan,
+        card,
+        paymentResult,
+      );
+    } catch (error) {
+      // 결제 중 예외 발생
+      const errorMessage =
+        error instanceof Error ? error.message : '알 수 없는 오류';
+      return await this.handleRenewalFailure(subscription, errorMessage);
+    }
+  }
+
+  /**
+   * 결제 카드 조회 (기본 카드 → 최신 인증 카드 순)
+   */
+  private async findPaymentCard(userId: number): Promise<Card | null> {
+    // 기본 카드 우선
+    let card = await this.prisma.card.findFirst({
+      where: {
+        userId,
+        isDefault: true,
+        isAuthenticated: true,
+      },
+    });
+
+    // 기본 카드가 없으면 최신 인증된 카드
+    if (!card) {
+      card = await this.prisma.card.findFirst({
+        where: {
+          userId,
+          isAuthenticated: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
+
+    return card;
+  }
+
+  /**
+   * 갱신 성공 처리
+   */
+  private async processSuccessfulRenewal(
+    subscription: SubscriptionWithPlan & { user: { name: string | null; email: string } },
+    plan: SubscriptionPlan,
+    card: Card,
+    paymentResult: any,
+  ): Promise<RenewalResult> {
+    const now = new Date();
+    const newExpiresAt = new Date(subscription.expiresAt);
+    newExpiresAt.setMonth(newExpiresAt.getMonth() + 1);
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Payment 기록 생성
+      const payment = await tx.payment.create({
+        data: {
+          userId: subscription.userId,
+          amount: plan.price,
+          currency: 'KRW',
+          status: PaymentStatus.COMPLETED,
+          paymentMethod: 'card',
+          transactionId: paymentResult.originalData?.TID || null,
+          metadata: {
+            planId: plan.id,
+            planName: plan.displayName,
+            cardId: card.id,
+            cardNumber: card.number,
+            isRenewal: true,
+            ...paymentResult.originalData,
+          },
+        },
+      });
+
+      // 2. 구독 연장
+      await tx.userSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          expiresAt: newExpiresAt,
+          nextBillingDate: newExpiresAt,
+          lastPaymentDate: now,
+          lastPaymentAmount: plan.price,
+          renewalAttempts: 0, // 리셋
+          lastRenewalAttempt: now,
+          gracePeriodEndsAt: null, // 유예기간 해제
+        },
+      });
+
+      // 3. 크레딧 지급
+      await this.creditService.grantSubscriptionCredits(
+        subscription.userId,
+        plan.monthlyCredits,
+        subscription.id,
+      );
+
+      // 4. 히스토리 기록
+      await tx.subscriptionHistory.create({
+        data: {
+          userId: subscription.userId,
+          subscriptionId: subscription.id,
+          action: SubscriptionAction.RENEWED,
+          oldStatus: SubscriptionStatus.ACTIVE,
+          newStatus: SubscriptionStatus.ACTIVE,
+          planId: plan.id,
+          planName: plan.displayName,
+          planPrice: plan.price,
+          creditsGranted: plan.monthlyCredits,
+          paymentId: payment.id,
+          startedAt: now,
+          expiresAt: newExpiresAt,
+        },
+      });
+    });
+
+    this.logger.log(
+      `Subscription ${subscription.id} renewed successfully for user ${subscription.userId}`,
+    );
+
+    return {
+      success: true,
+      subscriptionId: subscription.id,
+      userId: subscription.userId,
+      action: 'renewed',
+      message: `구독이 ${newExpiresAt.toLocaleDateString()}까지 갱신되었습니다.`,
+    };
+  }
+
+  /**
+   * 갱신 실패 처리 (재시도 횟수에 따라 다른 처리)
+   */
+  private async handleRenewalFailure(
+    subscription: SubscriptionWithPlan,
+    errorMessage: string,
+  ): Promise<RenewalResult> {
+    const maxRetries = 3;
+    const newAttempts = subscription.renewalAttempts + 1;
+
+    if (newAttempts >= maxRetries) {
+      // 최대 재시도 초과 → PAST_DUE로 전환
+      await this.transitionToPastDue(subscription, errorMessage);
+      return {
+        success: false,
+        subscriptionId: subscription.id,
+        userId: subscription.userId,
+        action: 'past_due',
+        message: `결제 ${maxRetries}회 실패로 유예 상태로 전환되었습니다.`,
+        error: errorMessage,
+      };
+    }
+
+    // 재시도 횟수 증가
+    await this.prisma.userSubscription.update({
+      where: { id: subscription.id },
+      data: {
+        renewalAttempts: newAttempts,
+        lastRenewalAttempt: new Date(),
+      },
+    });
+
+    // 히스토리에 실패 기록
+    await this.prisma.subscriptionHistory.create({
+      data: {
+        userId: subscription.userId,
+        subscriptionId: subscription.id,
+        action: SubscriptionAction.PAYMENT_FAILED,
+        oldStatus: subscription.status,
+        newStatus: subscription.status,
+        planId: subscription.planId,
+        planName: subscription.plan.displayName,
+        planPrice: subscription.plan.price,
+        metadata: {
+          error: errorMessage,
+          attemptNumber: newAttempts,
+        },
+      },
+    });
+
+    this.logger.warn(
+      `Subscription ${subscription.id} renewal failed (attempt ${newAttempts}/${maxRetries}): ${errorMessage}`,
+    );
+
+    return {
+      success: false,
+      subscriptionId: subscription.id,
+      userId: subscription.userId,
+      action: 'skipped',
+      message: `결제 실패 (${newAttempts}/${maxRetries}회). 재시도 예정.`,
+      error: errorMessage,
+    };
+  }
+
+  /**
+   * PAST_DUE 상태로 전환 (7일 유예기간 설정)
+   */
+  private async transitionToPastDue(
+    subscription: SubscriptionWithPlan,
+    reason: string,
+  ): Promise<void> {
+    const gracePeriodDays = 7;
+    const gracePeriodEndsAt = new Date();
+    gracePeriodEndsAt.setDate(gracePeriodEndsAt.getDate() + gracePeriodDays);
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. 상태 변경
+      await tx.userSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: SubscriptionStatus.PAST_DUE,
+          gracePeriodEndsAt,
+          lastRenewalAttempt: new Date(),
+        },
+      });
+
+      // 2. 히스토리 기록
+      await tx.subscriptionHistory.create({
+        data: {
+          userId: subscription.userId,
+          subscriptionId: subscription.id,
+          action: SubscriptionAction.PAYMENT_FAILED,
+          oldStatus: subscription.status,
+          newStatus: SubscriptionStatus.PAST_DUE,
+          planId: subscription.planId,
+          planName: subscription.plan.displayName,
+          planPrice: subscription.plan.price,
+          metadata: {
+            reason,
+            gracePeriodEndsAt: gracePeriodEndsAt.toISOString(),
+          },
+        },
+      });
+    });
+
+    this.logger.warn(
+      `Subscription ${subscription.id} transitioned to PAST_DUE. Grace period ends: ${gracePeriodEndsAt.toISOString()}`,
+    );
+  }
+
+  /**
+   * Phase 3.1: 재시도 대상 구독 조회 (PAST_DUE 상태, 유예기간 내)
+   */
+  async findSubscriptionsToRetry(): Promise<SubscriptionWithPlan[]> {
+    const now = new Date();
+
+    const subscriptions = await this.prisma.userSubscription.findMany({
+      where: {
+        status: SubscriptionStatus.PAST_DUE,
+        gracePeriodEndsAt: { gt: now },
+        renewalAttempts: { lt: 3 },
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    return subscriptions;
+  }
+
+  /**
+   * Phase 4.1: 유예기간 만료 구독 처리
+   */
+  async handleExpiredSubscriptions(): Promise<number> {
+    const now = new Date();
+
+    // 유예기간 만료된 PAST_DUE 구독 조회
+    const expiredSubscriptions = await this.prisma.userSubscription.findMany({
+      where: {
+        status: SubscriptionStatus.PAST_DUE,
+        gracePeriodEndsAt: { lte: now },
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    this.logger.log(
+      `Found ${expiredSubscriptions.length} subscriptions with expired grace period`,
+    );
+
+    let processedCount = 0;
+
+    for (const subscription of expiredSubscriptions) {
+      try {
+        await this.expireSubscription(subscription);
+        processedCount++;
+      } catch (error) {
+        this.logger.error(
+          `Failed to expire subscription ${subscription.id}:`,
+          error,
+        );
+      }
+    }
+
+    return processedCount;
+  }
+
+  /**
+   * 구독 만료 처리 (EXPIRED 상태로 전환)
+   */
+  private async expireSubscription(
+    subscription: SubscriptionWithPlan,
+  ): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // 1. EXPIRED 상태로 변경
+      await tx.userSubscription.update({
+        where: { id: subscription.id },
+        data: {
+          status: SubscriptionStatus.EXPIRED,
+          canceledAt: new Date(),
+        },
+      });
+
+      // 2. 히스토리 기록
+      await tx.subscriptionHistory.create({
+        data: {
+          userId: subscription.userId,
+          subscriptionId: subscription.id,
+          action: SubscriptionAction.EXPIRED,
+          oldStatus: SubscriptionStatus.PAST_DUE,
+          newStatus: SubscriptionStatus.EXPIRED,
+          planId: subscription.planId,
+          planName: subscription.plan.displayName,
+          planPrice: subscription.plan.price,
+          reason: '유예기간 만료',
+        },
+      });
+
+      // 3. FREE 플랜으로 다운그레이드 (새 구독 생성)
+      const freePlan = await tx.subscriptionPlan.findFirst({
+        where: { name: 'FREE', isActive: true },
+      });
+
+      if (freePlan) {
+        const newExpiresAt = new Date();
+        newExpiresAt.setFullYear(newExpiresAt.getFullYear() + 100); // 무기한
+
+        await tx.userSubscription.create({
+          data: {
+            userId: subscription.userId,
+            planId: freePlan.id,
+            status: SubscriptionStatus.ACTIVE,
+            startedAt: new Date(),
+            expiresAt: newExpiresAt,
+            autoRenewal: false,
+          },
+        });
+
+        // FREE 플랜 전환 히스토리
+        await tx.subscriptionHistory.create({
+          data: {
+            userId: subscription.userId,
+            action: SubscriptionAction.DOWNGRADED,
+            oldStatus: SubscriptionStatus.EXPIRED,
+            newStatus: SubscriptionStatus.ACTIVE,
+            planId: freePlan.id,
+            planName: freePlan.displayName,
+            planPrice: 0,
+            reason: '유예기간 만료로 인한 자동 다운그레이드',
+          },
+        });
+      }
+    });
+
+    this.logger.log(
+      `Subscription ${subscription.id} expired and downgraded to FREE for user ${subscription.userId}`,
+    );
   }
 }
