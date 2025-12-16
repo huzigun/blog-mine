@@ -14,25 +14,6 @@ const { data: plans, pending: plansLoading } = await useApiFetch<Plan[]>(
 const currentSubscription = computed(() => auth.subscription);
 const currentPlanId = computed(() => currentSubscription.value?.planId);
 
-// 연간/월간 토글
-const billingPeriod = ref<'monthly' | 'yearly'>('monthly');
-
-// 플랜 가격 계산
-const getPlanPrice = (plan: Plan) => {
-  if (billingPeriod.value === 'yearly' && plan.yearlyPrice) {
-    return plan.yearlyPrice;
-  }
-  return plan.price;
-};
-
-// 연간 할인율 계산
-const getYearlyDiscount = (plan: Plan) => {
-  if (!plan.yearlyPrice || plan.price === 0) return 0;
-  const monthlyTotal = plan.price * 12;
-  const discount = ((monthlyTotal - plan.yearlyPrice) / monthlyTotal) * 100;
-  return Math.round(discount);
-};
-
 // 플랜 선택 처리
 const selectingPlanId = ref<number | null>(null);
 
@@ -75,7 +56,6 @@ const handleSelectPlan = async (plan: Plan) => {
       path: '/console/checkout',
       query: {
         planId: plan.id,
-        period: billingPeriod.value,
       },
     });
   } catch (error) {
@@ -152,22 +132,6 @@ const sortedPlans = computed(() => {
   });
 });
 
-// 플랜별 색상 테마
-const getPlanColor = (planName: string) => {
-  switch (planName) {
-    case 'FREE':
-      return 'neutral';
-    case 'BASIC':
-      return 'info';
-    case 'PRO':
-      return 'primary';
-    case 'ENTERPRISE':
-      return 'success';
-    default:
-      return 'neutral';
-  }
-};
-
 // 인기 플랜 여부
 const isPopularPlan = (planName: string) => {
   return planName === 'PRO';
@@ -186,179 +150,166 @@ const getButtonText = (plan: Plan) => {
 </script>
 
 <template>
-  <section class="container mx-auto max-w-7xl py-12 space-y-12">
+  <section class="py-16 md:py-24 space-y-16">
     <!-- 헤더 -->
-    <div class="text-center space-y-4">
-      <h1 class="text-4xl md:text-5xl font-bold">
-        비즈니스에 맞는 플랜을 선택하세요
+    <div class="text-center space-y-6 px-4">
+      <UBadge color="primary" variant="soft" size="lg" class="px-4 py-1">
+        가격 정책
+      </UBadge>
+      <h1 class="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
+        비즈니스에 맞는 플랜을
+        <br class="hidden md:block" />
+        선택하세요
       </h1>
       <p
-        class="text-lg text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
+        class="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-2xl mx-auto"
       >
-        AI 기반 블로그 원고 생성으로 콘텐츠 제작을 자동화하세요. 언제든지 플랜을
-        변경할 수 있습니다.
+        AI 기반 블로그 원고 생성으로 콘텐츠 제작을 자동화하세요.
+        <br class="hidden sm:block" />
+        언제든지 플랜을 변경할 수 있습니다.
       </p>
     </div>
 
-    <!-- 결제 주기 토글 -->
-    <div class="flex items-center justify-center gap-4">
-      <span
-        :class="[
-          'text-base font-medium transition-colors',
-          billingPeriod === 'monthly'
-            ? 'text-neutral-900 dark:text-neutral-100'
-            : 'text-neutral-500 dark:text-neutral-400',
-        ]"
+    <!-- 플랜 카드 그리드 -->
+    <div class="px-4 md:px-8 pt-4">
+      <div
+        v-if="plansLoading"
+        class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 lg:gap-8 max-w-7xl mx-auto pt-6"
       >
-        월간 결제
-      </span>
-      <USwitch
-        :model-value="billingPeriod === 'yearly'"
-        checked-icon="i-heroicons-calendar"
-        unchecked-icon="i-heroicons-calendar"
-        @update:model-value="
-          (val: boolean) => (billingPeriod = val ? 'yearly' : 'monthly')
-        "
-      />
-      <div class="flex items-center gap-2">
-        <span
+        <USkeleton v-for="i in 4" :key="i" class="h-[600px] rounded-2xl" />
+      </div>
+
+      <div
+        v-else-if="sortedPlans.length > 0"
+        class="flex flex-col xl:flex-row justify-center items-center xl:items-stretch gap-6 lg:gap-8 max-w-7xl mx-auto pt-6 pb-4 px-2"
+      >
+        <UCard
+          v-for="plan in sortedPlans"
+          :key="plan.id"
           :class="[
-            'text-base font-medium transition-colors',
-            billingPeriod === 'yearly'
-              ? 'text-neutral-900 dark:text-neutral-100'
-              : 'text-neutral-500 dark:text-neutral-400',
+            'relative w-full max-w-sm xl:w-[280px] xl:max-w-none transition-all duration-300 overflow-visible ring-2',
+            isPopularPlan(plan.name)
+              ? 'ring-primary shadow-2xl xl:-mt-4 xl:mb-4 xl:scale-105 z-10'
+              : 'hover:shadow-xl hover:-translate-y-1',
+            plan.id === currentPlanId ? 'ring-success' : '',
           ]"
         >
-          연간 결제
-        </span>
-        <UBadge color="success" variant="soft" size="sm">최대 20% 할인</UBadge>
+          <!-- 인기 플랜 배지 -->
+          <div
+            v-if="isPopularPlan(plan.name)"
+            class="absolute -top-4 left-1/2 -translate-x-1/2 z-10"
+          >
+            <UBadge
+              color="primary"
+              size="lg"
+              class="px-4 py-1.5 shadow-lg font-semibold"
+            >
+              <UIcon name="i-heroicons-star-solid" class="mr-1" />
+              추천
+            </UBadge>
+          </div>
+
+          <!-- 현재 플랜 배지 -->
+          <div
+            v-if="plan.id === currentPlanId"
+            class="absolute -top-4 right-4 z-10"
+          >
+            <UBadge color="success" size="sm" class="px-3 py-1 shadow">
+              <UIcon name="i-heroicons-check-circle-solid" class="mr-1" />
+              현재 플랜
+            </UBadge>
+          </div>
+
+          <template #header>
+            <div class="space-y-4 pt-4">
+              <!-- 플랜 이름 -->
+              <div class="flex items-center gap-2">
+                <div
+                  :class="[
+                    'w-3 h-3 rounded-full',
+                    {
+                      'bg-neutral-400': plan.name === 'FREE',
+                      'bg-info': plan.name === 'BASIC',
+                      'bg-primary': plan.name === 'PRO',
+                      'bg-success': plan.name === 'ENTERPRISE',
+                    },
+                  ]"
+                />
+                <h3 class="text-xl font-bold">{{ plan.displayName }}</h3>
+              </div>
+
+              <!-- 가격 -->
+              <div class="space-y-2">
+                <div class="flex items-baseline gap-1">
+                  <span class="text-4xl font-bold tracking-tight">
+                    {{
+                      plan.price === 0
+                        ? '무료'
+                        : plan.price.toLocaleString() + '원'
+                    }}
+                  </span>
+                  <span
+                    v-if="plan.price > 0"
+                    class="text-neutral-500 dark:text-neutral-400"
+                  >
+                    / 월
+                  </span>
+                </div>
+              </div>
+
+              <!-- 설명 -->
+              <p
+                v-if="plan.description"
+                class="text-sm text-neutral-600 dark:text-neutral-400 min-h-12 leading-relaxed"
+              >
+                {{ plan.description }}
+              </p>
+            </div>
+          </template>
+
+          <!-- 특징 목록 -->
+          <div class="space-y-3 py-4">
+            <div
+              v-for="(feature, index) in getPlanFeatures(plan)"
+              :key="index"
+              class="flex items-start gap-3 text-sm"
+            >
+              <UIcon
+                name="i-heroicons-check-circle-solid"
+                class="text-success shrink-0 mt-0.5 size-5"
+              />
+              <span class="text-neutral-700 dark:text-neutral-300">
+                {{ feature }}
+              </span>
+            </div>
+          </div>
+
+          <template #footer>
+            <UButton
+              :color="isPopularPlan(plan.name) ? 'primary' : 'neutral'"
+              :variant="plan.id === currentPlanId ? 'soft' : 'solid'"
+              size="lg"
+              block
+              :loading="selectingPlanId === plan.id"
+              :disabled="plan.id === currentPlanId || selectingPlanId !== null"
+              class="font-semibold"
+              @click="handleSelectPlan(plan)"
+            >
+              {{ getButtonText(plan) }}
+            </UButton>
+          </template>
+        </UCard>
       </div>
     </div>
 
-    <!-- 플랜 카드 그리드 -->
-    <div
-      v-if="plansLoading"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-    >
-      <USkeleton v-for="i in 4" :key="i" class="h-[600px]" />
-    </div>
-
-    <div
-      v-else-if="sortedPlans.length > 0"
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-    >
-      <UCard
-        v-for="plan in sortedPlans"
-        :key="plan.id"
-        :class="[
-          'relative transition-all duration-200',
-          isPopularPlan(plan.name)
-            ? 'ring-2 ring-primary shadow-xl scale-105'
-            : 'hover:shadow-lg',
-          plan.id === currentPlanId ? 'ring-2 ring-success' : '',
-        ]"
-      >
-        <!-- 인기 플랜 배지 -->
-        <div
-          v-if="isPopularPlan(plan.name)"
-          class="absolute -top-4 left-1/2 -translate-x-1/2 z-10"
-        >
-          <UBadge color="primary" size="lg" class="px-4 py-1.5">
-            <div class="i-heroicons-star-solid mr-1" />
-            인기
-          </UBadge>
-        </div>
-
-        <!-- 현재 플랜 배지 -->
-        <div
-          v-if="plan.id === currentPlanId"
-          class="absolute -top-4 right-4 z-10"
-        >
-          <UBadge color="success" size="sm" class="px-3 py-1">
-            <div class="i-heroicons-check-circle-solid mr-1" />
-            현재 플랜
-          </UBadge>
-        </div>
-
-        <template #header>
-          <div class="space-y-3 pt-4">
-            <!-- 플랜 이름 -->
-            <div class="flex items-center gap-2">
-              <div
-                :class="[
-                  'w-2 h-2 rounded-full',
-                  `bg-${getPlanColor(plan.name)}`,
-                ]"
-              />
-              <h3 class="text-xl font-bold">{{ plan.displayName }}</h3>
-            </div>
-
-            <!-- 가격 -->
-            <div class="space-y-1">
-              <div class="flex items-baseline gap-1">
-                <span class="text-3xl font-bold">
-                  {{ getPlanPrice(plan).toLocaleString() }}원
-                </span>
-                <span class="text-neutral-500 dark:text-neutral-400">
-                  / {{ billingPeriod === 'yearly' ? '년' : '월' }}
-                </span>
-              </div>
-              <div
-                v-if="billingPeriod === 'yearly' && getYearlyDiscount(plan) > 0"
-                class="flex items-center gap-2 text-sm"
-              >
-                <span class="line-through text-neutral-500">
-                  {{ (plan.price * 12).toLocaleString() }}원
-                </span>
-                <UBadge color="success" variant="soft" size="sm">
-                  {{ getYearlyDiscount(plan) }}% 할인
-                </UBadge>
-              </div>
-            </div>
-
-            <!-- 설명 -->
-            <p
-              v-if="plan.description"
-              class="text-sm text-neutral-600 dark:text-neutral-400 min-h-[2.5rem]"
-            >
-              {{ plan.description }}
-            </p>
-          </div>
-        </template>
-
-        <!-- 특징 목록 -->
-        <div class="space-y-3 py-6">
-          <div
-            v-for="(feature, index) in getPlanFeatures(plan)"
-            :key="index"
-            class="flex items-start gap-2 text-sm"
-          >
-            <div
-              class="i-heroicons-check-circle-solid text-success flex-shrink-0 mt-0.5"
-            />
-            <span>{{ feature }}</span>
-          </div>
-        </div>
-
-        <template #footer>
-          <UButton
-            :color="isPopularPlan(plan.name) ? 'primary' : 'neutral'"
-            :variant="plan.id === currentPlanId ? 'soft' : 'solid'"
-            size="lg"
-            block
-            :loading="selectingPlanId === plan.id"
-            :disabled="plan.id === currentPlanId || selectingPlanId !== null"
-            @click="handleSelectPlan(plan)"
-          >
-            {{ getButtonText(plan) }}
-          </UButton>
-        </template>
-      </UCard>
-    </div>
-
     <!-- FAQ 섹션 -->
-    <div class="max-w-3xl mx-auto pt-12 space-y-6">
-      <h2 class="text-3xl font-bold text-center">자주 묻는 질문</h2>
+    <div class="max-w-3xl mx-auto px-4 pt-8 space-y-8">
+      <div class="text-center space-y-3">
+        <UBadge color="neutral" variant="soft" size="lg" class="px-4 py-1">
+          FAQ
+        </UBadge>
+        <h2 class="text-3xl md:text-4xl font-bold">자주 묻는 질문</h2>
+      </div>
 
       <UAccordion
         :items="[
@@ -397,24 +348,42 @@ const getButtonText = (plan: Plan) => {
     </div>
 
     <!-- CTA 섹션 -->
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-4xl mx-auto px-4">
       <UCard
-        class="bg-gradient-to-r from-primary/10 to-success/10 border-2 border-primary/20"
+        class="bg-linear-to-br from-primary/5 via-transparent to-success/5 border border-primary/20 overflow-hidden"
       >
-        <div class="text-center space-y-6 py-8">
-          <div class="space-y-3">
-            <h2 class="text-3xl font-bold">아직 고민 중이신가요?</h2>
-            <p class="text-lg text-neutral-600 dark:text-neutral-400">
+        <div class="relative text-center space-y-8 py-10 md:py-14">
+          <!-- 배경 장식 -->
+          <div
+            class="absolute -top-20 -right-20 w-40 h-40 bg-primary/10 rounded-full blur-3xl"
+          />
+          <div
+            class="absolute -bottom-20 -left-20 w-40 h-40 bg-success/10 rounded-full blur-3xl"
+          />
+
+          <div class="relative space-y-4">
+            <h2 class="text-3xl md:text-4xl font-bold">
+              아직 고민 중이신가요?
+            </h2>
+            <p
+              class="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 max-w-xl mx-auto"
+            >
               FREE 플랜으로 시작하여 서비스를 직접 체험해보세요.
+              <br class="hidden sm:block" />
+              언제든지 업그레이드할 수 있습니다.
             </p>
           </div>
-          <div class="flex items-center justify-center gap-4">
+
+          <div
+            class="relative flex flex-col sm:flex-row items-center justify-center gap-4"
+          >
             <UButton
               v-if="!auth.isAuthenticated"
               color="primary"
               size="xl"
               icon="i-heroicons-rocket-launch"
               to="/auth/register"
+              class="font-semibold px-8"
             >
               무료로 시작하기
             </UButton>
@@ -423,6 +392,7 @@ const getButtonText = (plan: Plan) => {
               color="primary"
               size="xl"
               icon="i-heroicons-arrow-up-circle"
+              class="font-semibold px-8"
               @click="
                 () => {
                   const proPlan = sortedPlans.find((p) => p.name === 'PRO');
@@ -438,6 +408,7 @@ const getButtonText = (plan: Plan) => {
               size="xl"
               icon="i-heroicons-chat-bubble-left-right"
               to="/contact"
+              class="font-semibold px-8"
             >
               문의하기
             </UButton>

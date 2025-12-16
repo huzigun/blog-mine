@@ -465,4 +465,391 @@ export class SubscriptionService {
 
     return plan;
   }
+
+  /**
+   * 플랜 업그레이드 가격 계산
+   * - 현재 구독의 남은 기간에 대한 차액을 일할 계산
+   * - 체험 플랜(TRIAL)은 전액 결제
+   * - 하위 플랜으로는 변경 불가
+   */
+  async calculateUpgradePrice(userId: number, targetPlanId: number) {
+    // 1. 대상 플랜 조회
+    const targetPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: targetPlanId },
+    });
+
+    if (!targetPlan) {
+      throw new NotFoundException('구독 플랜을 찾을 수 없습니다.');
+    }
+
+    if (!targetPlan.isActive) {
+      throw new BadRequestException('비활성화된 플랜입니다.');
+    }
+
+    if (targetPlan.name === 'FREE') {
+      throw new BadRequestException('무료 플랜으로 변경할 수 없습니다.');
+    }
+
+    // 2. 현재 구독 조회
+    const currentSubscription = await this.getCurrentSubscription(userId);
+
+    // 구독이 없거나 TRIAL인 경우 전액 결제
+    if (
+      !currentSubscription ||
+      currentSubscription.status === SubscriptionStatus.TRIAL
+    ) {
+      return {
+        currentPlan: currentSubscription?.plan || null,
+        targetPlan,
+        isUpgrade: true,
+        isNewSubscription: !currentSubscription,
+        isTrial: currentSubscription?.status === SubscriptionStatus.TRIAL,
+        remainingDays: null,
+        totalDays: null,
+        currentPlanCredit: 0,
+        targetPlanPrice: targetPlan.price,
+        proratedAmount: targetPlan.price, // 전액 결제
+        message: currentSubscription
+          ? '체험 플랜에서 업그레이드합니다.'
+          : '새로운 구독을 시작합니다.',
+      };
+    }
+
+    // 3. 현재 플랜 조회
+    const currentPlan = currentSubscription.plan;
+
+    // 4. 같은 플랜 선택 시 에러
+    if (targetPlan.id === currentPlan.id) {
+      throw new BadRequestException(
+        `이미 ${currentPlan.displayName} 플랜을 구독 중입니다.`,
+      );
+    }
+
+    // 5. sortOrder로 상위/하위 플랜 확인 (sortOrder가 클수록 상위 플랜)
+    if (targetPlan.sortOrder <= currentPlan.sortOrder) {
+      throw new BadRequestException(
+        `현재 플랜(${currentPlan.displayName})보다 상위 플랜만 선택할 수 있습니다. 현재: sortOrder=${currentPlan.sortOrder}, 대상: sortOrder=${targetPlan.sortOrder}`,
+      );
+    }
+
+    // 5. 남은 기간 계산
+    const now = new Date();
+    const expiresAt = new Date(currentSubscription.expiresAt);
+    const startedAt = new Date(currentSubscription.startedAt);
+
+    // 남은 일수 (최소 0일)
+    const remainingMs = Math.max(0, expiresAt.getTime() - now.getTime());
+    const remainingDays = Math.ceil(remainingMs / (1000 * 60 * 60 * 24));
+
+    // 전체 구독 기간 (일)
+    const totalMs = expiresAt.getTime() - startedAt.getTime();
+    const totalDays = Math.ceil(totalMs / (1000 * 60 * 60 * 24));
+
+    // 6. 일할 계산
+    // 현재 플랜의 남은 기간 가치
+    const currentPlanDailyRate = currentPlan.price / totalDays;
+    const currentPlanCredit = Math.round(currentPlanDailyRate * remainingDays);
+
+    // 대상 플랜의 월 가격
+    const targetPlanPrice = targetPlan.price;
+
+    // 차액 계산 (대상 플랜 전체 가격 - 현재 플랜 남은 가치)
+    const proratedAmount = Math.max(0, targetPlanPrice - currentPlanCredit);
+
+    return {
+      currentPlan: {
+        id: currentPlan.id,
+        name: currentPlan.name,
+        displayName: currentPlan.displayName,
+        price: currentPlan.price,
+        sortOrder: currentPlan.sortOrder,
+      },
+      targetPlan: {
+        id: targetPlan.id,
+        name: targetPlan.name,
+        displayName: targetPlan.displayName,
+        price: targetPlan.price,
+        sortOrder: targetPlan.sortOrder,
+        monthlyCredits: targetPlan.monthlyCredits,
+      },
+      isUpgrade: true,
+      isNewSubscription: false,
+      isTrial: false,
+      remainingDays,
+      totalDays,
+      currentPlanCredit, // 현재 플랜 잔여 가치
+      targetPlanPrice, // 대상 플랜 가격
+      proratedAmount, // 실제 결제 금액
+      message: `${currentPlan.displayName}에서 ${targetPlan.displayName}으로 업그레이드합니다. 남은 ${remainingDays}일에 대한 차액이 적용됩니다.`,
+    };
+  }
+
+  /**
+   * 업그레이드 결제 실행
+   */
+  async upgradeSubscription(
+    userId: number,
+    targetPlanId: number,
+    paymentMethodId?: number,
+  ) {
+    // 1. 업그레이드 가격 계산
+    const upgradeInfo = await this.calculateUpgradePrice(userId, targetPlanId);
+
+    // 2. 결제 금액이 0원 이하면 결제 없이 업그레이드
+    if (upgradeInfo.proratedAmount <= 0) {
+      return this.executeUpgradeWithoutPayment(userId, targetPlanId);
+    }
+
+    // 3. startSubscription을 호출하되, 금액을 proratedAmount로 오버라이드
+    return this.executeUpgradeWithPayment(
+      userId,
+      targetPlanId,
+      upgradeInfo.proratedAmount,
+      paymentMethodId,
+    );
+  }
+
+  /**
+   * 결제 없이 업그레이드 (차액이 0 이하인 경우)
+   */
+  private async executeUpgradeWithoutPayment(
+    userId: number,
+    targetPlanId: number,
+  ) {
+    const targetPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: targetPlanId },
+    });
+
+    if (!targetPlan) {
+      throw new NotFoundException('구독 플랜을 찾을 수 없습니다.');
+    }
+
+    const currentSubscription = await this.getCurrentSubscription(userId);
+
+    const startedAt = new Date();
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 기존 구독 취소
+      if (currentSubscription) {
+        await tx.userSubscription.update({
+          where: { id: currentSubscription.id },
+          data: {
+            status: SubscriptionStatus.CANCELED,
+            canceledAt: new Date(),
+          },
+        });
+      }
+
+      // 새 구독 생성
+      const newSubscription = await tx.userSubscription.create({
+        data: {
+          userId,
+          planId: targetPlanId,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt,
+          expiresAt,
+          autoRenewal: true,
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: 0,
+          nextBillingDate: expiresAt,
+        },
+        include: { plan: true },
+      });
+
+      // 크레딧 지급
+      await this.creditService.grantSubscriptionCredits(
+        userId,
+        targetPlan.monthlyCredits,
+        newSubscription.id,
+      );
+
+      // 히스토리 기록
+      await tx.subscriptionHistory.create({
+        data: {
+          userId,
+          subscriptionId: newSubscription.id,
+          action: SubscriptionAction.UPGRADED,
+          oldStatus: currentSubscription?.status || null,
+          newStatus: SubscriptionStatus.ACTIVE,
+          planId: targetPlan.id,
+          planName: targetPlan.displayName,
+          planPrice: 0,
+          creditsGranted: targetPlan.monthlyCredits,
+          startedAt,
+          expiresAt,
+        },
+      });
+
+      return newSubscription;
+    });
+
+    return {
+      success: true,
+      message: `${targetPlan.displayName} 플랜으로 업그레이드되었습니다.`,
+      subscription: result,
+      payment: null,
+    };
+  }
+
+  /**
+   * 결제와 함께 업그레이드
+   */
+  private async executeUpgradeWithPayment(
+    userId: number,
+    targetPlanId: number,
+    paymentAmount: number,
+    paymentMethodId?: number,
+  ) {
+    const targetPlan = await this.prisma.subscriptionPlan.findUnique({
+      where: { id: targetPlanId },
+    });
+
+    if (!targetPlan) {
+      throw new NotFoundException('구독 플랜을 찾을 수 없습니다.');
+    }
+
+    // 카드 조회
+    let card: Card | null = null;
+    if (paymentMethodId) {
+      card = await this.prisma.card.findFirst({
+        where: { id: paymentMethodId, userId, isAuthenticated: true },
+      });
+    } else {
+      card = await this.prisma.card.findFirst({
+        where: { userId, isDefault: true, isAuthenticated: true },
+      });
+      if (!card) {
+        card = await this.prisma.card.findFirst({
+          where: { userId, isAuthenticated: true },
+          orderBy: { createdAt: 'desc' },
+        });
+      }
+    }
+
+    if (!card || !card.billingKey) {
+      throw new BadRequestException(
+        '등록된 결제 수단이 없습니다. 카드를 먼저 등록해주세요.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+
+    // 결제 실행
+    const paymentResult = await this.niceBillingService.approvePayment(
+      card.billingKey,
+      {
+        amount: paymentAmount,
+        userId: String(userId),
+        name: user?.name || undefined,
+        email: user?.email || undefined,
+        goodsName: `BloC ${targetPlan.displayName} 업그레이드`,
+      },
+    );
+
+    if (!paymentResult.success) {
+      throw new BadRequestException(
+        paymentResult.message || '결제 처리에 실패했습니다.',
+      );
+    }
+
+    const currentSubscription = await this.getCurrentSubscription(userId);
+    const startedAt = new Date();
+    const expiresAt = new Date();
+    expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Payment 기록 생성
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          amount: paymentAmount,
+          currency: 'KRW',
+          status: PaymentStatus.COMPLETED,
+          paymentMethod: 'card',
+          transactionId: paymentResult.originalData?.TID || null,
+          metadata: {
+            planId: targetPlan.id,
+            planName: targetPlan.displayName,
+            isUpgrade: true,
+            cardId: card.id,
+            ...paymentResult.originalData,
+          },
+        },
+      });
+
+      // 기존 구독 취소
+      if (currentSubscription) {
+        await tx.userSubscription.update({
+          where: { id: currentSubscription.id },
+          data: {
+            status: SubscriptionStatus.CANCELED,
+            canceledAt: new Date(),
+          },
+        });
+      }
+
+      // 새 구독 생성
+      const newSubscription = await tx.userSubscription.create({
+        data: {
+          userId,
+          planId: targetPlanId,
+          status: SubscriptionStatus.ACTIVE,
+          startedAt,
+          expiresAt,
+          autoRenewal: true,
+          lastPaymentDate: new Date(),
+          lastPaymentAmount: paymentAmount,
+          nextBillingDate: expiresAt,
+        },
+        include: { plan: true },
+      });
+
+      // 크레딧 지급
+      await this.creditService.grantSubscriptionCredits(
+        userId,
+        targetPlan.monthlyCredits,
+        newSubscription.id,
+      );
+
+      // 히스토리 기록
+      await tx.subscriptionHistory.create({
+        data: {
+          userId,
+          subscriptionId: newSubscription.id,
+          action: SubscriptionAction.UPGRADED,
+          oldStatus: currentSubscription?.status || null,
+          newStatus: SubscriptionStatus.ACTIVE,
+          planId: targetPlan.id,
+          planName: targetPlan.displayName,
+          planPrice: paymentAmount,
+          creditsGranted: targetPlan.monthlyCredits,
+          paymentId: payment.id,
+          startedAt,
+          expiresAt,
+        },
+      });
+
+      return { subscription: newSubscription, payment };
+    });
+
+    this.logger.log(
+      `User ${userId} upgraded to ${targetPlan.displayName} (${paymentAmount}원), Payment ID: ${result.payment.id}`,
+    );
+
+    return {
+      success: true,
+      message: `${targetPlan.displayName} 플랜으로 업그레이드되었습니다.`,
+      subscription: result.subscription,
+      payment: {
+        id: result.payment.id,
+        amount: result.payment.amount,
+        status: result.payment.status,
+      },
+    };
+  }
 }

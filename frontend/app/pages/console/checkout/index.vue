@@ -30,6 +30,7 @@ interface Plan {
   price: number;
   yearlyPrice: number | null;
   monthlyCredits: number;
+  sortOrder: number;
   maxBlogPostsPerMonth: number | null;
   maxPostLength: number | null;
   maxKeywordTrackings: number | null;
@@ -41,9 +42,55 @@ interface Plan {
   isActive: boolean;
 }
 
+// 업그레이드 가격 정보 타입
+interface UpgradePriceInfo {
+  currentPlan: Plan | null;
+  targetPlan: Plan;
+  isUpgrade: boolean;
+  isNewSubscription: boolean;
+  isTrial: boolean;
+  remainingDays: number | null;
+  totalDays: number | null;
+  currentPlanCredit: number;
+  targetPlanPrice: number;
+  proratedAmount: number;
+  message: string;
+}
+
 const { data: selectedPlan, pending: planLoading } = await useApiFetch<Plan>(
   `/subscriptions/plans/${planId.value}`,
 );
+
+// 업그레이드 가격 계산 정보 조회
+const {
+  data: upgradeInfo,
+  pending: upgradeInfoLoading,
+  error: upgradeError,
+} = await useApiFetch<UpgradePriceInfo>(
+  `/subscriptions/upgrade-price/${planId.value}`,
+  {
+    key: `upgrade-price-${planId.value}`,
+  },
+);
+
+// 업그레이드 여부
+const isUpgrade = computed(() => {
+  if (!upgradeInfo.value) return false;
+  return !upgradeInfo.value.isNewSubscription && !upgradeInfo.value.isTrial;
+});
+
+// 하위 플랜으로 변경 시도 여부
+const isDowngradeAttempt = computed(() => {
+  return !!upgradeError.value;
+});
+
+// 실제 결제 금액 (업그레이드 시 차액, 신규/체험 시 전액)
+const actualPaymentAmount = computed(() => {
+  if (upgradeInfo.value) {
+    return upgradeInfo.value.proratedAmount;
+  }
+  return totalPrice.value;
+});
 
 // 등록된 카드 목록 조회
 interface Card {
@@ -120,6 +167,16 @@ const selectedCardInfo = computed(() => {
 
 // 결제 처리
 const handleCheckout = async () => {
+  // 하위 플랜으로 변경 시도 시 차단
+  if (isDowngradeAttempt.value) {
+    toast.add({
+      title: '플랜 변경 불가',
+      description: '현재 플랜보다 상위 플랜만 선택할 수 있습니다.',
+      color: 'error',
+    });
+    return;
+  }
+
   if (!selectedCardId.value) {
     toast.add({
       title: '카드 선택 필요',
@@ -139,10 +196,16 @@ const handleCheckout = async () => {
   }
 
   // 결제 확인 모달 표시
+  const itemName = isUpgrade.value
+    ? `${upgradeInfo.value?.currentPlan?.displayName} → ${selectedPlan.value?.displayName} 업그레이드`
+    : `${selectedPlan.value?.displayName} 플랜 (${billingPeriod.value === 'yearly' ? '연간' : '월간'})`;
+
   const instance = paymentConfirmModal.open({
-    amount: totalPrice.value,
-    description: `${selectedPlan.value?.displayName} 플랜 구독`,
-    itemName: `${selectedPlan.value?.displayName} 플랜 (${billingPeriod.value === 'yearly' ? '연간' : '월간'})`,
+    amount: actualPaymentAmount.value,
+    description: isUpgrade.value
+      ? `${selectedPlan.value?.displayName} 플랜 업그레이드`
+      : `${selectedPlan.value?.displayName} 플랜 구독`,
+    itemName,
     cardInfo: selectedCardInfo.value,
   });
 
@@ -152,7 +215,12 @@ const handleCheckout = async () => {
   isProcessing.value = true;
 
   try {
-    await useApiFetch('/subscriptions/start', {
+    // 업그레이드인 경우 upgrade API, 아니면 start API 사용
+    const endpoint = isUpgrade.value
+      ? '/subscriptions/upgrade'
+      : '/subscriptions/start';
+
+    await useApiFetch(endpoint, {
       method: 'POST',
       body: {
         planId: planId.value,
@@ -165,8 +233,10 @@ const handleCheckout = async () => {
     await Promise.all([auth.fetchUser(), auth.fetchSubscription()]);
 
     toast.add({
-      title: '구독 완료',
-      description: `${selectedPlan.value?.displayName} 플랜 구독이 완료되었습니다!`,
+      title: isUpgrade.value ? '업그레이드 완료' : '구독 완료',
+      description: isUpgrade.value
+        ? `${selectedPlan.value?.displayName} 플랜으로 업그레이드되었습니다!`
+        : `${selectedPlan.value?.displayName} 플랜 구독이 완료되었습니다!`,
       color: 'success',
     });
 
@@ -241,14 +311,71 @@ const openCardModal = async () => {
       <template #description>
         <p>
           현재 테스트 모드로 운영 중입니다. 결제된 금액은
-          <span class="font-semibold text-warning">매일 밤 11시에 자동으로 환불</span>
+          <span class="font-semibold text-warning">
+            매일 밤 11시에 자동으로 환불
+          </span>
           됩니다.
         </p>
       </template>
     </UAlert>
 
+    <!-- 하위 플랜 선택 에러 -->
+    <UAlert
+      v-if="isDowngradeAttempt"
+      color="error"
+      variant="subtle"
+      icon="i-heroicons-exclamation-circle"
+      class="mb-6"
+    >
+      <template #title>
+        <span class="font-semibold">플랜 변경 불가</span>
+      </template>
+      <template #description>
+        <p>
+          현재 구독 중인 플랜보다 상위 플랜만 선택할 수 있습니다.
+          <NuxtLink
+            to="/pricing"
+            class="text-primary hover:underline font-medium"
+          >
+            다른 플랜 보기
+          </NuxtLink>
+        </p>
+      </template>
+    </UAlert>
+
+    <!-- 업그레이드 안내 -->
+    <UAlert
+      v-if="isUpgrade && upgradeInfo"
+      color="info"
+      variant="subtle"
+      icon="i-heroicons-arrow-trending-up"
+      class="mb-6"
+    >
+      <template #title>
+        <span class="font-semibold">플랜 업그레이드</span>
+      </template>
+      <template #description>
+        <div class="space-y-1">
+          <p>
+            {{ upgradeInfo.currentPlan?.displayName }}에서
+            <span class="font-semibold">
+              {{ upgradeInfo.targetPlan.displayName }}
+            </span>
+            으로 업그레이드합니다.
+          </p>
+          <p class="text-sm">
+            현재 플랜 잔여 기간({{ upgradeInfo.remainingDays }}일)에 대한 차액이
+            적용됩니다.
+          </p>
+        </div>
+      </template>
+    </UAlert>
+
     <!-- 로딩 상태 -->
-    <div v-if="planLoading || cardsLoading" class="space-y-4">
+    <div
+      v-if="planLoading || cardsLoading || upgradeInfoLoading"
+      class="space-y-4"
+    >
       <USkeleton class="h-64" />
       <USkeleton class="h-96" />
     </div>
@@ -382,11 +509,19 @@ const openCardModal = async () => {
               @click="selectedCardId = card.id"
             >
               <div class="flex items-center gap-3">
-                <URadio
-                  :model-value="selectedCardId === card.id"
-                  :value="card.id"
-                  @update:model-value="selectedCardId = card.id"
-                />
+                <div
+                  :class="[
+                    'w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors',
+                    selectedCardId === card.id
+                      ? 'border-primary bg-primary'
+                      : 'border-neutral-300 dark:border-neutral-600',
+                  ]"
+                >
+                  <div
+                    v-if="selectedCardId === card.id"
+                    class="w-2 h-2 rounded-full bg-white"
+                  />
+                </div>
                 <div class="flex-1">
                   <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
@@ -496,42 +631,68 @@ const openCardModal = async () => {
           <div v-if="selectedPlan" class="space-y-4">
             <!-- 가격 상세 -->
             <div class="space-y-3">
-              <div class="flex items-center justify-between text-sm">
-                <span class="text-neutral-600 dark:text-neutral-400">
-                  {{ selectedPlan.displayName }} ({{
-                    billingPeriod === 'yearly' ? '연간' : '월간'
-                  }})
-                </span>
-                <span class="font-medium">
-                  {{
-                    (billingPeriod === 'yearly'
-                      ? selectedPlan.price * 12
-                      : selectedPlan.price
-                    ).toLocaleString()
-                  }}원
-                </span>
-              </div>
+              <!-- 업그레이드 시 차액 계산 표시 -->
+              <template v-if="isUpgrade && upgradeInfo">
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-neutral-600 dark:text-neutral-400">
+                    {{ upgradeInfo.targetPlan.displayName }} 플랜 가격
+                  </span>
+                  <span class="font-medium">
+                    {{ upgradeInfo.targetPlanPrice.toLocaleString() }}원
+                  </span>
+                </div>
 
-              <div
-                v-if="discountAmount > 0"
-                class="flex items-center justify-between text-sm"
-              >
-                <span class="text-success">
-                  연간 구독 할인 ({{ discountRate }}%)
-                </span>
-                <span class="font-medium text-success">
-                  -{{ discountAmount.toLocaleString() }}원
-                </span>
-              </div>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-success">
+                    현재 플랜 잔여 가치 ({{ upgradeInfo.remainingDays }}일)
+                  </span>
+                  <span class="font-medium text-success">
+                    -{{ upgradeInfo.currentPlanCredit.toLocaleString() }}원
+                  </span>
+                </div>
+              </template>
+
+              <!-- 신규 구독 시 표시 -->
+              <template v-else>
+                <div class="flex items-center justify-between text-sm">
+                  <span class="text-neutral-600 dark:text-neutral-400">
+                    {{ selectedPlan.displayName }} ({{
+                      billingPeriod === 'yearly' ? '연간' : '월간'
+                    }})
+                  </span>
+                  <span class="font-medium">
+                    {{
+                      (billingPeriod === 'yearly'
+                        ? selectedPlan.price * 12
+                        : selectedPlan.price
+                      ).toLocaleString()
+                    }}원
+                  </span>
+                </div>
+
+                <div
+                  v-if="discountAmount > 0"
+                  class="flex items-center justify-between text-sm"
+                >
+                  <span class="text-success">
+                    연간 구독 할인 ({{ discountRate }}%)
+                  </span>
+                  <span class="font-medium text-success">
+                    -{{ discountAmount.toLocaleString() }}원
+                  </span>
+                </div>
+              </template>
 
               <div
                 class="pt-3 border-t border-neutral-200 dark:border-neutral-800"
               >
                 <div class="flex items-center justify-between">
-                  <span class="font-semibold">총 결제 금액</span>
+                  <span class="font-semibold">
+                    {{ isUpgrade ? '업그레이드 차액' : '총 결제 금액' }}
+                  </span>
                   <div class="text-right">
                     <div class="text-2xl font-bold text-primary">
-                      {{ totalPrice.toLocaleString() }}원
+                      {{ actualPaymentAmount.toLocaleString() }}원
                     </div>
                     <div
                       class="text-xs text-neutral-500 dark:text-neutral-400 mt-1"
@@ -580,12 +741,22 @@ const openCardModal = async () => {
               color="primary"
               size="xl"
               block
-              icon="i-heroicons-credit-card"
+              :icon="
+                isUpgrade
+                  ? 'i-heroicons-arrow-trending-up'
+                  : 'i-heroicons-credit-card'
+              "
               :loading="isProcessing"
-              :disabled="!selectedCardId || !termsAgreed || isProcessing"
+              :disabled="
+                !selectedCardId ||
+                !termsAgreed ||
+                isProcessing ||
+                isDowngradeAttempt
+              "
               @click="handleCheckout"
             >
-              {{ totalPrice.toLocaleString() }}원 결제하기
+              {{ actualPaymentAmount.toLocaleString() }}원
+              {{ isUpgrade ? '업그레이드' : '결제하기' }}
             </UButton>
 
             <!-- 안내 메시지 -->

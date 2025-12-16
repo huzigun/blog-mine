@@ -98,4 +98,35 @@ export class SubscriptionController {
   async reactivateSubscription(@GetRequestUser('id') userId: number) {
     return this.subscriptionService.reactivateSubscription(userId);
   }
+
+  /**
+   * 플랜 업그레이드 가격 계산
+   * GET /subscriptions/upgrade-price/:planId
+   */
+  @Get('upgrade-price/:planId')
+  @UseGuards(JwtAuthGuard)
+  async calculateUpgradePrice(
+    @GetRequestUser('id') userId: number,
+    @Param('planId', ParseIntPipe) planId: number,
+  ) {
+    return await this.subscriptionService.calculateUpgradePrice(userId, planId);
+  }
+
+  /**
+   * 플랜 업그레이드 실행
+   * POST /subscriptions/upgrade
+   */
+  @Post('upgrade')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async upgradeSubscription(
+    @GetRequestUser('id') userId: number,
+    @Body() dto: StartSubscriptionDto,
+  ) {
+    return await this.subscriptionService.upgradeSubscription(
+      userId,
+      dto.planId,
+      dto.paymentMethodId,
+    );
+  }
 }
