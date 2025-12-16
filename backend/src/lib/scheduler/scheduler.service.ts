@@ -1,6 +1,7 @@
 import { PrismaService } from '@lib/database';
 import { BlogRankService } from '@lib/integrations/naver/naver-api/blog-rank.service';
 import { SubscriptionService } from '@modules/subscription/subscription.service';
+import { NotificationService } from '@modules/notification/notification.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { SubscriptionStatus, SchedulerTaskStatus } from '@prisma/client';
@@ -13,6 +14,7 @@ export class SchedulerService {
     private prisma: PrismaService,
     private blogRankService: BlogRankService,
     private subscriptionService: SubscriptionService,
+    private notificationService: NotificationService,
   ) {}
 
   /**
@@ -122,11 +124,17 @@ export class SchedulerService {
         },
       });
 
-      // 각 사용자의 추적할 키워드 배열 생성
+      // 각 사용자의 추적할 키워드 배열 생성 (키워드-사용자 매핑 포함)
+      const keywordUserMap = new Map<string, Set<number>>();
       const keywords = activeSubscribers.flatMap((subscription) => {
-        return subscription.user.keywordTrackings.map(
-          (tracking) => tracking.keyword,
-        );
+        return subscription.user.keywordTrackings.map((tracking) => {
+          // 키워드별 사용자 ID 매핑
+          if (!keywordUserMap.has(tracking.keyword)) {
+            keywordUserMap.set(tracking.keyword, new Set());
+          }
+          keywordUserMap.get(tracking.keyword)!.add(subscription.user.id);
+          return tracking.keyword;
+        });
       });
 
       // 중복 키워드 제거
@@ -161,6 +169,24 @@ export class SchedulerService {
             `[${i + 1}/${uniqueKeywords.length}] Failed: ${keyword}`,
             error,
           );
+
+          // 추적 오류 알림 발송 (해당 키워드를 추적 중인 모든 사용자에게)
+          const userIds = keywordUserMap.get(keyword);
+          if (userIds) {
+            for (const userId of userIds) {
+              try {
+                await this.notificationService.sendTrackingError(
+                  userId,
+                  keyword,
+                );
+              } catch (notificationError) {
+                this.logger.error(
+                  `Failed to send tracking error notification to user ${userId}`,
+                  notificationError,
+                );
+              }
+            }
+          }
         }
 
         // 차단 방지용 대기 (마지막 항목 제외)
@@ -441,6 +467,145 @@ export class SchedulerService {
       );
     } catch (error) {
       this.logger.error('Grace period expiration task failed', error);
+
+      if (taskLog) {
+        await this.failTaskLog(taskLog.id, error as Error);
+      }
+
+      throw error;
+    }
+  }
+
+  // ============================================
+  // 알림 관련 스케줄러
+  // ============================================
+
+  /**
+   * 오래된 알림 삭제 스케줄러 (매일 03:00 KST = 18:00 UTC)
+   * - 30일이 지난 알림을 자동 삭제
+   */
+  @Cron('0 0 18 * * *')
+  async handleOldNotificationCleanup() {
+    const taskName = 'notification-cleanup';
+    let taskLog: { id: number } | null = null;
+
+    try {
+      this.logger.log('Old notification cleanup task started');
+
+      taskLog = await this.createTaskLog(taskName);
+
+      const deletedCount =
+        await this.notificationService.deleteOldNotifications(30);
+
+      if (taskLog) {
+        await this.completeTaskLog(taskLog.id, deletedCount, deletedCount, 0, {
+          deletedNotifications: deletedCount,
+        });
+      }
+
+      this.logger.log(
+        `Old notification cleanup completed (Deleted: ${deletedCount})`,
+      );
+    } catch (error) {
+      this.logger.error('Old notification cleanup task failed', error);
+
+      if (taskLog) {
+        await this.failTaskLog(taskLog.id, error as Error);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
+   * 구독 만료 임박 알림 스케줄러 (매일 09:00 KST = 00:00 UTC)
+   * - 3일 이내 만료 예정인 구독자에게 알림 발송
+   */
+  @Cron('0 0 0 * * *')
+  async handleSubscriptionExpiryReminder() {
+    const taskName = 'subscription-expiry-reminder';
+    let taskLog: { id: number } | null = null;
+
+    try {
+      this.logger.log('Subscription expiry reminder task started');
+
+      // 3일 이내 만료 예정인 구독 조회
+      const threeDaysFromNow = new Date();
+      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+
+      const expiringSubscriptions = await this.prisma.userSubscription.findMany(
+        {
+          where: {
+            status: SubscriptionStatus.ACTIVE,
+            autoRenewal: false, // 자동 갱신이 꺼진 경우만
+            expiresAt: {
+              gte: new Date(),
+              lte: threeDaysFromNow,
+            },
+          },
+          include: {
+            plan: true,
+          },
+        },
+      );
+
+      if (expiringSubscriptions.length === 0) {
+        this.logger.log('No subscriptions expiring soon');
+        return;
+      }
+
+      taskLog = await this.createTaskLog(
+        taskName,
+        expiringSubscriptions.length,
+      );
+
+      let successCount = 0;
+      let failedCount = 0;
+
+      for (const subscription of expiringSubscriptions) {
+        try {
+          // 만료까지 남은 일수 계산
+          const daysRemaining = Math.ceil(
+            (subscription.expiresAt.getTime() - Date.now()) /
+              (1000 * 60 * 60 * 24),
+          );
+
+          await this.notificationService.sendSubscriptionExpiringSoon(
+            subscription.userId,
+            daysRemaining,
+          );
+
+          successCount++;
+          this.logger.debug(
+            `Sent expiry reminder to user ${subscription.userId} (${daysRemaining} days remaining)`,
+          );
+        } catch (error) {
+          failedCount++;
+          this.logger.error(
+            `Failed to send expiry reminder to user ${subscription.userId}:`,
+            error,
+          );
+        }
+      }
+
+      if (taskLog) {
+        await this.completeTaskLog(
+          taskLog.id,
+          expiringSubscriptions.length,
+          successCount,
+          failedCount,
+          {
+            totalSubscriptions: expiringSubscriptions.length,
+            notificationsSent: successCount,
+          },
+        );
+      }
+
+      this.logger.log(
+        `Subscription expiry reminder completed (Sent: ${successCount}, Failed: ${failedCount})`,
+      );
+    } catch (error) {
+      this.logger.error('Subscription expiry reminder task failed', error);
 
       if (taskLog) {
         await this.failTaskLog(taskLog.id, error as Error);

@@ -25,7 +25,9 @@ const BASE36_MAX = 46655; // ZZZ in Base36 = 35*36*36 + 35*36 + 35
  */
 function toBase36Padded(num: number): string {
   if (num < 0 || num > BASE36_MAX) {
-    throw new Error(`Number ${num} is out of Base36 3-char range (0-${BASE36_MAX})`);
+    throw new Error(
+      `Number ${num} is out of Base36 3-char range (0-${BASE36_MAX})`,
+    );
   }
 
   const d2 = Math.floor(num / (36 * 36));
@@ -77,7 +79,10 @@ export function generateShortCode(sequence: number): string {
  * @param sequence - 해당 날짜의 시퀀스 번호 (0부터 시작)
  * @returns 완전한 displayId
  */
-export function generateDisplayId(datePrefix: string, sequence: number): string {
+export function generateDisplayId(
+  datePrefix: string,
+  sequence: number,
+): string {
   return datePrefix + generateShortCode(sequence);
 }
 

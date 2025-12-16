@@ -9,6 +9,7 @@ import { OpenAIService } from '../../lib/integrations/openai/openai/openai.servi
 import { BlogRankService } from '../../lib/integrations/naver/naver-api/blog-rank.service';
 import { DateService } from '../../lib/date/date.service';
 import { CreditService } from '@modules/credit/credit.service';
+import { NotificationService } from '@modules/notification/notification.service';
 import { PromptLogService } from '@lib/integrations/openai/prompt-log';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
 import { generateRandomPersona } from './random-persona.util';
@@ -32,6 +33,7 @@ export class BlogPostService {
     private readonly blogRankService: BlogRankService,
     private readonly dateService: DateService,
     private readonly creditService: CreditService,
+    private readonly notificationService: NotificationService,
     private readonly promptLogService: PromptLogService,
   ) {}
 
@@ -555,7 +557,7 @@ export class BlogPostService {
 
     if (finalCount === targetCount) {
       // 모든 원고 생성 성공
-      await this.prisma.blogPost.update({
+      const updatedBlogPost = await this.prisma.blogPost.update({
         where: { id: blogPostId },
         data: {
           status: 'COMPLETED',
@@ -566,16 +568,31 @@ export class BlogPostService {
       this.logger.log(
         `BlogPost ${blogPostId} 완료: ${finalCount}/${targetCount}개 생성`,
       );
+
+      // 원고 생성 완료 알림 발송
+      try {
+        await this.notificationService.sendBlogPostCompleted(
+          userId,
+          blogPostId,
+          updatedBlogPost.displayId,
+        );
+      } catch (notifyError) {
+        this.logger.error(
+          `Failed to send completion notification for BlogPost ${blogPostId}`,
+          notifyError,
+        );
+      }
     } else {
       // 일부 또는 전체 실패
       const failedCount = targetCount - finalCount;
+      const errorMessage = `${this.MAX_RETRY}회 시도 후 ${failedCount}개 실패`;
 
-      await this.prisma.blogPost.update({
+      const failedBlogPost = await this.prisma.blogPost.update({
         where: { id: blogPostId },
         data: {
           status: 'FAILED',
           completedCount: finalCount,
-          lastError: `${this.MAX_RETRY}회 시도 후 ${failedCount}개 실패. 마지막 에러: ${lastError ? String(lastError).substring(0, 400) : '알 수 없음'}`,
+          lastError: `${errorMessage}. 마지막 에러: ${lastError ? String(lastError).substring(0, 400) : '알 수 없음'}`,
           errorAt: new Date(),
         },
       });
@@ -598,6 +615,21 @@ export class BlogPostService {
             refundError,
           );
         }
+      }
+
+      // 원고 생성 실패 알림 발송
+      try {
+        await this.notificationService.sendBlogPostFailed(
+          userId,
+          blogPostId,
+          failedBlogPost.displayId,
+          errorMessage,
+        );
+      } catch (notifyError) {
+        this.logger.error(
+          `Failed to send failure notification for BlogPost ${blogPostId}`,
+          notifyError,
+        );
       }
 
       throw new Error(

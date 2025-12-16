@@ -32,6 +32,7 @@ model User {
   subscriptionHistories SubscriptionHistory[]
   usageLogs             SubscriptionUsageLog[]
   subscriptions         UserSubscription[]
+  notifications         Notification[]
 
   @@index([deletedAt])
   @@map("users")
@@ -532,6 +533,25 @@ model SchedulerLog {
   @@map("scheduler_logs")
 }
 
+
+model Notification {
+  id          Int              @id @default(autoincrement())
+  userId      Int              @map("user_id")
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?            // 추가 데이터 (링크, 원고ID 등)
+  isRead      Boolean          @default(false) @map("is_read")
+  readAt      DateTime?        @map("read_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
 enum PostStatus {
   PENDING
   IN_PROGRESS
@@ -604,4 +624,14 @@ enum SchedulerTaskStatus {
   COMPLETED
   FAILED
   PARTIAL
+}
+
+
+// 알림 타입 Enum
+enum NotificationType {
+  SYSTEM           // 시스템 공지
+  BLOG_POST        // 원고 생성 완료/실패
+  SUBSCRIPTION     // 구독 관련 (결제, 만료 임박, 갱신)
+  CREDIT           // 크레딧 관련 (충전, 부족)
+  PROMOTION        // 프로모션/이벤트
 }

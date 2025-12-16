@@ -548,7 +548,7 @@ export class OpenAIService {
   private countTokens(text: string): number {
     if (this.encoder) {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
         const tokens = this.encoder.encode(text);
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         return tokens.length as number;

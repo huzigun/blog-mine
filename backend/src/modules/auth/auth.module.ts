@@ -26,7 +26,6 @@ import { EmailModule } from '../../lib/integrations/email/email.module';
         return {
           secret: configService.jwtSecret,
           signOptions: {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             expiresIn,
           },
         };
@@ -35,6 +34,6 @@ import { EmailModule } from '../../lib/integrations/email/email.module';
   ],
   providers: [AuthService, JwtStrategy, VerificationCodeService, KakaoService],
   controllers: [AuthController],
-  exports: [AuthService, KakaoService],
+  exports: [AuthService, KakaoService, JwtModule],
 })
 export class AuthModule {}

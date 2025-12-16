@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import { CreditService } from '@modules/credit/credit.service';
+import { NotificationService } from '@modules/notification/notification.service';
 import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
 import {
   Card,
@@ -39,6 +40,7 @@ export class SubscriptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly creditService: CreditService,
+    private readonly notificationService: NotificationService,
     private readonly niceBillingService: NiceBillingService,
   ) {}
 
@@ -273,6 +275,13 @@ export class SubscriptionService {
 
     this.logger.log(
       `User ${userId} subscribed to ${plan.displayName} (${plan.price}원/월), Payment ID: ${result.payment.id}`,
+    );
+
+    // 결제 성공 알림 발송
+    await this.notificationService.sendPaymentSuccess(
+      userId,
+      plan.displayName,
+      paymentAmount,
     );
 
     return {
@@ -635,11 +644,16 @@ export class SubscriptionService {
     const upgradeInfo = await this.calculateUpgradePrice(userId, targetPlanId);
 
     // 2. 지급할 BloC 계산 (일할 계산된 차액)
-    const creditsToGrant = upgradeInfo.proratedCredits ?? upgradeInfo.targetPlan.monthlyCredits;
+    const creditsToGrant =
+      upgradeInfo.proratedCredits ?? upgradeInfo.targetPlan.monthlyCredits;
 
     // 3. 결제 금액이 0원 이하면 결제 없이 업그레이드
     if (upgradeInfo.proratedAmount <= 0) {
-      return this.executeUpgradeWithoutPayment(userId, targetPlanId, creditsToGrant);
+      return this.executeUpgradeWithoutPayment(
+        userId,
+        targetPlanId,
+        creditsToGrant,
+      );
     }
 
     // 4. startSubscription을 호출하되, 금액을 proratedAmount로 오버라이드
@@ -890,6 +904,13 @@ export class SubscriptionService {
       `User ${userId} upgraded to ${targetPlan.displayName} (${paymentAmount}원, ${creditsToGrant} BloC), Payment ID: ${result.payment.id}`,
     );
 
+    // 업그레이드 결제 성공 알림 발송
+    await this.notificationService.sendPaymentSuccess(
+      userId,
+      targetPlan.displayName,
+      paymentAmount,
+    );
+
     return {
       success: true,
       message: `${targetPlan.displayName} 플랜으로 업그레이드되었습니다.`,
@@ -988,7 +1009,10 @@ export class SubscriptionService {
 
     if (!card) {
       // 카드가 없으면 PAST_DUE로 전환
-      await this.transitionToPastDue(subscription, '등록된 결제 수단이 없습니다.');
+      await this.transitionToPastDue(
+        subscription,
+        '등록된 결제 수단이 없습니다.',
+      );
       return {
         success: false,
         subscriptionId,
@@ -1066,7 +1090,9 @@ export class SubscriptionService {
    * 갱신 성공 처리
    */
   private async processSuccessfulRenewal(
-    subscription: SubscriptionWithPlan & { user: { name: string | null; email: string } },
+    subscription: SubscriptionWithPlan & {
+      user: { name: string | null; email: string };
+    },
     plan: SubscriptionPlan,
     card: Card,
     paymentResult: any,
@@ -1140,6 +1166,12 @@ export class SubscriptionService {
       `Subscription ${subscription.id} renewed successfully for user ${subscription.userId}`,
     );
 
+    // 구독 갱신 성공 알림 발송
+    await this.notificationService.sendSubscriptionRenewed(
+      subscription.userId,
+      plan.displayName,
+    );
+
     return {
       success: true,
       subscriptionId: subscription.id,
@@ -1162,6 +1194,13 @@ export class SubscriptionService {
     if (newAttempts >= maxRetries) {
       // 최대 재시도 초과 → PAST_DUE로 전환
       await this.transitionToPastDue(subscription, errorMessage);
+
+      // 결제 실패 알림 발송
+      await this.notificationService.sendPaymentFailed(
+        subscription.userId,
+        errorMessage,
+      );
+
       return {
         success: false,
         subscriptionId: subscription.id,
@@ -1387,5 +1426,25 @@ export class SubscriptionService {
     this.logger.log(
       `Subscription ${subscription.id} expired and downgraded to FREE for user ${subscription.userId}`,
     );
+
+    // 활성 키워드 추적이 있는 경우 추적 만료 알림 발송
+    const activeTrackings = await this.prisma.keywordTracking.findMany({
+      where: {
+        userId: subscription.userId,
+        isActive: true,
+      },
+      select: { keyword: true },
+    });
+
+    if (activeTrackings.length > 0) {
+      // 첫 번째 키워드만 예시로 알림 (너무 많은 알림 방지)
+      await this.notificationService.sendTrackingExpired(
+        subscription.userId,
+        activeTrackings[0].keyword +
+          (activeTrackings.length > 1
+            ? ` 외 ${activeTrackings.length - 1}건`
+            : ''),
+      );
+    }
   }
 }

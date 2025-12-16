@@ -19,12 +19,14 @@ import {
   TransactionFilterDto,
 } from './dto';
 import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
+import { NotificationService } from '@modules/notification/notification.service';
 
 @Injectable()
 export class CreditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly niceBillingService: NiceBillingService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   /**
@@ -233,6 +235,9 @@ export class CreditService {
       };
     });
 
+    // 크레딧 충전 완료 알림
+    await this.notificationService.sendCreditCharged(userId, amount);
+
     return {
       success: true,
       message: `${amount} 크레딧이 충전되었습니다.`,
@@ -358,12 +363,57 @@ export class CreditService {
       return { transaction: creditTransaction, account: updatedAccount };
     });
 
+    // 한도 초과 임박/초과 알림 체크
+    const remainingBalance = result.account.totalCredits;
+    await this.checkAndNotifyLowBalance(userId, remainingBalance);
+
     return {
       success: true,
       usedAmount: amount,
-      remainingBalance: result.account.totalCredits,
+      remainingBalance,
       transaction: result.transaction,
     };
+  }
+
+  /**
+   * 잔액 부족 알림 체크 및 발송
+   */
+  private async checkAndNotifyLowBalance(
+    userId: number,
+    remainingBalance: number,
+  ) {
+    // 구독 정보를 조회하여 월간 크레딧 기준으로 퍼센티지 계산
+    const subscription = await this.prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: {
+          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+        },
+      },
+      include: { plan: true },
+    });
+
+    if (!subscription?.plan) return;
+
+    const monthlyCredits = subscription.plan.monthlyCredits;
+    if (monthlyCredits <= 0) return;
+
+    const usagePercent = Math.round(
+      ((monthlyCredits - remainingBalance) / monthlyCredits) * 100,
+    );
+
+    // 한도 초과 (100% 이상 사용)
+    if (remainingBalance <= 0) {
+      await this.notificationService.sendUsageLimitExceeded(userId);
+    }
+    // 한도 초과 임박 (90% 이상 사용)
+    else if (usagePercent >= 90) {
+      await this.notificationService.sendUsageLimitWarning(userId, usagePercent);
+    }
+    // 크레딧 부족 경고 (80% 이상 사용)
+    else if (usagePercent >= 80) {
+      await this.notificationService.sendCreditLow(userId, remainingBalance);
+    }
   }
 
   /**

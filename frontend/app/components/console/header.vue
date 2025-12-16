@@ -4,8 +4,27 @@ const { user, logout } = useAuth();
 const toast = useToast();
 const route = useRoute();
 
+// 알림 시스템
+const {
+  notifications,
+  unreadCount,
+  isConnected,
+  isLoading,
+  hasMore,
+  currentFilter,
+  fetchNotifications,
+  fetchUnreadCount,
+  markAllAsRead,
+  handleNotificationClick,
+  getNotificationIcon,
+  connectSSE,
+  disconnectSSE,
+  setFilter,
+  loadMore,
+  formatRelativeTime,
+} = useNotifications();
+
 const searchQuery = ref('');
-const unreadCount = ref(3);
 
 // Breadcrumb generation
 const breadcrumbs = computed(() => {
@@ -24,42 +43,43 @@ const breadcrumbs = computed(() => {
   return crumbs;
 });
 
-const notificationItems = [
-  [
-    {
-      label: '새 댓글',
-      description: '게시글에 새로운 댓글이 달렸습니다.',
-      icon: 'i-heroicons-chat-bubble-left',
-      click: () => navigateTo('/console/comments'),
-    },
-    {
-      label: '새 게시글',
-      description: '관리자가 새 게시글을 작성했습니다.',
-      icon: 'i-heroicons-document-text',
-      click: () => navigateTo('/console/posts'),
-    },
-    {
-      label: '시스템 알림',
-      description: '시스템 업데이트가 예정되어 있습니다.',
-      icon: 'i-heroicons-bell',
-      click: () => {},
-    },
-  ],
-  [
-    {
-      label: '모두 읽음으로 표시',
-      icon: 'i-heroicons-check',
-      click: () => {
-        unreadCount.value = 0;
-        toast.add({
-          title: '알림 확인',
-          description: '모든 알림을 읽음으로 표시했습니다.',
-          color: 'success',
-        });
-      },
-    },
-  ],
-];
+// 알림 팝오버 상태
+const isNotificationOpen = ref(false);
+
+// 모두 읽음 처리 핸들러
+const handleMarkAllAsRead = async () => {
+  try {
+    await markAllAsRead();
+    toast.add({
+      title: '알림 확인',
+      description: '모든 알림을 읽음으로 표시했습니다.',
+      color: 'success',
+    });
+  } catch {
+    toast.add({
+      title: '오류',
+      description: '알림 처리 중 오류가 발생했습니다.',
+      color: 'error',
+    });
+  }
+};
+
+// 알림 클릭 핸들러 (팝오버 닫기 포함)
+const onNotificationClick = async (notification: Notification) => {
+  isNotificationOpen.value = false;
+  await handleNotificationClick(notification);
+};
+
+// 인피니티 스크롤 핸들러
+const handleScroll = (event: Event) => {
+  const target = event.target as HTMLElement;
+  const { scrollTop, scrollHeight, clientHeight } = target;
+
+  // 스크롤이 하단에서 50px 이내면 더 로드
+  if (scrollHeight - scrollTop - clientHeight < 50) {
+    loadMore();
+  }
+};
 
 const quickActions = [
   {
@@ -124,8 +144,15 @@ const userMenuItems = [
   ],
 ];
 
-// Keyboard shortcut for search
-onMounted(() => {
+// 컴포넌트 마운트 시 초기화
+onMounted(async () => {
+  // 알림 데이터 로드
+  await Promise.all([fetchNotifications({ limit: 10 }), fetchUnreadCount()]);
+
+  // SSE 연결
+  connectSSE();
+
+  // 키보드 단축키 설정
   const handleKeydown = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
@@ -140,6 +167,11 @@ onMounted(() => {
   onUnmounted(() => {
     window.removeEventListener('keydown', handleKeydown);
   });
+});
+
+// 컴포넌트 언마운트 시 정리
+onBeforeUnmount(() => {
+  disconnectSSE();
 });
 </script>
 
@@ -185,7 +217,7 @@ onMounted(() => {
         </UButton>
 
         <!-- Notifications -->
-        <UDropdownMenu :items="notificationItems" class="ml-4">
+        <UPopover v-model:open="isNotificationOpen" class="ml-4">
           <UButton
             color="neutral"
             variant="ghost"
@@ -194,6 +226,7 @@ onMounted(() => {
             class="relative"
           >
             <UIcon name="i-heroicons-bell" class="h-5 w-5" />
+            <!-- 읽지 않은 알림 표시 -->
             <span
               v-if="unreadCount > 0"
               class="absolute right-1 top-1 flex h-2 w-2"
@@ -206,7 +239,102 @@ onMounted(() => {
               />
             </span>
           </UButton>
-        </UDropdownMenu>
+
+          <template #content>
+            <div class="w-80 p-1">
+              <!-- 필터 탭 -->
+              <div class="flex gap-1 mb-2 px-1">
+                <button
+                  class="flex-1 py-1.5 text-xs font-medium rounded-md transition-colors"
+                  :class="currentFilter === 'all'
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                    : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'"
+                  @click="setFilter('all')"
+                >
+                  전체
+                </button>
+                <button
+                  class="flex-1 py-1.5 text-xs font-medium rounded-md transition-colors"
+                  :class="currentFilter === 'unread'
+                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                    : 'text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800'"
+                  @click="setFilter('unread')"
+                >
+                  안읽음
+                  <span v-if="unreadCount > 0" class="ml-1 text-[10px] bg-error text-white px-1 rounded-full">
+                    {{ unreadCount > 99 ? '99+' : unreadCount }}
+                  </span>
+                </button>
+              </div>
+
+              <!-- 알림 목록 (스크롤 영역) -->
+              <div
+                class="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-300 dark:scrollbar-thumb-neutral-600"
+                @scroll="handleScroll"
+              >
+                <div v-if="notifications.length > 0" class="space-y-0.5">
+                  <button
+                    v-for="notification in notifications"
+                    :key="notification.id"
+                    class="w-full flex items-start gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left"
+                    :class="{ 'opacity-50': notification.isRead }"
+                    @click="onNotificationClick(notification)"
+                  >
+                    <UIcon
+                      :name="getNotificationIcon(notification.type)"
+                      class="size-3.5 mt-0.5 text-neutral-500 shrink-0"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs font-medium text-neutral-900 dark:text-white leading-tight truncate">
+                          {{ notification.title }}
+                        </p>
+                        <span class="text-[10px] text-neutral-400 shrink-0">
+                          {{ formatRelativeTime(notification.createdAt) }}
+                        </span>
+                      </div>
+                      <p class="text-[11px] text-neutral-500 leading-tight mt-0.5">
+                        {{ notification.message }}
+                      </p>
+                    </div>
+                  </button>
+
+                  <!-- 로딩 인디케이터 -->
+                  <div v-if="isLoading" class="flex justify-center py-2">
+                    <UIcon name="i-heroicons-arrow-path" class="size-4 text-neutral-400 animate-spin" />
+                  </div>
+
+                  <!-- 더 이상 알림 없음 -->
+                  <div v-else-if="!hasMore && notifications.length > 0" class="text-center py-2 text-[11px] text-neutral-400">
+                    더 이상 알림이 없습니다
+                  </div>
+                </div>
+
+                <!-- 알림 없음 -->
+                <div v-else class="flex items-center gap-2 px-2 py-3 text-neutral-400">
+                  <UIcon name="i-heroicons-bell-slash" class="size-3.5" />
+                  <div>
+                    <p class="text-xs font-medium">알림이 없습니다</p>
+                    <p class="text-[11px]">{{ currentFilter === 'unread' ? '읽지 않은 알림이 없습니다.' : '새로운 알림이 없습니다.' }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 모두 읽음 버튼 -->
+              <div v-if="unreadCount > 0" class="border-t border-neutral-200 dark:border-neutral-700 mt-1 pt-1">
+                <button
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left"
+                  @click="handleMarkAllAsRead"
+                >
+                  <UIcon name="i-heroicons-check" class="size-3.5 text-neutral-500" />
+                  <span class="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                    모두 읽음으로 표시
+                  </span>
+                </button>
+              </div>
+            </div>
+          </template>
+        </UPopover>
 
         <!-- User Menu -->
         <UDropdownMenu :items="userMenuItems">

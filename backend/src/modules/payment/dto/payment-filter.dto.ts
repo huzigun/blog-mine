@@ -1,4 +1,11 @@
-import { IsOptional, IsEnum, IsDateString, IsString, IsInt, Min } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsDateString,
+  IsString,
+  IsInt,
+  Min,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export enum PaymentStatus {
