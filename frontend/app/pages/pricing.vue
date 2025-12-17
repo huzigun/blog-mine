@@ -407,7 +407,7 @@ const getButtonText = (plan: Plan) => {
               variant="outline"
               size="xl"
               icon="i-heroicons-chat-bubble-left-right"
-              to="/contact"
+              to="/support"
               class="font-semibold px-8"
             >
               문의하기

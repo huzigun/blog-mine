@@ -85,9 +85,9 @@ export class AuthService {
         },
       });
 
-      // 2. FREE 구독 생성 (체험 기간 7일)
+      // 2. FREE 구독 생성 (체험 기간 14일)
       const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7); // 7일 체험
+      expiresAt.setDate(expiresAt.getDate() + 14); // 14일 체험
 
       const subscription = await tx.userSubscription.create({
         data: {
@@ -147,7 +147,7 @@ export class AuthService {
     });
 
     this.logger.log(
-      `New user registered with FREE trial: ${result.email} (7 days, ${freePlan.monthlyCredits} credits)`,
+      `New user registered with FREE trial: ${result.email} (14 days, ${freePlan.monthlyCredits} credits)`,
     );
 
     // JWT 토큰 생성
@@ -639,9 +639,9 @@ export class AuthService {
             },
           });
 
-          // FREE 구독 생성 (체험 기간 7일)
+          // FREE 구독 생성 (체험 기간 14일)
           const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 7);
+          expiresAt.setDate(expiresAt.getDate() + 14);
 
           const subscription = await tx.userSubscription.create({
             data: {

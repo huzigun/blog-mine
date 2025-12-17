@@ -1,8 +1,8 @@
 <script setup lang="ts">
-const { adminUser, isAdminAuthenticated } = useAdminAuth()
+const { adminUser, isAdminAuthenticated } = useAdminAuth();
 
-const isSidebarCollapsed = ref(false)
-const isMobileMenuOpen = ref(false)
+const isSidebarCollapsed = ref(false);
+const isMobileMenuOpen = ref(false);
 
 // 사이드바 메뉴 아이템
 const menuItems = [
@@ -48,53 +48,53 @@ const menuItems = [
     minRole: 'SUPER_ADMIN' as const,
   },
   {
-    label: '시스템 설정',
+    label: '플랜 관리',
     icon: 'i-heroicons-cog-6-tooth',
-    to: '/admin/settings',
+    to: '/admin/plans',
     minRole: 'ADMIN' as const,
   },
-]
+];
 
-const { hasMinRole } = useAdminAuth()
+const { hasMinRole } = useAdminAuth();
 
 const visibleMenuItems = computed(() => {
   return menuItems.filter((item) => {
-    if (!item.minRole) return true
-    return hasMinRole(item.minRole)
-  })
-})
+    if (!item.minRole) return true;
+    return hasMinRole(item.minRole);
+  });
+});
 
 const toggleSidebar = () => {
-  isSidebarCollapsed.value = !isSidebarCollapsed.value
-}
+  isSidebarCollapsed.value = !isSidebarCollapsed.value;
+};
 
 const toggleMobileMenu = () => {
-  isMobileMenuOpen.value = !isMobileMenuOpen.value
-}
+  isMobileMenuOpen.value = !isMobileMenuOpen.value;
+};
 
 const closeMobileMenu = () => {
-  isMobileMenuOpen.value = false
-}
+  isMobileMenuOpen.value = false;
+};
 
 // 모바일 화면 감지
-const isMobile = ref(false)
+const isMobile = ref(false);
 const checkMobile = () => {
   if (import.meta.client) {
-    isMobile.value = window.innerWidth < 1024
+    isMobile.value = window.innerWidth < 1024;
     if (!isMobile.value) {
-      isMobileMenuOpen.value = false
+      isMobileMenuOpen.value = false;
     }
   }
-}
+};
 
 onMounted(() => {
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
-})
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
 
 onUnmounted(() => {
-  window.removeEventListener('resize', checkMobile)
-})
+  window.removeEventListener('resize', checkMobile);
+});
 </script>
 
 <template>
@@ -130,7 +130,11 @@ onUnmounted(() => {
         </NuxtLink>
         <UButton
           v-if="!isMobile"
-          :icon="isSidebarCollapsed ? 'i-heroicons-chevron-right' : 'i-heroicons-chevron-left'"
+          :icon="
+            isSidebarCollapsed
+              ? 'i-heroicons-chevron-right'
+              : 'i-heroicons-chevron-left'
+          "
           color="neutral"
           variant="ghost"
           size="sm"
@@ -157,7 +161,10 @@ onUnmounted(() => {
           @click="isMobile && closeMobileMenu()"
         >
           <UIcon :name="item.icon" class="w-5 h-5 flex-shrink-0" />
-          <span v-if="!isSidebarCollapsed || isMobile" class="text-sm font-medium">
+          <span
+            v-if="!isSidebarCollapsed || isMobile"
+            class="text-sm font-medium"
+          >
             {{ item.label }}
           </span>
         </NuxtLink>
@@ -168,14 +175,19 @@ onUnmounted(() => {
         v-if="adminUser"
         class="p-4 border-t border-neutral-200 dark:border-neutral-700"
       >
-        <div v-if="!isSidebarCollapsed || isMobile" class="flex items-center gap-3">
+        <div
+          v-if="!isSidebarCollapsed || isMobile"
+          class="flex items-center gap-3"
+        >
           <div
             class="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center"
           >
             <UIcon name="i-heroicons-user" class="w-4 h-4 text-primary-600" />
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-neutral-900 dark:text-white truncate">
+            <p
+              class="text-sm font-medium text-neutral-900 dark:text-white truncate"
+            >
               {{ adminUser.name }}
             </p>
             <p class="text-xs text-neutral-500 truncate">
@@ -238,8 +250,11 @@ onUnmounted(() => {
       </main>
 
       <!-- Footer -->
-      <footer class="text-center text-xs text-neutral-500 py-4 border-t border-neutral-200 dark:border-neutral-700">
-        &copy; {{ new Date().getFullYear() }} Blog Mine Admin. All rights reserved.
+      <footer
+        class="text-center text-xs text-neutral-500 py-4 border-t border-neutral-200 dark:border-neutral-700"
+      >
+        &copy; {{ new Date().getFullYear() }} Blog Mine Admin. All rights
+        reserved.
       </footer>
     </div>
   </div>

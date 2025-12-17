@@ -690,7 +690,13 @@ const points = [
               <p class="text-sm text-gray-600 mb-8 tracking-tight">
                 조직 및 에이전시 운영에 맞춘 맞춤형 AI·SEO 솔루션입니다.
               </p>
-              <UButton block color="neutral" size="lg" class="rounded py-2.5">
+              <UButton
+                block
+                color="neutral"
+                size="lg"
+                class="rounded py-2.5"
+                to="/support"
+              >
                 비즈니스 문의하기
               </UButton>
             </div>

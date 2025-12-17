@@ -481,6 +481,98 @@ export class EmailService {
   }
 
   /**
+   * 문의 답변 이메일 전송
+   */
+  async sendContactResponse(data: {
+    email: string;
+    name: string;
+    subject: string;
+    originalMessage: string;
+    responseMessage: string;
+    respondedAt: Date;
+  }): Promise<void> {
+    const { email, name, subject, originalMessage, responseMessage, respondedAt } =
+      data;
+
+    // 날짜 포맷팅
+    const formatDateTime = (date: Date) =>
+      date.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+    try {
+      await this.transporter.sendMail({
+        from: `"BloC 고객센터" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: `[BloC] 문의에 대한 답변 - ${subject}`,
+        html: `
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+            <!-- 헤더 -->
+            <div style="text-align: center; padding: 40px 0 30px 0;">
+              <h1 style="color: #3b82f6; margin: 0; font-size: 32px;">BloC</h1>
+              <p style="color: #6b7280; margin-top: 8px; font-size: 14px;">블로그 원고 생성 서비스</p>
+            </div>
+
+            <!-- 메인 카드 -->
+            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+              <!-- 제목 -->
+              <div style="margin-bottom: 24px;">
+                <h2 style="color: #111827; margin: 0 0 8px 0; font-size: 20px;">문의에 대한 답변 드립니다</h2>
+                <p style="color: #6b7280; margin: 0; font-size: 14px;">${name}님, 문의해 주셔서 감사합니다.</p>
+              </div>
+
+              <!-- 원본 문의 -->
+              <div style="background-color: #f9fafb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+                <h3 style="color: #6b7280; font-size: 12px; text-transform: uppercase; margin: 0 0 12px 0;">문의 내용</h3>
+                <p style="color: #374151; font-size: 14px; font-weight: 600; margin: 0 0 8px 0;">${subject}</p>
+                <p style="color: #6b7280; font-size: 14px; margin: 0; line-height: 1.6; white-space: pre-wrap;">${originalMessage}</p>
+              </div>
+
+              <!-- 답변 내용 -->
+              <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 8px 8px 0; padding: 20px; margin-bottom: 24px;">
+                <h3 style="color: #1e40af; font-size: 12px; text-transform: uppercase; margin: 0 0 12px 0;">답변</h3>
+                <p style="color: #1e3a8a; font-size: 14px; margin: 0; line-height: 1.8; white-space: pre-wrap;">${responseMessage}</p>
+              </div>
+
+              <!-- 답변 일시 -->
+              <p style="color: #9ca3af; font-size: 12px; text-align: right; margin: 0;">
+                답변일시: ${formatDateTime(respondedAt)}
+              </p>
+
+              <!-- 추가 문의 안내 -->
+              <div style="margin-top: 24px; padding: 16px; background-color: #f0fdf4; border-left: 4px solid #22c55e; border-radius: 4px;">
+                <p style="color: #166534; margin: 0; font-size: 13px;">
+                  <strong>💬 추가 문의사항이 있으신가요?</strong><br/>
+                  궁금하신 점이 더 있으시면 <a href="${process.env.FRONTEND_URL}/support" style="color: #3b82f6;">고객센터</a>를 통해 문의해 주세요.
+                </p>
+              </div>
+            </div>
+
+            <!-- 푸터 -->
+            <div style="text-align: center; padding: 24px 0; margin-top: 20px;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0 0 8px 0;">
+                본 메일은 BloC 고객센터에서 발송되는 답변 메일입니다.
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                © 2025 BloC. All rights reserved.
+              </p>
+            </div>
+          </div>
+        `,
+      });
+
+      this.logger.log(`✅ 문의 답변 이메일 전송 완료: ${email}`);
+    } catch (error) {
+      this.logger.error(`❌ 문의 답변 이메일 전송 실패: ${email}`, error);
+      // 이메일 실패는 답변 등록에 영향을 주지 않도록 throw하지 않음
+    }
+  }
+
+  /**
    * 비밀번호 재설정 이메일 전송 (링크 방식 - 미사용)
    */
   async sendPasswordResetEmail(

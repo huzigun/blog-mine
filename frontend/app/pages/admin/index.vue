@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAdminApiFetch } from '~/composables/useAdminApi';
+
 definePageMeta({
   layout: 'admin',
   middleware: ['admin'],
@@ -16,8 +18,26 @@ interface StatItem {
   changeType: ChangeType
 }
 
-// 대시보드 통계 데이터 (추후 API 연동)
-const stats = ref<StatItem[]>([
+interface DashboardStatsResponse {
+  stats: StatItem[]
+}
+
+interface ActivityItem {
+  id: number
+  action: string
+  description: string
+  adminName: string
+  createdAt: string
+}
+
+// 대시보드 통계 데이터
+const { data: statsData, status: statsStatus } = await useAdminApiFetch<DashboardStatsResponse>('/admin/dashboard/stats');
+
+// 최근 활동 로그
+const { data: activitiesData, status: activitiesStatus } = await useAdminApiFetch<ActivityItem[]>('/admin/dashboard/activities?limit=10');
+
+// 기본 통계 데이터 (API 로딩 전)
+const defaultStats: StatItem[] = [
   {
     label: '전체 사용자',
     value: '-',
@@ -46,17 +66,11 @@ const stats = ref<StatItem[]>([
     change: '',
     changeType: 'neutral',
   },
-])
+];
 
-// 최근 활동 로그 (추후 API 연동)
-const recentActivities = ref<
-  {
-    id: number
-    action: string
-    description: string
-    createdAt: string
-  }[]
->([])
+const stats = computed(() => statsData.value?.stats || defaultStats);
+const recentActivities = computed(() => activitiesData.value || []);
+const isLoading = computed(() => statsStatus.value === 'pending' || activitiesStatus.value === 'pending');
 </script>
 
 <template>
@@ -160,10 +174,10 @@ const recentActivities = ref<
                 {{ activity.action }}
               </p>
               <p class="text-xs text-neutral-500 truncate">
-                {{ activity.description }}
+                {{ activity.adminName }} - {{ activity.description }}
               </p>
             </div>
-            <span class="text-xs text-neutral-400">
+            <span class="text-xs text-neutral-400 whitespace-nowrap">
               {{ activity.createdAt }}
             </span>
           </div>

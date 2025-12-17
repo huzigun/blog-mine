@@ -207,26 +207,19 @@ model KeywordTracking {
 }
 
 model SubscriptionPlan {
-  id                     Int                @id @default(autoincrement())
-  name                   String             @unique
-  displayName            String             @map("display_name")
-  description            String?
-  price                  Int                @default(0)
-  yearlyPrice            Int?               @map("yearly_price")
-  monthlyCredits         Int                @default(0) @map("monthly_credits")
-  maxBlogPostsPerMonth   Int?               @map("max_blog_posts_per_month")
-  maxPostLength          Int?               @map("max_post_length")
-  maxKeywordTrackings    Int?               @map("max_keyword_trackings")
-  maxPersonas            Int?               @map("max_personas")
-  allowPriorityQueue     Boolean            @default(false) @map("allow_priority_queue")
-  allowAdvancedAnalytics Boolean            @default(false) @map("allow_advanced_analytics")
-  allowApiAccess         Boolean            @default(false) @map("allow_api_access")
-  allowCustomPersonas    Boolean            @default(false) @map("allow_custom_personas")
-  isActive               Boolean            @default(true) @map("is_active")
-  sortOrder              Int                @default(0) @map("sort_order")
-  createdAt              DateTime           @default(now()) @map("created_at")
-  updatedAt              DateTime           @updatedAt @map("updated_at")
-  subscriptions          UserSubscription[]
+  id                  Int                @id @default(autoincrement())
+  name                String             @unique
+  displayName         String             @map("display_name")
+  description         String?
+  price               Int                @default(0)
+  yearlyPrice         Int?               @map("yearly_price")
+  monthlyCredits      Int                @default(0) @map("monthly_credits")
+  maxKeywordTrackings Int?               @map("max_keyword_trackings")
+  isActive            Boolean            @default(true) @map("is_active")
+  sortOrder           Int                @default(0) @map("sort_order")
+  createdAt           DateTime           @default(now()) @map("created_at")
+  updatedAt           DateTime           @updatedAt @map("updated_at")
+  subscriptions       UserSubscription[]
 
   @@index([isActive, sortOrder])
   @@map("subscription_plans")

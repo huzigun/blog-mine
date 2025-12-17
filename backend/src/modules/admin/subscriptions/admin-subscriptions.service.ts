@@ -27,7 +27,27 @@ export class AdminSubscriptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * 각 유저별 최신 구독 ID 목록 조회
+   */
+  private async getLatestSubscriptionIds(): Promise<number[]> {
+    const latestSubscriptionIds = await this.prisma.$queryRaw<
+      { id: number }[]
+    >`
+      SELECT us.id
+      FROM user_subscriptions us
+      INNER JOIN (
+        SELECT user_id, MAX(created_at) as max_created_at
+        FROM user_subscriptions
+        GROUP BY user_id
+      ) latest ON us.user_id = latest.user_id AND us.created_at = latest.max_created_at
+    `;
+
+    return latestSubscriptionIds.map((row) => row.id);
+  }
+
+  /**
    * 구독 목록 조회 (관리자용)
+   * 각 유저별로 가장 최근 구독만 조회
    */
   async findAll(query: AdminSubscriptionsQuery) {
     const {
@@ -42,8 +62,13 @@ export class AdminSubscriptionsService {
 
     const skip = (page - 1) * limit;
 
-    // Where 조건 구성
-    const where: Prisma.UserSubscriptionWhereInput = {};
+    // 각 유저별 최신 구독 ID만 조회
+    const latestIds = await this.getLatestSubscriptionIds();
+
+    // Where 조건 구성 (최신 구독 ID만 포함)
+    const where: Prisma.UserSubscriptionWhereInput = {
+      id: { in: latestIds },
+    };
 
     // 검색 조건 (사용자 이메일/이름)
     if (search) {
@@ -70,7 +95,7 @@ export class AdminSubscriptionsService {
       [sortBy]: sortOrder,
     };
 
-    // 전체 개수 조회
+    // 전체 개수 조회 (최신 구독만)
     const total = await this.prisma.userSubscription.count({ where });
 
     // 구독 목록 조회
@@ -307,9 +332,12 @@ export class AdminSubscriptionsService {
   }
 
   /**
-   * 구독 통계 조회
+   * 구독 통계 조회 (각 유저별 최신 구독만 카운트)
    */
   async getStats() {
+    // 각 유저별 최신 구독 ID만 조회
+    const latestIds = await this.getLatestSubscriptionIds();
+
     const [
       totalSubscriptions,
       activeSubscriptions,
@@ -318,18 +346,28 @@ export class AdminSubscriptionsService {
       canceledSubscriptions,
       pastDueSubscriptions,
     ] = await Promise.all([
-      this.prisma.userSubscription.count(),
-      this.prisma.userSubscription.count({ where: { status: 'ACTIVE' } }),
-      this.prisma.userSubscription.count({ where: { status: 'TRIAL' } }),
-      this.prisma.userSubscription.count({ where: { status: 'EXPIRED' } }),
-      this.prisma.userSubscription.count({ where: { status: 'CANCELED' } }),
-      this.prisma.userSubscription.count({ where: { status: 'PAST_DUE' } }),
+      this.prisma.userSubscription.count({ where: { id: { in: latestIds } } }),
+      this.prisma.userSubscription.count({
+        where: { id: { in: latestIds }, status: 'ACTIVE' },
+      }),
+      this.prisma.userSubscription.count({
+        where: { id: { in: latestIds }, status: 'TRIAL' },
+      }),
+      this.prisma.userSubscription.count({
+        where: { id: { in: latestIds }, status: 'EXPIRED' },
+      }),
+      this.prisma.userSubscription.count({
+        where: { id: { in: latestIds }, status: 'CANCELED' },
+      }),
+      this.prisma.userSubscription.count({
+        where: { id: { in: latestIds }, status: 'PAST_DUE' },
+      }),
     ]);
 
-    // 요금제별 통계
+    // 요금제별 통계 (최신 구독만)
     const planStats = await this.prisma.userSubscription.groupBy({
       by: ['planId'],
-      where: { status: { in: ['ACTIVE', 'TRIAL'] } },
+      where: { id: { in: latestIds }, status: { in: ['ACTIVE', 'TRIAL'] } },
       _count: true,
     });
 

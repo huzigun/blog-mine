@@ -12,6 +12,20 @@ import {
   AdminPaymentsService,
   AdminPaymentsController,
 } from './payments';
+import { AdminPostsService, AdminPostsController } from './posts';
+import {
+  AdminContactsService,
+  AdminContactsController,
+} from './contacts';
+import {
+  AdminAdminsService,
+  AdminAdminsController,
+} from './admins';
+import { AdminPlansService, AdminPlansController } from './plans';
+import {
+  AdminDashboardService,
+  AdminDashboardController,
+} from './dashboard';
 import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
 
 @Module({
@@ -33,12 +47,22 @@ import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
     AdminUsersController,
     AdminSubscriptionsController,
     AdminPaymentsController,
+    AdminPostsController,
+    AdminContactsController,
+    AdminAdminsController,
+    AdminPlansController,
+    AdminDashboardController,
   ],
   providers: [
     AdminAuthService,
     AdminUsersService,
     AdminSubscriptionsService,
     AdminPaymentsService,
+    AdminPostsService,
+    AdminContactsService,
+    AdminAdminsService,
+    AdminPlansService,
+    AdminDashboardService,
     AdminJwtStrategy,
   ],
   exports: [AdminAuthService],

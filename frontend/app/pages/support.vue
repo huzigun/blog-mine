@@ -35,7 +35,7 @@ async function onSubmit(event: FormSubmitEvent<ContactSchema>) {
   isSubmitting.value = true;
 
   try {
-    const response = await $fetch('/contact', {
+    const response = await useApi('/contact', {
       method: 'POST',
       baseURL: config.public.apiBaseUrl,
       body: event.data,
