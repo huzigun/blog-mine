@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { NotificationController } from './notification.controller';
 import { NotificationService } from './notification.service';
 import { AuthModule } from '@modules/auth/auth.module';
@@ -7,8 +7,8 @@ import { SseAuthGuard } from '@modules/auth/guards/sse-auth.guard';
 
 @Module({
   imports: [
-    AuthModule, // JwtModule export 포함
-    UserModule, // UserService 제공
+    forwardRef(() => AuthModule), // forwardRef로 순환 의존성 해결
+    UserModule,
   ],
   controllers: [NotificationController],
   providers: [NotificationService, SseAuthGuard],

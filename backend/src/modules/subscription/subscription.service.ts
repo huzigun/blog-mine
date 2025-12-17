@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import { CreditService } from '@modules/credit/credit.service';
@@ -40,6 +42,7 @@ export class SubscriptionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly creditService: CreditService,
+    @Inject(forwardRef(() => NotificationService))
     private readonly notificationService: NotificationService,
     private readonly niceBillingService: NiceBillingService,
   ) {}

@@ -3,6 +3,8 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import {
@@ -26,6 +28,7 @@ export class CreditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly niceBillingService: NiceBillingService,
+    @Inject(forwardRef(() => NotificationService))
     private readonly notificationService: NotificationService,
   ) {}
 
