@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsObject,
 } from 'class-validator';
-import { NotificationType } from '@prisma/client';
+import { NotificationType, NotificationImportance } from '@prisma/client';
 
 export class CreateNotificationDto {
   @IsInt()
@@ -14,6 +14,10 @@ export class CreateNotificationDto {
 
   @IsEnum(NotificationType)
   type: NotificationType;
+
+  @IsOptional()
+  @IsEnum(NotificationImportance)
+  importance?: NotificationImportance;
 
   @IsString()
   @MaxLength(200)

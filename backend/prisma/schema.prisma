@@ -535,20 +535,22 @@ model SchedulerLog {
 
 
 model Notification {
-  id          Int              @id @default(autoincrement())
-  userId      Int              @map("user_id")
+  id          Int                    @id @default(autoincrement())
+  userId      Int                    @map("user_id")
   type        NotificationType
+  importance  NotificationImportance @default(NORMAL)
   title       String
   message     String
-  data        Json?            // 추가 데이터 (링크, 원고ID 등)
-  isRead      Boolean          @default(false) @map("is_read")
-  readAt      DateTime?        @map("read_at")
-  createdAt   DateTime         @default(now()) @map("created_at")
+  data        Json?                  // 추가 데이터 (링크, 원고ID 등)
+  isRead      Boolean                @default(false) @map("is_read")
+  readAt      DateTime?              @map("read_at")
+  createdAt   DateTime               @default(now()) @map("created_at")
 
-  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
   @@index([userId, createdAt])
+  @@index([userId, importance])
   @@map("notifications")
 }
 
@@ -634,4 +636,12 @@ enum NotificationType {
   SUBSCRIPTION     // 구독 관련 (결제, 만료 임박, 갱신)
   CREDIT           // 크레딧 관련 (충전, 부족)
   PROMOTION        // 프로모션/이벤트
+}
+
+// 알림 중요도 Enum
+enum NotificationImportance {
+  CRITICAL         // 즉시 대응 필요 (장애, 결제 실패 등) - 빨강
+  HIGH             // 빠른 확인 필요 (생성 실패, 한도 초과 등) - 주황
+  NORMAL           // 일반 정보성 알림 - 초록
+  LOW              // 업데이트/공지 등 긴급하지 않음 - 회색
 }

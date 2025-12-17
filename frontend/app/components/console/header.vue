@@ -8,7 +8,6 @@ const route = useRoute();
 const {
   notifications,
   unreadCount,
-  isConnected,
   isLoading,
   hasMore,
   currentFilter,
@@ -16,7 +15,7 @@ const {
   fetchUnreadCount,
   markAllAsRead,
   handleNotificationClick,
-  getNotificationIcon,
+  getImportanceColor,
   connectSSE,
   disconnectSSE,
   setFilter,
@@ -286,9 +285,10 @@ onBeforeUnmount(() => {
                     :class="{ 'opacity-50': notification.isRead }"
                     @click="onNotificationClick(notification)"
                   >
-                    <UIcon
-                      :name="getNotificationIcon(notification.type)"
-                      class="size-3.5 mt-0.5 text-neutral-500 shrink-0"
+                    <!-- 중요도 표시 점 -->
+                    <div
+                      class="size-2 rounded-full mt-1 shrink-0"
+                      :class="getImportanceColor(notification.importance).dot"
                     />
                     <div class="flex-1 min-w-0">
                       <div class="flex items-center justify-between gap-2">

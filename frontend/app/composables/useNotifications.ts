@@ -346,6 +346,61 @@ export function useNotifications() {
   }
 
   /**
+   * 알림 중요도별 색상 클래스 반환
+   * CRITICAL: 빨강, HIGH: 주황, NORMAL: 초록, LOW: 회색
+   */
+  function getImportanceColor(importance: NotificationImportance): {
+    bg: string;
+    text: string;
+    dot: string;
+    border: string;
+  } {
+    const colors: Record<
+      NotificationImportance,
+      { bg: string; text: string; dot: string; border: string }
+    > = {
+      CRITICAL: {
+        bg: 'bg-error-50 dark:bg-error-900/20',
+        text: 'text-error-600 dark:text-error-400',
+        dot: 'bg-error-500',
+        border: 'border-l-error-500',
+      },
+      HIGH: {
+        bg: 'bg-warning-50 dark:bg-warning-900/20',
+        text: 'text-warning-600 dark:text-warning-400',
+        dot: 'bg-warning-500',
+        border: 'border-l-warning-500',
+      },
+      NORMAL: {
+        bg: 'bg-success-50 dark:bg-success-900/20',
+        text: 'text-success-600 dark:text-success-400',
+        dot: 'bg-success-500',
+        border: 'border-l-success-500',
+      },
+      LOW: {
+        bg: 'bg-neutral-50 dark:bg-neutral-900/20',
+        text: 'text-neutral-500 dark:text-neutral-400',
+        dot: 'bg-neutral-400',
+        border: 'border-l-neutral-400',
+      },
+    };
+    return colors[importance] || colors.NORMAL;
+  }
+
+  /**
+   * 알림 중요도별 아이콘 반환
+   */
+  function getImportanceIcon(importance: NotificationImportance): string {
+    const icons: Record<NotificationImportance, string> = {
+      CRITICAL: 'i-heroicons-exclamation-circle',
+      HIGH: 'i-heroicons-exclamation-triangle',
+      NORMAL: 'i-heroicons-information-circle',
+      LOW: 'i-heroicons-chat-bubble-left',
+    };
+    return icons[importance] || 'i-heroicons-information-circle';
+  }
+
+  /**
    * 상대 시간 포맷팅 (예: "3분 전", "2시간 전")
    */
   function formatRelativeTime(dateString: string): string {
@@ -393,6 +448,8 @@ export function useNotifications() {
     handleNotificationClick,
     getNotificationIcon,
     getNotificationColor,
+    getImportanceColor,
+    getImportanceIcon,
     formatRelativeTime,
   };
 }

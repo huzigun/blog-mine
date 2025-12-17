@@ -5,10 +5,13 @@ type NotificationType =
   | 'CREDIT'
   | 'PROMOTION';
 
+type NotificationImportance = 'CRITICAL' | 'HIGH' | 'NORMAL' | 'LOW';
+
 interface Notification {
   id: number;
   userId: number;
   type: NotificationType;
+  importance: NotificationImportance;
   title: string;
   message: string;
   data?: {

@@ -2,7 +2,11 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Subject, Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { PrismaService } from '@lib/database/prisma.service';
-import { NotificationType, Notification } from '@prisma/client';
+import {
+  NotificationType,
+  NotificationImportance,
+  Notification,
+} from '@prisma/client';
 import { CreateNotificationDto, FilterNotificationDto } from './dto';
 
 interface MessageEvent {
@@ -25,6 +29,7 @@ export class NotificationService {
       data: {
         userId: dto.userId,
         type: dto.type,
+        importance: dto.importance || NotificationImportance.NORMAL,
         title: dto.title,
         message: dto.message,
         data: dto.data || undefined,
@@ -238,6 +243,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.BLOG_POST,
+      importance: NotificationImportance.NORMAL,
       title: '원고 생성 완료',
       message: `원고(${displayId})가 성공적으로 생성되었습니다.`,
       data: { link: `/console/workspace/${blogPostId}`, blogPostId },
@@ -256,6 +262,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.BLOG_POST,
+      importance: NotificationImportance.HIGH,
       title: '원고 생성 실패',
       message: `원고(${displayId}) 생성에 실패했습니다: ${reason}`,
       data: { link: `/console/workspace/${blogPostId}`, blogPostId },
@@ -272,6 +279,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.NORMAL,
       title: '구독 갱신 완료',
       message: `${planName} 플랜이 성공적으로 갱신되었습니다.`,
       data: { link: '/mypage/subscription' },
@@ -288,6 +296,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.CRITICAL,
       title: '결제 실패',
       message: `결제에 실패했습니다: ${reason}. 결제 수단을 확인해주세요.`,
       data: { link: '/mypage/payment' },
@@ -304,6 +313,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.HIGH,
       title: '구독 만료 예정',
       message: `구독이 ${daysRemaining}일 후 만료됩니다. 자동 갱신을 확인해주세요.`,
       data: { link: '/mypage/subscription' },
@@ -320,6 +330,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.CREDIT,
+      importance: NotificationImportance.NORMAL,
       title: '크레딧 충전 완료',
       message: `${amount.toLocaleString()} BloC가 충전되었습니다.`,
       data: { link: '/mypage/credits' },
@@ -336,6 +347,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.CREDIT,
+      importance: NotificationImportance.HIGH,
       title: '크레딧 부족',
       message: `현재 크레딧 잔액이 ${currentBalance.toLocaleString()} BloC입니다. 충전해주세요.`,
       data: { link: '/mypage/credits' },
@@ -354,6 +366,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SYSTEM,
+      importance: NotificationImportance.LOW,
       title,
       message,
       data: link ? { link } : undefined,
@@ -372,6 +385,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.PROMOTION,
+      importance: NotificationImportance.LOW,
       title,
       message,
       data: link ? { link } : undefined,
@@ -392,6 +406,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SYSTEM,
+      importance: NotificationImportance.HIGH,
       title: '추적 오류',
       message: `'${keyword}' 순위 추적 중 문제가 발생했습니다. 설정을 다시 확인해 주세요.`,
       data: { link: '/console/tracking' },
@@ -408,6 +423,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SYSTEM,
+      importance: NotificationImportance.NORMAL,
       title: '추적 만료',
       message: `'${keyword}' 추적 기간이 종료되어 더 이상 순위를 업데이트할 수 없습니다.`,
       data: { link: '/console/tracking' },
@@ -429,6 +445,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.NORMAL,
       title: '결제 완료',
       message: `결제가 정상 처리되었습니다. ${planName} 플랜이 갱신되었습니다. (${amount.toLocaleString()}원)`,
       data: { link: '/mypage/subscription' },
@@ -445,6 +462,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.HIGH,
       title: '한도 초과 임박',
       message: `현재 플랜의 사용량이 ${usagePercent}%에 도달했습니다. 이용량을 확인해 주세요.`,
       data: { link: '/mypage/subscription' },
@@ -458,6 +476,7 @@ export class NotificationService {
     return this.create({
       userId,
       type: NotificationType.SUBSCRIPTION,
+      importance: NotificationImportance.CRITICAL,
       title: '한도 초과',
       message:
         '플랜 사용량이 한도를 넘었습니다. 계속 이용하려면 플랜 업그레이드 또는 추가 상품이 필요합니다.',
