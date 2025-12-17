@@ -1,100 +1,6 @@
 <script setup lang="ts">
 import { useAdminApiFetch } from '~/composables/useAdminApi';
 
-definePageMeta({
-  layout: 'admin',
-  middleware: ['admin'],
-});
-
-const { hasMinRole } = useAdminAuth();
-const route = useRoute();
-const router = useRouter();
-
-// 권한 체크
-if (!hasMinRole('SUPPORT')) {
-  throw createError({
-    statusCode: 403,
-    statusMessage: '접근 권한이 없습니다.',
-  });
-}
-
-// URL 쿼리에서 초기값 읽기
-const getInitialValue = <T,>(
-  key: string,
-  defaultValue: T,
-  validator?: (v: string) => boolean,
-): T => {
-  const value = route.query[key];
-  if (typeof value === 'string') {
-    if (validator && !validator(value)) return defaultValue;
-    return value as unknown as T;
-  }
-  return defaultValue;
-};
-
-// 필터 상태 (URL 쿼리에서 초기화)
-const searchInput = ref(getInitialValue('search', ''));
-const appliedSearch = ref(getInitialValue('search', ''));
-const currentPage = ref(Number(getInitialValue('page', '1')) || 1);
-const limit = ref(20);
-const statusFilter = ref<'all' | 'active' | 'inactive'>(
-  getInitialValue('status', 'all', (v) =>
-    ['all', 'active', 'inactive'].includes(v),
-  ),
-);
-const subscriptionFilter = ref<
-  'all' | 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELED' | 'NONE'
->(
-  getInitialValue('subscription', 'all', (v) =>
-    ['all', 'TRIAL', 'ACTIVE', 'EXPIRED', 'CANCELED', 'NONE'].includes(v),
-  ),
-);
-const sortBy = ref<'createdAt' | 'email' | 'name'>(
-  getInitialValue('sortBy', 'createdAt', (v) =>
-    ['createdAt', 'email', 'name'].includes(v),
-  ),
-);
-const sortOrder = ref<'asc' | 'desc'>(
-  getInitialValue('sortOrder', 'desc', (v) => ['asc', 'desc'].includes(v)),
-);
-
-// URL 쿼리 업데이트
-const updateUrlQuery = () => {
-  const query: Record<string, string> = {};
-
-  if (appliedSearch.value) query.search = appliedSearch.value;
-  if (currentPage.value > 1) query.page = String(currentPage.value);
-  if (statusFilter.value !== 'all') query.status = statusFilter.value;
-  if (subscriptionFilter.value !== 'all')
-    query.subscription = subscriptionFilter.value;
-  if (sortBy.value !== 'createdAt') query.sortBy = sortBy.value;
-  if (sortOrder.value !== 'desc') query.sortOrder = sortOrder.value;
-
-  router.replace({ query });
-};
-
-// 필터 변경 시 URL 업데이트 & 페이지 리셋
-watch([statusFilter, subscriptionFilter, sortBy, sortOrder], () => {
-  currentPage.value = 1;
-  updateUrlQuery();
-});
-
-// 페이지 변경 시 URL 업데이트
-watch(currentPage, () => {
-  updateUrlQuery();
-});
-
-// API 쿼리 파라미터
-const queryParams = computed(() => ({
-  page: currentPage.value,
-  limit: limit.value,
-  search: appliedSearch.value || undefined,
-  status: statusFilter.value,
-  subscription: subscriptionFilter.value,
-  sortBy: sortBy.value,
-  sortOrder: sortOrder.value,
-}));
-
 // 사용자 목록 API
 interface UserListItem {
   id: number;
@@ -128,25 +34,6 @@ interface UsersResponse {
   };
 }
 
-const { data: usersData, status } = useAdminApiFetch<UsersResponse>(
-  () =>
-    `/admin/users?${new URLSearchParams(
-      Object.entries(queryParams.value)
-        .filter(([, v]) => v !== undefined)
-        .map(([k, v]) => [k, String(v)]),
-    ).toString()}`,
-  {
-    watch: [queryParams],
-  },
-);
-
-const users = computed(() => usersData.value?.data ?? []);
-const meta = computed(
-  () =>
-    usersData.value?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 1 },
-);
-const isLoading = computed(() => status.value === 'pending');
-
 // 통계 API
 interface UserStats {
   totalUsers: number;
@@ -157,13 +44,97 @@ interface UserStats {
   trialSubscriptions: number;
 }
 
-const { data: statsData } = useAdminApiFetch<UserStats>('/admin/users/stats');
+definePageMeta({
+  layout: 'admin',
+  middleware: ['admin'],
+});
 
-// 검색 핸들러 (검색 버튼 클릭 시에만 실행)
+const { hasMinRole } = useAdminAuth();
+const route = useRoute();
+
+// 권한 체크
+if (!hasMinRole('SUPPORT')) {
+  throw createError({
+    statusCode: 403,
+    statusMessage: '접근 권한이 없습니다.',
+  });
+}
+
+// URL 쿼리에서 초기값 읽기
+const getInitialValue = <T,>(
+  key: string,
+  defaultValue: T,
+  validator?: (v: string) => boolean,
+): T => {
+  const value = route.query[key];
+  if (typeof value === 'string') {
+    if (validator && !validator(value)) return defaultValue;
+    return value as unknown as T;
+  }
+  return defaultValue;
+};
+
+// 필터 상태 (URL 쿼리에서 초기화)
+const searchInput = ref(route.query.search?.toString() || '');
+const currentPage = ref(Number(route.query.page?.toString() || '1'));
+const limit = ref(10);
+const statusFilter = ref<'all' | 'active' | 'inactive'>(
+  getInitialValue('status', 'all', (v) =>
+    ['all', 'active', 'inactive'].includes(v),
+  ),
+);
+const subscriptionFilter = ref<
+  'all' | 'TRIAL' | 'ACTIVE' | 'EXPIRED' | 'CANCELED' | 'NONE'
+>(
+  getInitialValue('subscription', 'all', (v) =>
+    ['all', 'TRIAL', 'ACTIVE', 'EXPIRED', 'CANCELED', 'NONE'].includes(v),
+  ),
+);
+
+// URL 쿼리 업데이트
+const updateUrlQuery = (query: Record<string, string | number | undefined>) => {
+  return navigateTo({
+    path: route.path,
+    query: {
+      ...route.query,
+      ...query,
+      page: query.page || 1,
+    },
+  });
+};
+
+// API 쿼리 파라미터
+const queryParams = computed(() => ({
+  page: route.query.page || 1,
+  limit: route.query.limit || 10,
+  search: route.query.search || undefined,
+  status: route.query.status || undefined,
+  subscription: route.query.subscription || undefined,
+  sortBy: route.query.sortBy || undefined,
+  sortOrder: route.query.sortOrder || undefined,
+}));
+
+const [{ data: usersData, status }, { data: statsData }] = await Promise.all([
+  useAdminApiFetch<UsersResponse>('/admin/users', {
+    query: queryParams,
+    watch: [queryParams],
+  }),
+  useAdminApiFetch<UserStats>('/admin/users/stats', {
+    key: 'admin-users-stats',
+  }),
+]);
+
+const users = computed(() => usersData.value?.data ?? []);
+const meta = computed(
+  () =>
+    usersData.value?.meta ?? { total: 0, page: 1, limit: 20, totalPages: 1 },
+);
+const isLoading = computed(() => status.value === 'pending');
+
 const handleSearch = () => {
-  appliedSearch.value = searchInput.value;
-  currentPage.value = 1;
-  updateUrlQuery();
+  updateUrlQuery({
+    search: searchInput.value,
+  });
 };
 
 // 날짜 포맷
@@ -317,6 +288,13 @@ const subscriptionOptions = [
           label-key="label"
           placeholder="상태"
           class="w-32"
+          @update:model-value="
+            (value: string) => {
+              updateUrlQuery({
+                status: value === 'all' ? undefined : value,
+              });
+            }
+          "
         />
         <USelect
           v-model="subscriptionFilter"
@@ -325,6 +303,13 @@ const subscriptionOptions = [
           label-key="label"
           placeholder="구독 상태"
           class="w-32"
+          @update:model-value="
+            (value: string) => {
+              updateUrlQuery({
+                subscription: value === 'all' ? undefined : value,
+              });
+            }
+          "
         />
         <UInput
           v-model="searchInput"
@@ -415,6 +400,11 @@ const subscriptionOptions = [
             v-model="currentPage"
             :total="meta.total"
             :items-per-page="limit"
+            @update:page="
+              (page: number) => {
+                updateUrlQuery({ page: String(page) });
+              }
+            "
           />
         </div>
       </template>

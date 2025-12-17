@@ -4,6 +4,14 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AdminAuthService, AdminAuthController } from './auth';
 import { AdminUsersService, AdminUsersController } from './users';
+import {
+  AdminSubscriptionsService,
+  AdminSubscriptionsController,
+} from './subscriptions';
+import {
+  AdminPaymentsService,
+  AdminPaymentsController,
+} from './payments';
 import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
 
 @Module({
@@ -20,8 +28,19 @@ import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
       inject: [ConfigService],
     }),
   ],
-  controllers: [AdminAuthController, AdminUsersController],
-  providers: [AdminAuthService, AdminUsersService, AdminJwtStrategy],
+  controllers: [
+    AdminAuthController,
+    AdminUsersController,
+    AdminSubscriptionsController,
+    AdminPaymentsController,
+  ],
+  providers: [
+    AdminAuthService,
+    AdminUsersService,
+    AdminSubscriptionsService,
+    AdminPaymentsService,
+    AdminJwtStrategy,
+  ],
   exports: [AdminAuthService],
 })
 export class AdminModule {}
