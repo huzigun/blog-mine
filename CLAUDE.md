@@ -33,7 +33,8 @@ This is a pnpm workspace monorepo blog application with two main packages:
   │   ├── auth/                  # Authentication & authorization
   │   ├── user/                  # User management
   │   ├── persona/               # Persona management
-  │   └── blog-post/             # Blog post generation
+  │   ├── blog-post/             # Blog post generation
+  │   └── admin/                 # Admin system (separate auth & management)
   │
   ├── lib/                       # Infrastructure & utilities (no controllers)
   │   ├── database/              # Prisma ORM (global module)
@@ -69,7 +70,7 @@ This is a pnpm workspace monorepo blog application with two main packages:
   - **Important**: Run `pnpm prisma generate` after schema changes to regenerate client
   - **Build Safety**: Generated client is outside `src/` to avoid being affected by TypeScript compilation
   - **Migrations**: Run with `DATABASE_URL="..." pnpm prisma migrate dev --name <migration-name>`
-  - **Core Models**: User, Persona, BlogPost, KeywordTracking, BusinessInfo, Subscription, Payment, Credit
+  - **Core Models**: User, Persona, BlogPost, KeywordTracking, BusinessInfo, Subscription, Payment, Credit, Admin
 - **Build Output**: `dist/` directory (CommonJS modules)
 - **TypeScript Config**: ES2023 target, decorators enabled, strict null checks
 
@@ -764,21 +765,86 @@ async function recordSubscriptionChange(
 
 ### Implementation Checklist
 
-To implement the credit system functionality:
+Credit & Subscription system implementation status:
 
-- [ ] Create `CreditService` in `backend/src/credit/`
-- [ ] Create `SubscriptionService` in `backend/src/subscription/`
-- [ ] Implement credit grant on subscription creation/renewal
-- [ ] Implement credit usage on blog post generation
-- [ ] Implement credit purchase flow with payment integration
-- [ ] Add credit balance check middleware/guard
-- [ ] Create subscription upgrade/downgrade logic
-- [ ] Add usage tracking hooks
-- [ ] Implement subscription history recording
-- [ ] Create API endpoints for credit/subscription management
-- [ ] Add frontend UI for credit balance display
-- [ ] Add frontend credit purchase flow
-- [ ] Add frontend subscription management page
+- [x] Create `CreditService` in `backend/src/modules/credit/`
+- [x] Create `SubscriptionService` in `backend/src/modules/subscription/`
+- [x] Implement credit grant on subscription creation/renewal
+- [x] Implement credit usage on blog post generation
+- [x] Implement credit purchase flow with payment integration
+- [x] Add credit balance check middleware/guard
+- [x] Create subscription upgrade/downgrade logic
+- [x] Add usage tracking hooks
+- [x] Implement subscription history recording
+- [x] Create API endpoints for credit/subscription management
+- [x] Add frontend UI for credit balance display
+- [x] Add frontend credit purchase flow
+- [x] Add frontend subscription management page
+- [x] Implement notification system for subscription events
+- [x] Implement email invoice system for payments
+
+### Email Notification System
+
+The project uses a comprehensive email notification system for transactional emails.
+
+**Email Service Location**: `backend/src/lib/integrations/email/`
+
+**Available Email Methods**:
+
+| Method | Purpose | Trigger |
+|--------|---------|---------|
+| `sendVerificationCode` | Email verification during registration | User signup |
+| `sendPasswordResetCode` | Password reset verification code | Forgot password |
+| `sendPaymentInvoice` | Payment invoice for subscriptions | Subscription purchase/renewal/upgrade |
+| `sendCreditPurchaseReceipt` | Receipt for credit purchases | Credit top-up |
+
+**Payment Invoice Email** (`sendPaymentInvoice`):
+```typescript
+// Sent on: New subscription, Plan upgrade, Auto-renewal
+{
+  email: string;
+  userName: string;
+  invoiceNumber: string;      // Transaction ID
+  planName: string;           // e.g., "Pro"
+  amount: number;             // Payment amount (KRW)
+  paymentMethod: string;      // e.g., "신한카드 **** 1234"
+  paymentDate: Date;
+  billingPeriodStart: Date;
+  billingPeriodEnd: Date;
+  creditsGranted?: number;    // Credits included
+  isUpgrade?: boolean;        // Plan upgrade flag
+  isRenewal?: boolean;        // Auto-renewal flag
+}
+```
+
+**Credit Purchase Receipt** (`sendCreditPurchaseReceipt`):
+```typescript
+// Sent on: Credit purchase/top-up
+{
+  email: string;
+  userName: string;
+  receiptNumber: string;      // Transaction ID
+  creditAmount: number;       // Credits purchased
+  paymentAmount: number;      // Payment amount (KRW)
+  paymentMethod: string;      // e.g., "신한카드 **** 1234"
+  paymentDate: Date;
+  totalCredits: number;       // Balance after purchase
+}
+```
+
+**Integration Points**:
+- `SubscriptionService.startSubscription()` → Payment invoice (new subscription)
+- `SubscriptionService.executeUpgradeWithPayment()` → Payment invoice (upgrade)
+- `SubscriptionService.processSuccessfulRenewal()` → Payment invoice (renewal)
+- `CreditService.purchaseCredits()` → Credit purchase receipt
+
+**Email Configuration** (Environment Variables):
+```env
+EMAIL_SMTP=smtp.example.com
+EMAIL_USER=noreply@example.com
+EMAIL_PASS=your-smtp-password
+FRONTEND_URL=https://blogmine.ai.kr
+```
 
 ### Database Relationships
 
@@ -798,13 +864,180 @@ User (1) ──── (1) CreditAccount
 
 ### Migration History
 
-**Latest Migration**: `20251112090829_add_credit_and_subscription_models`
+**Latest Migration**: `20251217041924_add_admin_system`
 
-Created:
-- 5 new enums (SubscriptionStatus, PaymentStatus, CreditTransactionType, CreditType, SubscriptionAction)
-- 10 new tables (business_info, subscription_plans, user_subscriptions, subscription_usage_logs, payments, cards, nicepay_results, credit_accounts, credit_transactions, subscription_histories)
-- Proper indexes for query optimization
-- Foreign key constraints with CASCADE deletes
+Recent Migrations:
+- `20251217041924_add_admin_system` - Admin system tables and roles
+- `20251112090829_add_credit_and_subscription_models` - Credit & subscription system
+
+## Admin System
+
+The project includes a separate admin system with its own authentication, roles, and management capabilities.
+
+### Architecture Overview
+
+**Separation from User System**:
+- Separate `admins` table (not shared with `users`)
+- Separate JWT authentication strategy (`admin-jwt`)
+- Separate API endpoints under `/admin/*`
+- Separate frontend routes under `/admin/*`
+- Separate frontend layout (`admin.vue`)
+
+### Database Models
+
+**`Admin`** - Admin user accounts:
+```prisma
+model Admin {
+  id           Int         @id @default(autoincrement())
+  email        String      @unique
+  password     String      // bcrypt hashed
+  name         String
+  role         AdminRole   @default(ADMIN)
+  isActive     Boolean     @default(true)
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  deletedAt    DateTime?   // Soft delete
+}
+```
+
+**`AdminRole`** - Role hierarchy:
+```prisma
+enum AdminRole {
+  SUPER_ADMIN  // Full access, can manage other admins
+  ADMIN        // Full access except admin management
+  SUPPORT      // Customer support, read + limited write
+  VIEWER       // Read-only access
+}
+```
+
+**`AdminRefreshToken`** - Session management:
+- Single session per admin (new login invalidates old sessions)
+- 7-day expiry with automatic cleanup
+
+**`AdminActivityLog`** - Audit trail:
+- Tracks all admin actions (login, create, update, delete)
+- Stores IP address and user agent
+- Supports targetType/targetId for entity references
+
+### Backend Structure
+
+```
+backend/src/modules/admin/
+├── admin.module.ts           # Module registration
+├── auth/
+│   ├── admin-auth.service.ts # Authentication logic
+│   └── admin-auth.controller.ts # Auth endpoints
+├── guards/
+│   ├── admin-jwt.strategy.ts # Passport JWT strategy
+│   ├── admin-jwt-auth.guard.ts # JWT authentication guard
+│   └── roles.guard.ts        # Role-based access control
+├── decorators/
+│   ├── roles.decorator.ts    # @Roles() decorator
+│   └── current-admin.decorator.ts # @CurrentAdmin() decorator
+└── dto/
+    └── admin-auth.dto.ts     # Request/Response DTOs
+```
+
+### API Endpoints
+
+| Endpoint | Method | Auth | Role | Description |
+|----------|--------|------|------|-------------|
+| `/admin/auth/login` | POST | No | - | Admin login |
+| `/admin/auth/create` | POST | Yes | SUPER_ADMIN | Create new admin |
+| `/admin/auth/refresh` | POST | No | - | Refresh access token |
+| `/admin/auth/logout` | POST | Yes | Any | Logout (invalidate token) |
+| `/admin/auth/change-password` | POST | Yes | Any | Change own password |
+| `/admin/auth/profile` | GET | Yes | Any | Get current admin profile |
+
+### Role-Based Access Control (RBAC)
+
+**Role Hierarchy** (higher role includes permissions of lower roles):
+```typescript
+const ROLE_HIERARCHY = {
+  SUPER_ADMIN: ['SUPER_ADMIN', 'ADMIN', 'SUPPORT', 'VIEWER'],
+  ADMIN: ['ADMIN', 'SUPPORT', 'VIEWER'],
+  SUPPORT: ['SUPPORT', 'VIEWER'],
+  VIEWER: ['VIEWER'],
+};
+```
+
+**Usage in Controllers**:
+```typescript
+@UseGuards(AdminJwtAuthGuard, RolesGuard)
+@Roles(AdminRole.SUPER_ADMIN)  // Only SUPER_ADMIN can access
+async createAdmin() { ... }
+
+@UseGuards(AdminJwtAuthGuard, RolesGuard)
+@Roles(AdminRole.SUPPORT)  // SUPPORT, ADMIN, SUPER_ADMIN can access
+async viewUsers() { ... }
+```
+
+### Frontend Structure
+
+```
+frontend/app/
+├── layouts/
+│   └── admin.vue             # Admin dashboard layout
+├── middleware/
+│   └── admin.ts              # Admin auth middleware
+├── composables/
+│   └── useAdminAuth.ts       # Admin auth composable
+├── type/
+│   └── admin.d.ts            # Admin TypeScript types
+└── pages/admin/
+    ├── login.vue             # Admin login page
+    ├── index.vue             # Dashboard
+    ├── users.vue             # User management
+    ├── subscriptions.vue     # Subscription management
+    ├── payments.vue          # Payment history
+    ├── posts.vue             # Blog post management
+    ├── contacts.vue          # Contact/inquiry management
+    ├── admins.vue            # Admin management (SUPER_ADMIN only)
+    └── settings.vue          # System settings
+```
+
+### Authentication Flow
+
+1. **Login**: `POST /admin/auth/login` → Returns `accessToken` + `refreshToken`
+2. **Access Token**: 15-minute expiry, stored in cookie
+3. **Refresh Token**: 7-day expiry, stored in cookie and database
+4. **Token Refresh**: `POST /admin/auth/refresh` with refreshToken
+5. **Logout**: Invalidates refresh token in database
+
+### Security Features
+
+- **Separate JWT Strategy**: Admin tokens have `type: 'admin'` in payload
+- **Short Token Expiry**: 15 minutes for access token (vs 1 hour for users)
+- **Single Session**: New login invalidates previous sessions
+- **Activity Logging**: All actions logged with IP and user agent
+- **Soft Delete**: Admins are soft-deleted, not permanently removed
+- **Password Hashing**: bcrypt with 10 salt rounds
+
+### Creating First Admin
+
+Use Prisma Studio or direct database insert:
+```sql
+INSERT INTO admins (email, password, name, role, is_active, created_at, updated_at)
+VALUES (
+  'admin@example.com',
+  '$2b$10$...', -- bcrypt hash of password
+  'Super Admin',
+  'SUPER_ADMIN',
+  true,
+  NOW(),
+  NOW()
+);
+```
+
+Or create via API after initial admin exists:
+```bash
+curl -X POST http://localhost:9706/admin/auth/create \
+  -H "Authorization: Bearer <admin_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "new@example.com", "password": "password123", "name": "New Admin", "role": "ADMIN"}'
+```
 
 ## Deployment
 

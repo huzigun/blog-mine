@@ -765,9 +765,7 @@ export class AuthService {
     });
 
     if (users.length === 0) {
-      throw new BadRequestException(
-        '일치하는 회원 정보를 찾을 수 없습니다.',
-      );
+      throw new BadRequestException('일치하는 회원 정보를 찾을 수 없습니다.');
     }
 
     // 이메일 마스킹 처리
@@ -825,7 +823,8 @@ export class AuthService {
     this.logger.log(`✅ 비밀번호 재설정 인증 코드 발송 완료: ${email}`);
 
     return {
-      message: '해당 이메일로 인증 코드가 발송되었습니다. 5분 이내에 입력해주세요.',
+      message:
+        '해당 이메일로 인증 코드가 발송되었습니다. 5분 이내에 입력해주세요.',
     };
   }
 
@@ -839,9 +838,7 @@ export class AuthService {
     // 가입된 사용자인지 확인
     const user = await this.userService.findByEmail(email);
     if (!user) {
-      throw new BadRequestException(
-        '일치하는 회원 정보를 찾을 수 없습니다.',
-      );
+      throw new BadRequestException('일치하는 회원 정보를 찾을 수 없습니다.');
     }
 
     // 인증 코드 검증 (삭제하지 않고 검증만 수행)
@@ -882,9 +879,7 @@ export class AuthService {
     // 가입된 사용자인지 확인
     const user = await this.userService.findByEmail(email);
     if (!user) {
-      throw new BadRequestException(
-        '일치하는 회원 정보를 찾을 수 없습니다.',
-      );
+      throw new BadRequestException('일치하는 회원 정보를 찾을 수 없습니다.');
     }
 
     // 카카오 전용 계정인 경우
@@ -919,7 +914,8 @@ export class AuthService {
     this.logger.log(`✅ 비밀번호 재설정 완료: ${email}`);
 
     return {
-      message: '비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.',
+      message:
+        '비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.',
     };
   }
 }

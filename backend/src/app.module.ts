@@ -16,6 +16,7 @@ import { KeywordTrackingModule } from './modules/keyword-tracking/keyword-tracki
 import { ContactModule } from './modules/contact/contact.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { NaverApiModule } from './lib/integrations/naver/naver-api/naver-api.module';
 import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
 import { EmailModule } from './lib/integrations/email/email.module';
@@ -54,6 +55,7 @@ import { SchedulerModule } from './lib/scheduler';
     KeywordTrackingModule,
     ContactModule,
     NotificationModule,
+    AdminModule,
     NaverApiModule,
   ],
   controllers: [AppController],
