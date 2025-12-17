@@ -22,6 +22,7 @@ import {
 } from './dto';
 import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
 import { NotificationService } from '@modules/notification/notification.service';
+import { EmailService } from '@lib/integrations/email/email.service';
 
 @Injectable()
 export class CreditService {
@@ -30,6 +31,7 @@ export class CreditService {
     private readonly niceBillingService: NiceBillingService,
     @Inject(forwardRef(() => NotificationService))
     private readonly notificationService: NotificationService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -240,6 +242,19 @@ export class CreditService {
 
     // 크레딧 충전 완료 알림
     await this.notificationService.sendCreditCharged(userId, amount);
+
+    // 크레딧 충전 완료 이메일 발송 (비동기, 실패해도 충전에 영향 없음)
+    this.emailService.sendCreditPurchaseReceipt({
+      email: user?.email || '',
+      userName: user?.name || '고객',
+      receiptNumber:
+        transaction.payment.transactionId || String(transaction.payment.id),
+      creditAmount: amount,
+      paymentAmount,
+      paymentMethod: `${card.cardCompany || '카드'} **** ${card.number?.slice(-4) || '****'}`,
+      paymentDate: new Date(),
+      totalCredits: transaction.account.totalCredits,
+    });
 
     return {
       success: true,

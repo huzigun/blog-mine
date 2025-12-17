@@ -10,6 +10,7 @@ import { PrismaService } from '@lib/database/prisma.service';
 import { CreditService } from '@modules/credit/credit.service';
 import { NotificationService } from '@modules/notification/notification.service';
 import { NiceBillingService } from '@lib/integrations/nicepay/nice.billing.service';
+import { EmailService } from '@lib/integrations/email/email.service';
 import {
   Card,
   SubscriptionStatus,
@@ -45,6 +46,7 @@ export class SubscriptionService {
     @Inject(forwardRef(() => NotificationService))
     private readonly notificationService: NotificationService,
     private readonly niceBillingService: NiceBillingService,
+    private readonly emailService: EmailService,
   ) {}
 
   /**
@@ -286,6 +288,22 @@ export class SubscriptionService {
       plan.displayName,
       paymentAmount,
     );
+
+    // 인보이스 이메일 발송 (비동기, 실패해도 결제에 영향 없음)
+    this.emailService.sendPaymentInvoice({
+      email: user?.email || '',
+      userName: user?.name || '고객',
+      invoiceNumber: result.payment.transactionId || String(result.payment.id),
+      planName: plan.displayName,
+      amount: paymentAmount,
+      paymentMethod: `${card.cardCompany || '카드'} **** ${card.number?.slice(-4) || '****'}`,
+      paymentDate: new Date(),
+      billingPeriodStart: startedAt,
+      billingPeriodEnd: expiresAt,
+      creditsGranted: plan.monthlyCredits,
+      isUpgrade: false,
+      isRenewal: false,
+    });
 
     return {
       success: true,
@@ -914,6 +932,22 @@ export class SubscriptionService {
       paymentAmount,
     );
 
+    // 인보이스 이메일 발송 (비동기, 실패해도 결제에 영향 없음)
+    this.emailService.sendPaymentInvoice({
+      email: user?.email || '',
+      userName: user?.name || '고객',
+      invoiceNumber: result.payment.transactionId || String(result.payment.id),
+      planName: targetPlan.displayName,
+      amount: paymentAmount,
+      paymentMethod: `${card.cardCompany || '카드'} **** ${card.number?.slice(-4) || '****'}`,
+      paymentDate: new Date(),
+      billingPeriodStart: startedAt,
+      billingPeriodEnd: expiresAt,
+      creditsGranted: creditsToGrant,
+      isUpgrade: true,
+      isRenewal: false,
+    });
+
     return {
       success: true,
       message: `${targetPlan.displayName} 플랜으로 업그레이드되었습니다.`,
@@ -1104,9 +1138,9 @@ export class SubscriptionService {
     const newExpiresAt = new Date(subscription.expiresAt);
     newExpiresAt.setMonth(newExpiresAt.getMonth() + 1);
 
-    await this.prisma.$transaction(async (tx) => {
+    const payment = await this.prisma.$transaction(async (tx) => {
       // 1. Payment 기록 생성
-      const payment = await tx.payment.create({
+      const paymentRecord = await tx.payment.create({
         data: {
           userId: subscription.userId,
           amount: plan.price,
@@ -1158,11 +1192,13 @@ export class SubscriptionService {
           planName: plan.displayName,
           planPrice: plan.price,
           creditsGranted: plan.monthlyCredits,
-          paymentId: payment.id,
+          paymentId: paymentRecord.id,
           startedAt: now,
           expiresAt: newExpiresAt,
         },
       });
+
+      return paymentRecord;
     });
 
     this.logger.log(
@@ -1174,6 +1210,22 @@ export class SubscriptionService {
       subscription.userId,
       plan.displayName,
     );
+
+    // 인보이스 이메일 발송 (비동기, 실패해도 갱신에 영향 없음)
+    this.emailService.sendPaymentInvoice({
+      email: subscription.user?.email || '',
+      userName: subscription.user?.name || '고객',
+      invoiceNumber: payment.transactionId || String(payment.id),
+      planName: plan.displayName,
+      amount: plan.price,
+      paymentMethod: `${card.cardCompany || '카드'} **** ${card.number?.slice(-4) || '****'}`,
+      paymentDate: now,
+      billingPeriodStart: subscription.expiresAt, // 기존 만료일이 새 시작일
+      billingPeriodEnd: newExpiresAt,
+      creditsGranted: plan.monthlyCredits,
+      isUpgrade: false,
+      isRenewal: true,
+    });
 
     return {
       success: true,
