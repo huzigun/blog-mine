@@ -21,19 +21,23 @@ export class VerificationCodeService {
 
   /**
    * 인증 코드 생성 및 저장
+   * - upsert 사용하여 기존 코드가 있으면 업데이트, 없으면 생성
+   * - email 필드가 unique이므로 deleteMany + create 대신 upsert 사용
    */
   async createVerificationCode(email: string): Promise<string> {
-    // 기존 코드 삭제 (하나의 이메일에 하나의 활성 코드만 존재)
-    await this.prisma.emailVerification.deleteMany({
-      where: { email },
-    });
-
     const code = this.generateCode();
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + this.CODE_EXPIRY_MINUTES);
 
-    await this.prisma.emailVerification.create({
-      data: {
+    // upsert: 기존 레코드가 있으면 업데이트, 없으면 생성
+    await this.prisma.emailVerification.upsert({
+      where: { email },
+      update: {
+        code,
+        expiresAt,
+        attempts: 0,
+      },
+      create: {
         email,
         code,
         expiresAt,
@@ -88,6 +92,48 @@ export class VerificationCodeService {
     });
 
     this.logger.log(`✅ 인증 성공: ${email}`);
+    return true;
+  }
+
+  /**
+   * 인증 코드 검증 (삭제하지 않음)
+   * - 비밀번호 재설정 플로우에서 사용
+   * - 검증만 수행하고 코드는 유지 (resetPassword에서 최종 삭제)
+   */
+  async verifyCodeWithoutDelete(email: string, code: string): Promise<boolean> {
+    const verification = await this.prisma.emailVerification.findFirst({
+      where: {
+        email,
+        code,
+      },
+    });
+
+    // 코드가 존재하지 않음
+    if (!verification) {
+      this.logger.warn(`❌ 인증 코드 불일치: ${email}`);
+      return false;
+    }
+
+    // 시도 횟수 초과
+    if (verification.attempts >= this.MAX_ATTEMPTS) {
+      this.logger.warn(`❌ 최대 시도 횟수 초과: ${email}`);
+      await this.prisma.emailVerification.delete({
+        where: { id: verification.id },
+      });
+      return false;
+    }
+
+    // 만료 확인
+    if (new Date() > verification.expiresAt) {
+      this.logger.warn(`❌ 인증 코드 만료: ${email}`);
+      await this.prisma.emailVerification.delete({
+        where: { id: verification.id },
+      });
+      return false;
+    }
+
+    // 인증 성공 - 코드 유지 (삭제하지 않음)
+    this.logger.log(`✅ 인증 성공 (코드 유지): ${email}`);
     return true;
   }
 

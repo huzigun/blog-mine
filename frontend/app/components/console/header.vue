@@ -199,6 +199,12 @@ onBeforeUnmount(() => {
 
       <!-- Right Actions -->
       <div class="flex items-center gap-2 ml-auto">
+        <!-- Credit Balance -->
+        <ConsoleCreditBalance class="hidden sm:flex" />
+
+        <!-- Divider -->
+        <div class="hidden sm:block h-6 w-px bg-neutral-200 dark:bg-neutral-700 mx-1" />
+
         <!-- Quick Actions -->
         <UButton
           v-for="action in quickActions"

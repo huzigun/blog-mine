@@ -743,4 +743,183 @@ export class AuthService {
       );
     }
   }
+
+  /**
+   * 아이디(이메일) 찾기
+   * 이름으로 조회하여 마스킹된 이메일 반환
+   */
+  async findEmail(
+    name: string,
+  ): Promise<{ maskedEmail: string; createdAt: Date; hasKakao: boolean }[]> {
+    // 이름으로 사용자 조회 (삭제되지 않은 사용자만)
+    const users = await this.prisma.user.findMany({
+      where: {
+        name,
+        deletedAt: null,
+      },
+      select: {
+        email: true,
+        createdAt: true,
+        kakaoId: true,
+      },
+    });
+
+    if (users.length === 0) {
+      throw new BadRequestException(
+        '일치하는 회원 정보를 찾을 수 없습니다.',
+      );
+    }
+
+    // 이메일 마스킹 처리
+    return users.map((user) => ({
+      maskedEmail: this.maskEmail(user.email),
+      createdAt: user.createdAt,
+      hasKakao: !!user.kakaoId,
+    }));
+  }
+
+  /**
+   * 이메일 마스킹 처리
+   * ex) test@example.com → te**@example.com
+   */
+  private maskEmail(email: string): string {
+    const [localPart, domain] = email.split('@');
+
+    if (localPart.length <= 2) {
+      return `${localPart[0]}*@${domain}`;
+    }
+
+    const visibleChars = Math.min(2, Math.floor(localPart.length / 2));
+    const maskedPart = '*'.repeat(localPart.length - visibleChars);
+    return `${localPart.slice(0, visibleChars)}${maskedPart}@${domain}`;
+  }
+
+  /**
+   * 비밀번호 재설정용 인증 코드 발송
+   * 기존 가입된 사용자만 발송 가능
+   */
+  async sendPasswordResetCode(email: string): Promise<{ message: string }> {
+    // 가입된 사용자인지 확인
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      // 보안을 위해 가입 여부를 노출하지 않음
+      return {
+        message: '해당 이메일로 인증 코드가 발송되었습니다.',
+      };
+    }
+
+    // 카카오 전용 계정인 경우 (password가 null)
+    if (!user.password) {
+      throw new BadRequestException(
+        '카카오 계정으로 가입한 사용자입니다. 카카오 로그인을 이용해주세요.',
+      );
+    }
+
+    // 인증 코드 생성 (기존 회원가입용과 동일한 서비스 사용)
+    const code =
+      await this.verificationCodeService.createVerificationCode(email);
+
+    // 비밀번호 재설정용 이메일 전송
+    await this.emailService.sendPasswordResetCode(email, code);
+
+    this.logger.log(`✅ 비밀번호 재설정 인증 코드 발송 완료: ${email}`);
+
+    return {
+      message: '해당 이메일로 인증 코드가 발송되었습니다. 5분 이내에 입력해주세요.',
+    };
+  }
+
+  /**
+   * 비밀번호 재설정 인증 코드 검증
+   */
+  async verifyPasswordResetCode(
+    email: string,
+    code: string,
+  ): Promise<{ message: string; verified: boolean }> {
+    // 가입된 사용자인지 확인
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new BadRequestException(
+        '일치하는 회원 정보를 찾을 수 없습니다.',
+      );
+    }
+
+    // 인증 코드 검증 (삭제하지 않고 검증만 수행)
+    const isValid = await this.verificationCodeService.verifyCodeWithoutDelete(
+      email,
+      code,
+    );
+
+    if (!isValid) {
+      await this.verificationCodeService.incrementAttempts(email);
+      throw new BadRequestException(
+        '인증 코드가 올바르지 않거나 만료되었습니다.',
+      );
+    }
+
+    this.logger.log(`✅ 비밀번호 재설정 인증 성공: ${email}`);
+
+    return {
+      message: '인증이 완료되었습니다. 새 비밀번호를 설정해주세요.',
+      verified: true,
+    };
+  }
+
+  /**
+   * 비밀번호 재설정
+   */
+  async resetPassword(
+    email: string,
+    code: string,
+    newPassword: string,
+    confirmPassword: string,
+  ): Promise<{ message: string }> {
+    // 비밀번호 확인 일치 검증
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('비밀번호가 일치하지 않습니다.');
+    }
+
+    // 가입된 사용자인지 확인
+    const user = await this.userService.findByEmail(email);
+    if (!user) {
+      throw new BadRequestException(
+        '일치하는 회원 정보를 찾을 수 없습니다.',
+      );
+    }
+
+    // 카카오 전용 계정인 경우
+    if (!user.password) {
+      throw new BadRequestException(
+        '카카오 계정으로 가입한 사용자입니다. 카카오 로그인을 이용해주세요.',
+      );
+    }
+
+    // 인증 코드 검증 (검증만 수행, 삭제는 아래에서)
+    const isValid = await this.verificationCodeService.verifyCodeWithoutDelete(
+      email,
+      code,
+    );
+    if (!isValid) {
+      throw new BadRequestException(
+        '인증 코드가 올바르지 않거나 만료되었습니다. 다시 시도해주세요.',
+      );
+    }
+
+    // 새 비밀번호 암호화 및 저장
+    const hashedPassword = await bcrypt.hash(newPassword, this.SALT_ROUNDS);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashedPassword },
+    });
+
+    // 비밀번호 변경 완료 후 인증 코드 삭제
+    await this.verificationCodeService.deleteVerificationCode(email);
+
+    this.logger.log(`✅ 비밀번호 재설정 완료: ${email}`);
+
+    return {
+      message: '비밀번호가 성공적으로 변경되었습니다. 새 비밀번호로 로그인해주세요.',
+    };
+  }
 }

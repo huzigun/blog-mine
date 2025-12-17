@@ -19,8 +19,6 @@ interface Props {
 
 defineProps<Props>();
 
-const { user, logout } = useAuth();
-const toast = useToast();
 const route = useRoute();
 
 // Collapsible navigation state
@@ -97,44 +95,6 @@ const navigationGroups: NavigationGroup[] = [
       },
     ],
   },
-];
-
-const userMenuItems = [
-  [
-    {
-      label: '프로필',
-      icon: 'i-heroicons-user',
-      click: () => navigateTo('/console/profile'),
-    },
-    {
-      label: '설정',
-      icon: 'i-heroicons-cog-6-tooth',
-      click: () => navigateTo('/console/settings'),
-    },
-  ],
-  [
-    {
-      label: '로그아웃',
-      icon: 'i-heroicons-arrow-right-on-rectangle',
-      click: async () => {
-        try {
-          await logout();
-          toast.add({
-            title: '로그아웃 성공',
-            description: '성공적으로 로그아웃되었습니다.',
-            color: 'success',
-          });
-          navigateTo('/auth/login');
-        } catch (error) {
-          toast.add({
-            title: '로그아웃 실패',
-            description: '로그아웃 중 오류가 발생했습니다.',
-            color: 'error',
-          });
-        }
-      },
-    },
-  ],
 ];
 
 // Check if route is active
@@ -345,57 +305,5 @@ const isActive = (path: string) => {
         </div>
       </div>
     </nav>
-
-    <!-- User Profile Section -->
-    <div
-      class="border-t border-neutral-800 p-4"
-      :class="[isCollapsed && 'px-2']"
-    >
-      <UDropdownMenu v-if="user" :items="userMenuItems">
-        <button
-          :class="[
-            'flex w-full items-center gap-3 rounded-lg p-2 transition-colors hover:bg-neutral-800/50',
-            isCollapsed && 'justify-center',
-          ]"
-        >
-          <UAvatar :alt="user.name || 'User'" size="md">
-            <template #fallback>
-              <UIcon name="i-heroicons-user" class="h-5 w-5 text-neutral-400" />
-            </template>
-          </UAvatar>
-
-          <div
-            v-if="!isCollapsed || isHovered"
-            class="flex-1 text-left overflow-hidden"
-          >
-            <div
-              :class="[
-                'text-sm font-medium text-white truncate whitespace-nowrap transition-opacity duration-200',
-                isCollapsed && isHovered && 'delay-200',
-              ]"
-            >
-              {{ user.name || 'User' }}
-            </div>
-            <div
-              :class="[
-                'text-xs text-neutral-400 truncate whitespace-nowrap transition-opacity duration-200',
-                isCollapsed && isHovered && 'delay-200',
-              ]"
-            >
-              {{ user.email }}
-            </div>
-          </div>
-
-          <UIcon
-            v-if="!isCollapsed || isHovered"
-            name="i-heroicons-ellipsis-vertical"
-            :class="[
-              'h-5 w-5 text-neutral-400 transition-opacity duration-200',
-              isCollapsed && isHovered && 'delay-200',
-            ]"
-          />
-        </button>
-      </UDropdownMenu>
-    </div>
   </div>
 </template>

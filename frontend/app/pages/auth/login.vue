@@ -191,20 +191,18 @@ const handleKakaoLogin = async () => {
   <div
     class="mt-6 flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400"
   >
-    <button
-      type="button"
+    <NuxtLink
+      to="/auth/find-email"
       class="hover:text-gray-900 dark:hover:text-white transition-colors"
-      @click="() => toast.add({ title: '준비 중입니다', color: 'info' })"
     >
       아이디 찾기
-    </button>
+    </NuxtLink>
     <span class="text-gray-300 dark:text-gray-700">|</span>
-    <button
-      type="button"
+    <NuxtLink
+      to="/auth/reset-password"
       class="hover:text-gray-900 dark:hover:text-white transition-colors"
-      @click="() => toast.add({ title: '준비 중입니다', color: 'info' })"
     >
       비밀번호 재설정
-    </button>
+    </NuxtLink>
   </div>
 </template>

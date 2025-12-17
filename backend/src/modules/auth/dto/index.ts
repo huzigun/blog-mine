@@ -11,3 +11,9 @@ export {
   KakaoTokenResponse,
   KakaoUserInfo,
 } from './kakao.dto';
+export { FindEmailDto, FindEmailResponseDto } from './find-email.dto';
+export {
+  SendPasswordResetCodeDto,
+  VerifyPasswordResetCodeDto,
+  ResetPasswordDto,
+} from './reset-password.dto';

@@ -96,7 +96,64 @@ export class EmailService {
   }
 
   /**
-   * 비밀번호 재설정 이메일 전송
+   * 비밀번호 재설정 인증 코드 전송
+   */
+  async sendPasswordResetCode(email: string, code: string): Promise<void> {
+    try {
+      await this.transporter.sendMail({
+        from: `"BloC" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: '[BloC] 비밀번호 재설정 인증 코드',
+        html: `
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+            <div style="text-align: center; padding: 40px 0;">
+              <h1 style="color: #3b82f6; margin: 0;">BloC</h1>
+              <p style="color: #6b7280; margin-top: 8px;">블로그 원고 생성 서비스</p>
+            </div>
+
+            <div style="background-color: #f9fafb; border-radius: 8px; padding: 30px; margin: 20px 0;">
+              <h2 style="color: #111827; margin: 0 0 16px 0;">비밀번호 재설정</h2>
+              <p style="color: #4b5563; margin: 0 0 24px 0;">
+                비밀번호 재설정을 위한 인증 코드입니다.
+              </p>
+
+              <div style="background-color: white; border: 2px solid #e5e7eb; border-radius: 8px; padding: 24px; text-align: center;">
+                <p style="color: #6b7280; font-size: 14px; margin: 0 0 8px 0;">인증 코드</p>
+                <p style="font-size: 32px; font-weight: bold; color: #3b82f6; letter-spacing: 8px; margin: 0;">
+                  ${code}
+                </p>
+              </div>
+
+              <p style="color: #9ca3af; font-size: 14px; margin: 24px 0 0 0;">
+                ⏱️ 이 코드는 <strong>5분간</strong> 유효합니다.
+              </p>
+            </div>
+
+            <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
+              <p style="color: #92400e; margin: 0; font-size: 14px;">
+                <strong>⚠️ 주의사항</strong><br/>
+                본인이 요청하지 않은 경우, 이 이메일을 무시하셔도 됩니다.
+              </p>
+            </div>
+
+            <div style="text-align: center; padding: 20px 0; border-top: 1px solid #e5e7eb; margin-top: 40px;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                © 2025 BloC. All rights reserved.
+              </p>
+            </div>
+          </div>
+        `,
+      });
+
+      this.logger.log(`✅ 비밀번호 재설정 인증 코드 이메일 전송 완료: ${email}`);
+    } catch (error) {
+      this.logger.error(`❌ 이메일 전송 실패: ${email}`, error);
+      throw new Error('이메일 전송에 실패했습니다.');
+    }
+  }
+
+  /**
+   * 비밀번호 재설정 이메일 전송 (링크 방식 - 미사용)
    */
   async sendPasswordResetEmail(
     email: string,

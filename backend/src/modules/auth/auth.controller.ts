@@ -21,6 +21,10 @@ import {
   RefreshTokenResponseDto,
   SendVerificationCodeDto,
   VerifyCodeDto,
+  FindEmailDto,
+  SendPasswordResetCodeDto,
+  VerifyPasswordResetCodeDto,
+  ResetPasswordDto,
 } from './dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { GetRequestUser } from './decorators/request-user.decorator';
@@ -130,6 +134,57 @@ export class AuthController {
     @Body() dto: VerifyCodeDto,
   ): Promise<{ message: string; verified: boolean }> {
     return this.authService.verifyCode(dto.email, dto.code);
+  }
+
+  /**
+   * 아이디(이메일) 찾기
+   * POST /auth/find-email
+   */
+  @Post('find-email')
+  @HttpCode(HttpStatus.OK)
+  async findEmail(@Body() dto: FindEmailDto) {
+    return this.authService.findEmail(dto.name);
+  }
+
+  /**
+   * 비밀번호 재설정용 인증 코드 발송
+   * POST /auth/send-password-reset-code
+   */
+  @Post('send-password-reset-code')
+  @HttpCode(HttpStatus.OK)
+  async sendPasswordResetCode(
+    @Body() dto: SendPasswordResetCodeDto,
+  ): Promise<{ message: string }> {
+    return this.authService.sendPasswordResetCode(dto.email);
+  }
+
+  /**
+   * 비밀번호 재설정 인증 코드 검증
+   * POST /auth/verify-password-reset-code
+   */
+  @Post('verify-password-reset-code')
+  @HttpCode(HttpStatus.OK)
+  async verifyPasswordResetCode(
+    @Body() dto: VerifyPasswordResetCodeDto,
+  ): Promise<{ message: string; verified: boolean }> {
+    return this.authService.verifyPasswordResetCode(dto.email, dto.code);
+  }
+
+  /**
+   * 비밀번호 재설정
+   * POST /auth/reset-password
+   */
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(
+    @Body() dto: ResetPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.authService.resetPassword(
+      dto.email,
+      dto.code,
+      dto.newPassword,
+      dto.confirmPassword,
+    );
   }
 
   /**
