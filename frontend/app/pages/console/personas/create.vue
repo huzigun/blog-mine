@@ -4,7 +4,7 @@ import {
   createPersonaSchema,
   type CreatePersonaSchema,
   genderOptions,
-  occupationOptions,
+  blogTopicOptions,
 } from '~/schemas/persona';
 
 definePageMeta({
@@ -15,19 +15,42 @@ const [isPending, startTransition] = useTransition();
 const toast = useToast();
 const { generateRandomPersona } = useRandomPersona();
 
+// 직접 입력 모드 여부
+const isCustomBlogTopic = ref(false);
+const customBlogTopic = ref('');
+
 const state = reactive<CreatePersonaSchema>({
   gender: genderOptions[0]!,
-  age: 30,
-  isMarried: false,
-  hasChildren: false,
-  occupation: '',
-  additionalInfo: '',
+  blogTopic: '',
+  characteristics: '',
+});
+
+// 블로그 주제 선택 시 처리
+const selectedBlogTopic = ref('');
+watch(selectedBlogTopic, (newValue) => {
+  if (newValue === '직접 입력') {
+    isCustomBlogTopic.value = true;
+    state.blogTopic = customBlogTopic.value;
+  } else {
+    isCustomBlogTopic.value = false;
+    state.blogTopic = newValue;
+  }
+});
+
+// 직접 입력값 변경 시 state 업데이트
+watch(customBlogTopic, (newValue) => {
+  if (isCustomBlogTopic.value) {
+    state.blogTopic = newValue;
+  }
 });
 
 // 랜덤 페르소나 생성 핸들러
 const handleRandomGenerate = () => {
   const randomPersona = generateRandomPersona();
   Object.assign(state, randomPersona);
+  selectedBlogTopic.value = randomPersona.blogTopic;
+  isCustomBlogTopic.value = false;
+  customBlogTopic.value = '';
 
   toast.add({
     title: '랜덤 페르소나 생성',
@@ -108,73 +131,46 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                 />
               </UFormField>
 
-              <UFormField label="나이" name="age" required>
-                <UInput
-                  v-model.number="state.age"
-                  type="number"
-                  min="1"
-                  max="120"
-                  placeholder="나이를 입력해주세요"
-                  size="xl"
-                  class="w-full"
-                  variant="soft"
-                />
-              </UFormField>
-
-              <div class="grid grid-cols-2 gap-x-4">
-                <UFormField label="결혼 유무" name="isMarried">
-                  <URadioGroup
-                    v-model="state.isMarried"
-                    :items="[
-                      { label: '기혼', value: true },
-                      { label: '미혼', value: false },
-                    ]"
-                    orientation="horizontal"
-                    variant="card"
-                    color="primary"
-                    size="sm"
+              <UFormField label="운영중인 블로그 주제" name="blogTopic" required>
+                <div class="space-y-3">
+                  <USelect
+                    v-model="selectedBlogTopic"
+                    :items="blogTopicOptions"
+                    placeholder="블로그 주제를 선택해주세요"
+                    variant="soft"
+                    class="w-full"
+                    size="xl"
                   />
-                </UFormField>
-
-                <UFormField label="자녀 유무" name="hasChildren">
-                  <URadioGroup
-                    v-model="state.hasChildren"
-                    :items="[
-                      { label: '있음', value: true },
-                      { label: '없음', value: false },
-                    ]"
-                    orientation="horizontal"
-                    variant="card"
-                    color="primary"
-                    size="sm"
+                  <UInput
+                    v-if="isCustomBlogTopic"
+                    v-model.trim="customBlogTopic"
+                    type="text"
+                    placeholder="운영중인 블로그의 주제를 직접 입력해주세요"
+                    size="xl"
+                    class="w-full"
+                    variant="soft"
                   />
-                </UFormField>
-              </div>
-
-              <UFormField label="직업" name="occupation" required>
-                <USelect
-                  v-model="state.occupation"
-                  :items="occupationOptions"
-                  placeholder="직업을 선택해주세요"
-                  variant="soft"
-                  class="w-full"
-                  size="xl"
-                />
+                </div>
               </UFormField>
             </div>
 
             <div class="flex flex-col gap-y-4 mb-8">
               <h4 class="font-bold">추가 설정</h4>
 
-              <UFormField label="추가 정보" name="additionalInfo">
+              <UFormField label="기타특징" name="characteristics">
                 <UTextarea
-                  v-model="state.additionalInfo"
+                  v-model="state.characteristics"
                   :rows="6"
-                  placeholder="페르소나에 대한 추가 정보를 입력해주세요. 예: 특별한 관심사, 선호하는 주제 등"
+                  placeholder="매주 새로운 맛집을 탐방하며 나만의 맛집 지도를 만들고 있어요. 3년째 전국의 숨은 맛집들을 찾아다니고 있으며, 지금까지 300곳 이상의 맛집을 방문했습니다."
                   size="xl"
                   class="w-full"
                   variant="soft"
                 />
+                <template #description>
+                  <span class="text-xs text-neutral-500">
+                    블로그 운영 스타일이나 특징을 자유롭게 입력해주세요. 원고 작성 시 반영됩니다.
+                  </span>
+                </template>
               </UFormField>
             </div>
 
@@ -220,7 +216,7 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                     class="text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed"
                   >
                     페르소나는 블로그 원고 작성 시 사용되는 가상의 인물입니다.
-                    나이, 직업, 문체 등을 설정하여 다양한 스타일의 글을 작성할
+                    블로그 주제와 특징을 설정하여 일관된 스타일의 글을 작성할
                     수 있습니다.
                   </p>
                 </div>
@@ -345,14 +341,14 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                     <span
                       class="text-xs font-semibold text-neutral-900 dark:text-white"
                     >
-                      30대 직장인 (친근한 + 편안한)
+                      맛집/카페 블로거 (여성)
                     </span>
                   </div>
                   <p
                     class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed"
                   >
                     "오늘 점심에 새로 생긴 맛집에 다녀왔어요! 정말 기대
-                    이상이었답니다 😊"
+                    이상이었답니다 :)"
                   </p>
                 </div>
 
@@ -367,14 +363,14 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                     <span
                       class="text-xs font-semibold text-neutral-900 dark:text-white"
                     >
-                      40대 전문가 (전문적인 + 신뢰감 있는)
+                      여행/나들이 블로거 (남성)
                     </span>
                   </div>
                   <p
                     class="text-xs text-neutral-600 dark:text-neutral-400 leading-relaxed"
                   >
-                    "최근 개점한 레스토랑의 서비스 품질과 메뉴 구성을 분석한
-                    결과, 업계 평균을 상회하는 수준입니다."
+                    "주말에 다녀온 경주 여행 후기입니다. 역사와 자연을 동시에
+                    즐길 수 있는 코스를 추천드려요."
                   </p>
                 </div>
               </div>

@@ -1,11 +1,8 @@
 interface Persona {
   id: number;
   gender: string;
-  age: number;
-  isMarried: boolean;
-  hasChildren: boolean;
-  occupation: string;
-  additionalInfo?: string;
+  blogTopic: string;
+  characteristics?: string;
   createdAt: string;
   updatedAt: string;
 }

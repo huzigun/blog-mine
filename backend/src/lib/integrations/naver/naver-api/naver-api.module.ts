@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { NaverApiService } from './naver-api.service';
 import { BlogRankService } from './blog-rank.service';
 import { CrawlerService } from './crawler.service';
+import { SearchAdService } from './search.ad.service';
 import { PrismaModule } from '../../../../lib/database/prisma.module';
 
 @Module({
@@ -13,7 +14,12 @@ import { PrismaModule } from '../../../../lib/database/prisma.module';
     }),
     PrismaModule,
   ],
-  providers: [NaverApiService, BlogRankService, CrawlerService],
-  exports: [NaverApiService, BlogRankService, CrawlerService],
+  providers: [NaverApiService, BlogRankService, CrawlerService, SearchAdService],
+  exports: [
+    NaverApiService,
+    BlogRankService,
+    CrawlerService,
+    SearchAdService,
+  ],
 })
 export class NaverApiModule {}

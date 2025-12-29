@@ -252,23 +252,23 @@ const formatDate = (dateString: string) => {
         </div>
 
         <!-- Fixed Persona Display -->
-        <div v-else class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <div v-else class="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
           <div v-if="blogPost.persona.gender">
             <span class="text-neutral-500">성별:</span>
             <span class="ml-2 text-neutral-900 dark:text-neutral-100">
               {{ blogPost.persona.gender }}
             </span>
           </div>
-          <div v-if="blogPost.persona.age">
-            <span class="text-neutral-500">나이:</span>
+          <div v-if="blogPost.persona.blogTopic">
+            <span class="text-neutral-500">블로그 주제:</span>
             <span class="ml-2 text-neutral-900 dark:text-neutral-100">
-              {{ blogPost.persona.age }}대
+              {{ blogPost.persona.blogTopic }}
             </span>
           </div>
-          <div v-if="blogPost.persona.occupation">
-            <span class="text-neutral-500">직업:</span>
+          <div v-if="blogPost.persona.characteristics">
+            <span class="text-neutral-500">기타특징:</span>
             <span class="ml-2 text-neutral-900 dark:text-neutral-100">
-              {{ blogPost.persona.occupation }}
+              {{ blogPost.persona.characteristics }}
             </span>
           </div>
         </div>

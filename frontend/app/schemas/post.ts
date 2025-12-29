@@ -161,39 +161,6 @@ export const fieldConfigsByType: Record<
       },
     ],
   },
-  '맛집 정보성': {
-    description: '맛집 정보성: 음식점에 대한 정보와 특징을 소개하는 글입니다',
-    fields: [
-      {
-        name: 'companyName',
-        label: '업체 이름',
-        type: 'text',
-        placeholder: '소개하고자 하는 음식점의 상호 명을 알려주세요',
-        required: true,
-      },
-      {
-        name: 'placeUrl',
-        label: '플레이스 정보 링크',
-        type: 'text',
-        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
-      },
-      {
-        name: 'menus',
-        label: '대표 메뉴',
-        type: 'text',
-        placeholder:
-          '대표 메뉴를 최대 3개까지 알려주세요. 간단한 설명까지 적어주시면 원고에 그대로 반영됩니다',
-      },
-      {
-        name: 'extra',
-        label: '강조할 내용',
-        type: 'textarea',
-        placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
-      },
-    ],
-  },
   '일반 키워드 정보성': {
     description:
       '일반 키워드 정보성: 키워드에 대한 정보와 설명을 제공하는 글입니다',
@@ -292,7 +259,6 @@ export const postTypes = [
   '방문 후기',
   '여행 후기',
   '제품 후기',
-  '맛집 정보성',
   '일반 키워드 정보성',
   '병/의원 의료상식 정보성',
   '법률상식 정보성',

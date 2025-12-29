@@ -37,20 +37,24 @@ const columns: ColumnDef<Persona>[] = [
     },
   },
   {
-    accessorKey: 'info',
-    header: '페르소나 정보',
-    cell: ({ row }) =>
-      `${row.original.occupation} (${row.original.age}세/${row.original.gender})`,
+    accessorKey: 'gender',
+    header: '성별',
+    cell: ({ row }) => row.original.gender,
+    meta: {
+      class: {
+        td: 'w-24',
+      },
+    },
   },
   {
-    accessorKey: 'isMarried',
-    header: '결혼',
-    cell: ({ row }) => (row.original.isMarried ? '기혼' : '미혼'),
+    accessorKey: 'blogTopic',
+    header: '블로그 주제',
+    cell: ({ row }) => row.original.blogTopic,
   },
   {
-    accessorKey: 'hasChildren',
-    header: '자녀',
-    cell: ({ row }) => (row.original.hasChildren ? '유' : '무'),
+    accessorKey: 'characteristics',
+    header: '기타특징',
+    cell: ({ row }) => row.original.characteristics || '-',
   },
   {
     id: 'actions',

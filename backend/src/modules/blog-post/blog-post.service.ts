@@ -105,11 +105,8 @@ export class BlogPostService {
       // 페르소나 스냅샷 생성
       personaSnapshot = {
         gender: persona.gender,
-        age: persona.age,
-        isMarried: persona.isMarried,
-        hasChildren: persona.hasChildren,
-        occupation: persona.occupation,
-        additionalInfo: persona.additionalInfo,
+        blogTopic: persona.blogTopic,
+        characteristics: persona.characteristics,
         isRandom: false,
       };
     } else if (dto.useRandomPersona) {
@@ -160,7 +157,9 @@ export class BlogPostService {
         displayId,
         keyword: dto.keyword,
         postType: dto.postType,
-        subKeywords: dto.subKeywords || [],
+        blogIndex: dto.blogIndex, // 작성 예정 블로그 지수
+        recommendedKeyword: dto.recommendedKeyword || null, // 추천 키워드
+        subKeywords: [], // deprecated: 빈 배열로 유지
         length: dto.length,
         count: dto.count,
         targetCount: dto.count,
@@ -441,6 +440,7 @@ export class BlogPostService {
     // 상위 블로그 참조 조회 (전체 프로세스에서 재사용)
     const referenceContents = await this.fetchReferenceContents(
       blogPost.keyword,
+      blogPost.postType,
     );
 
     // 생성할 원고 인덱스 목록 (1부터 시작)
@@ -682,7 +682,7 @@ export class BlogPostService {
 
     if (isRandomMode) {
       this.logger.log(
-        `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.occupation} (${actualPersona.age}세, ${actualPersona.gender})`,
+        `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.blogTopic} (${actualPersona.gender})`,
       );
     }
 
@@ -693,7 +693,7 @@ export class BlogPostService {
       keyword: blogPost.keyword,
       postType: blogPost.postType,
       persona: actualPersona,
-      subKeywords: blogPost.subKeywords,
+      recommendedKeyword: blogPost.recommendedKeyword, // 추천 키워드 사용
       length: blogPost.length,
       additionalFields: blogPost.additionalFields as Record<string, any>,
       referenceContents,
@@ -775,8 +775,13 @@ export class BlogPostService {
   /**
    * 상위 블로그 참조 컨텐츠 조회 및 요약 생성
    * - 배치 처리 시 한 번만 호출되어 DB 조회 및 요약 생성 최소화
+   * @param keyword - 검색 키워드
+   * @param postType - 포스트 타입 (후기성/정보성 구분용)
    */
-  private async fetchReferenceContents(keyword: string): Promise<string[]> {
+  private async fetchReferenceContents(
+    keyword: string,
+    postType?: string,
+  ): Promise<string[]> {
     // 오늘 날짜의 상위 10개 블로그 컨텐츠 조회
     const today = this.dateService.getTodayDateStr();
     const topBlogs = await this.prisma.blogRank.findMany({
@@ -817,6 +822,7 @@ export class BlogPostService {
           const summary = await this.openaiService.summarizeContent(
             blog.content,
             keyword,
+            postType,
           );
 
           // DB에 summary 저장

@@ -1,16 +1,14 @@
 import {
   IsString,
   IsNumber,
-  IsArray,
   IsOptional,
   IsInt,
   Min,
   Max,
   IsObject,
-  ArrayMinSize,
-  ArrayMaxSize,
   IsBoolean,
   ValidateIf,
+  IsIn,
 } from 'class-validator';
 
 export class CreateBlogPostDto {
@@ -29,15 +27,19 @@ export class CreateBlogPostDto {
   @IsBoolean()
   useRandomPersona?: boolean;
 
+  // 작성 예정 블로그 지수 (normal, semi-optimal, optimal)
+  @IsString()
+  @IsIn(['normal', 'semi-optimal', 'optimal'])
+  blogIndex: string;
+
+  // 희망 키워드
   @IsString()
   keyword: string;
 
+  // 추천 키워드 (선택된 연관 키워드)
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  @ArrayMinSize(1)
-  @ArrayMaxSize(5)
-  subKeywords?: string[] | null;
+  @IsString()
+  recommendedKeyword?: string | null;
 
   @IsNumber()
   @IsInt()

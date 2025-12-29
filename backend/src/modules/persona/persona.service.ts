@@ -119,13 +119,12 @@ export class PersonaService {
    */
   async findSimpleByUserId(
     userId: number,
-  ): Promise<Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'>[]> {
+  ): Promise<Pick<Persona, 'id' | 'blogTopic' | 'gender'>[]> {
     return this.prisma.persona.findMany({
       where: { userId },
       select: {
         id: true,
-        occupation: true,
-        age: true,
+        blogTopic: true,
         gender: true,
       },
       orderBy: {

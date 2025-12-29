@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { BlogPostService } from './blog-post.service';
@@ -24,6 +25,7 @@ import { ActiveSubscriptionGuard } from '../subscription/guards/active-subscript
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
 import { OrderService } from './order.service';
+import { SearchAdService } from '@lib/integrations/naver/naver-api/search.ad.service';
 
 // Multer file type definition
 interface MulterFile {
@@ -43,7 +45,67 @@ export class BlogPostController {
   constructor(
     private readonly blogPostService: BlogPostService,
     private readonly orderService: OrderService,
+    private readonly searchAdService: SearchAdService,
   ) {}
+
+  /**
+   * 연관 키워드 조회 (네이버 검색광고 API)
+   * GET /blog-posts/keywords/related?keyword=검색어
+   * 일일 캐싱 적용 - 동일 키워드는 하루 1회만 API 호출
+   * 0번(원본 키워드) + PC/모바일 검색량 합산 상위 14개 반환
+   */
+  @Get('keywords/related')
+  async getRelatedKeywords(@Query('keyword') keyword: string) {
+    if (!keyword || keyword.trim().length === 0) {
+      throw new BadRequestException('키워드를 입력해주세요.');
+    }
+
+    const result = await this.searchAdService.getRelatedKeyword([
+      keyword.trim(),
+    ]);
+
+    if (!result.success) {
+      throw new BadRequestException(result.error.detail);
+    }
+
+    const keywordList = result.data.keywordList;
+
+    // 결과가 없거나 1개 이하면 그대로 반환
+    if (!keywordList || keywordList.length <= 1) {
+      return {
+        keyword: keyword.trim(),
+        keywordList: keywordList || [],
+      };
+    }
+
+    // 0번 인덱스(원본 키워드)는 유지
+    const originalKeyword = keywordList[0];
+    const restKeywords = keywordList.slice(1);
+
+    // 검색량을 숫자로 변환하는 헬퍼 함수 ("< 10" 같은 문자열 처리)
+    const toNumber = (val: number | string): number => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string' && val.includes('<')) return 0;
+      return parseInt(val, 10) || 0;
+    };
+
+    // 1. 먼저 연관성 순서(API 반환 순서)대로 상위 14개 선택
+    const top14ByRelevance = restKeywords.slice(0, 14);
+
+    // 2. 선택된 14개를 검색량 기준으로 정렬
+    const sortedBySearchVolume = top14ByRelevance.sort((a, b) => {
+      const totalA =
+        toNumber(a.monthlyPcQcCnt) + toNumber(a.monthlyMobileQcCnt);
+      const totalB =
+        toNumber(b.monthlyPcQcCnt) + toNumber(b.monthlyMobileQcCnt);
+      return totalB - totalA; // 내림차순
+    });
+
+    return {
+      keyword: keyword.trim(),
+      keywordList: [originalKeyword, ...sortedBySearchVolume],
+    };
+  }
 
   /**
    * 블로그 원고 생성 요청

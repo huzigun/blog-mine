@@ -4,7 +4,6 @@ import {
   fieldConfigsByType,
   postTypes,
   aiPostSchema,
-  manualInputPostSchema,
   type AiPostSchema,
 } from '~/schemas/post';
 import { PostDone } from '#components';
@@ -64,13 +63,8 @@ const isInsufficientBalance = computed(() => {
   );
 });
 
-// 서브 키워드 입력 방식: true = AI 추천, false = 직접 입력
-const useAIRecommendation = ref(true);
-
-// 현재 모드에 따른 스키마 선택
-const currentSchema = computed(() => {
-  return useAIRecommendation.value ? aiPostSchema : manualInputPostSchema;
-});
+// 현재 스키마 (서브 키워드 제거됨 - 추천 키워드로 대체)
+const currentSchema = aiPostSchema;
 
 // 현재 postType에 해당하는 필드 설정
 const currentFields = computed(() => {
@@ -82,17 +76,191 @@ const currentFields = computed(() => {
   );
 });
 
-// 동적 state (postType별 필드값 저장)
-const state = reactive<
-  Omit<AiPostSchema, 'personaId'> & {
-    personaId: number | undefined;
-    fields: Record<string, any>;
+// 블로그 지수 옵션
+const blogIndexOptions = [
+  { label: '일반', value: 'normal' },
+  { label: '준최', value: 'semi-optimal' },
+  { label: '최적', value: 'optimal' },
+];
+
+// 연관 키워드 조회 관련 상태
+interface KeywordStat {
+  relKeyword: string;
+  monthlyPcQcCnt: number | string;
+  monthlyMobileQcCnt: number | string;
+  monthlyAvePcClkCnt: number;
+  monthlyAveMobileClkCnt: number;
+  monthlyAvePcCtr: number;
+  monthlyAveMobileCtr: number;
+  plAvgDepth: number;
+  compIdx: string;
+}
+
+const relatedKeywords = ref<KeywordStat[]>([]);
+const isLoadingKeywords = ref(false);
+const showKeywordResults = ref(false);
+
+// 추천 키워드 선택 상태
+const selectedRecommendedKeyword = ref<string | null>(null);
+
+// 검색량 기준 필터링 임계값
+const SEARCH_VOLUME_THRESHOLDS = {
+  normal: 10000, // 일반: 1만건 이상 제외
+  'semi-optimal': 50000, // 준최: 5만건 이상 제외
+  optimal: Infinity, // 최적: 필터링 없음
+};
+
+// 블로그 지수에 따른 추천 키워드 목록 (검색량 필터링 적용)
+const recommendedKeywordsForBlogIndex = computed(() => {
+  if (relatedKeywords.value.length === 0) {
+    return [];
   }
->({
+
+  const threshold = SEARCH_VOLUME_THRESHOLDS[state.blogIndex as keyof typeof SEARCH_VOLUME_THRESHOLDS] || Infinity;
+
+  switch (state.blogIndex) {
+    case 'optimal':
+      // 최적: 원본 키워드(0번) 하나만 반환 (필터링 없음)
+      return relatedKeywords.value.slice(0, 1);
+    case 'semi-optimal': {
+      // 준최: 1~5번 인덱스 (상위 5개) 중 5만건 미만만 필터링
+      const candidates = relatedKeywords.value.slice(1, 6);
+      return candidates.filter((kw) => {
+        const total = toSearchVolume(kw.monthlyPcQcCnt) + toSearchVolume(kw.monthlyMobileQcCnt);
+        return total < threshold;
+      });
+    }
+    case 'normal': {
+      // 일반: 6~14번 인덱스 중 1만건 미만만 필터링
+      const candidates = relatedKeywords.value.slice(6, 15);
+      return candidates.filter((kw) => {
+        const total = toSearchVolume(kw.monthlyPcQcCnt) + toSearchVolume(kw.monthlyMobileQcCnt);
+        return total < threshold;
+      });
+    }
+    default:
+      return [];
+  }
+});
+
+// 추천 키워드가 없는지 여부 (필터링 후)
+const hasNoRecommendedKeywords = computed(() => {
+  return showKeywordResults.value &&
+         relatedKeywords.value.length > 0 &&
+         recommendedKeywordsForBlogIndex.value.length === 0 &&
+         state.blogIndex !== 'optimal';
+});
+
+// 키워드 관련 필수 조건 충족 여부
+const isKeywordRequirementMet = computed(() => {
+  // 희망 키워드가 입력되어 있어야 함
+  if (!state.keyword || state.keyword.trim().length === 0) {
+    return false;
+  }
+  // 연관 키워드 조회가 완료되어 있어야 함
+  if (!showKeywordResults.value) {
+    return false;
+  }
+  // 추천 키워드가 선택되어 있어야 함
+  if (!selectedRecommendedKeyword.value) {
+    return false;
+  }
+  return true;
+});
+
+// 제출 불가 사유 메시지
+const submitBlockReason = computed(() => {
+  if (!state.keyword || state.keyword.trim().length === 0) {
+    return '희망 키워드를 입력해주세요';
+  }
+  if (!showKeywordResults.value) {
+    return '키워드 조회를 완료해주세요';
+  }
+  if (hasNoRecommendedKeywords.value) {
+    return '추천 키워드가 없습니다';
+  }
+  if (!selectedRecommendedKeyword.value) {
+    return '추천 키워드를 선택해주세요';
+  }
+  return null;
+});
+
+// 블로그 지수가 최적인 경우 자동 선택 여부
+const isAutoSelectedKeyword = computed(() => {
+  return state.blogIndex === 'optimal';
+});
+
+// 연관 키워드 조회
+const fetchRelatedKeywords = async () => {
+  if (!state.keyword || state.keyword.trim().length === 0) {
+    toast.add({
+      title: '키워드를 입력해주세요',
+      color: 'warning',
+    });
+    return;
+  }
+
+  isLoadingKeywords.value = true;
+  showKeywordResults.value = false;
+
+  try {
+    const result = await useApi<{
+      keyword: string;
+      keywordList: KeywordStat[];
+    }>('/blog-posts/keywords/related', {
+      method: 'GET',
+      params: { keyword: state.keyword.trim() },
+    });
+
+    relatedKeywords.value = result.keywordList || [];
+    showKeywordResults.value = true;
+
+    // 최적 지수인 경우 원본 키워드 자동 선택
+    if (state.blogIndex === 'optimal' && relatedKeywords.value.length > 0) {
+      selectedRecommendedKeyword.value = relatedKeywords.value[0]?.relKeyword ?? null;
+    } else {
+      selectedRecommendedKeyword.value = null;
+    }
+  } catch (err: any) {
+    toast.add({
+      title: '연관 키워드 조회 실패',
+      description: err.message || '연관 키워드를 불러오는 중 오류가 발생했습니다.',
+      color: 'error',
+    });
+  } finally {
+    isLoadingKeywords.value = false;
+  }
+};
+
+// 검색량을 숫자로 변환 (< 10 처리)
+const toSearchVolume = (value: number | string): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string' && value.includes('<')) return 0;
+  return parseInt(value, 10) || 0;
+};
+
+// PC + 모바일 합산 검색량 계산
+const getCombinedSearchVolume = (kw: KeywordStat): string => {
+  const pc = toSearchVolume(kw.monthlyPcQcCnt);
+  const mobile = toSearchVolume(kw.monthlyMobileQcCnt);
+  const total = pc + mobile;
+  return total.toLocaleString();
+};
+
+// 동적 state (postType별 필드값 저장)
+const state = reactive<{
+  postType: string;
+  personaId: number | undefined;
+  blogIndex: string;
+  keyword: string;
+  length: number;
+  count: number;
+  fields: Record<string, any>;
+}>({
   postType: postTypes[0] as string,
   personaId: undefined,
+  blogIndex: 'normal', // 기본값: 일반
   keyword: '',
-  subKeywords: [],
   length: 1500,
   count: 1,
   // 동적 필드 값들을 저장할 객체
@@ -107,20 +275,33 @@ watch(
   },
 );
 
-// 서브 키워드 토글 변경 시 처리
-watch(useAIRecommendation, (useAI) => {
-  if (useAI) {
-    // AI 추천 모드로 변경 시 배열 초기화
-    state.subKeywords = [];
-  }
+// 희망 키워드 변경 시 연관 키워드 및 추천 키워드 리셋
+watch(
+  () => state.keyword,
+  () => {
+    // 키워드가 변경되면 이전 조회 결과 초기화
+    relatedKeywords.value = [];
+    showKeywordResults.value = false;
+    selectedRecommendedKeyword.value = null;
+  },
+);
 
-  // 모드 변경 시 form validation 에러 초기화
-  nextTick(() => {
-    if (mainForm.value) {
-      mainForm.value.clear('subKeywords');
+// 블로그 지수 변경 시 추천 키워드 선택 리셋
+watch(
+  () => state.blogIndex,
+  (newBlogIndex) => {
+    // 최적인 경우 원본 키워드 자동 선택
+    if (
+      newBlogIndex === 'optimal' &&
+      relatedKeywords.value.length > 0
+    ) {
+      selectedRecommendedKeyword.value = relatedKeywords.value[0]?.relKeyword ?? null;
+    } else {
+      // 그 외에는 선택 초기화
+      selectedRecommendedKeyword.value = null;
     }
-  });
-});
+  },
+);
 
 const toast = useToast();
 
@@ -147,12 +328,16 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
     personaId = undefined; // personaId는 undefined로
   }
 
-  // 서브 키워드 입력 방식에 따라 null 처리
+  // 최종 요청 데이터 (subKeywords 대신 recommendedKeyword 사용)
   const finalData = {
-    ...e.data,
+    postType: state.postType,
+    keyword: state.keyword,
+    length: state.length,
+    count: state.count,
     personaId,
     useRandomPersona,
-    subKeywords: useAIRecommendation.value ? null : e.data.subKeywords,
+    blogIndex: state.blogIndex,
+    recommendedKeyword: selectedRecommendedKeyword.value, // 선택된 추천 키워드
     additionalFields: hasFields ? cleanedFields : null, // 비어있으면 null
   };
 
@@ -194,11 +379,15 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
 // 폼 초기화 함수
 const resetForm = () => {
   state.personaId = undefined;
+  state.blogIndex = 'normal';
   state.keyword = '';
-  state.subKeywords = [];
   state.length = 1500;
   state.count = 1;
   state.fields = {};
+  // 연관 키워드 상태 초기화
+  relatedKeywords.value = [];
+  showKeywordResults.value = false;
+  selectedRecommendedKeyword.value = null;
 };
 
 const onSubmit = () => {
@@ -272,81 +461,178 @@ const onSubmit = () => {
                   </UButton>
                 </template>
               </UFormField>
-              <UFormField label="검색 키워드" name="keyword" required>
-                <UInput
-                  v-model.trim="state.keyword"
-                  name="keyword"
-                  type="text"
-                  placeholder="예: 인공지능, 여행 팁 등"
-                  size="xl"
-                  class="w-full"
+              <UFormField label="작성 예정 블로그 지수" name="blogIndex" required>
+                <USelect
+                  v-model="state.blogIndex"
+                  name="blogIndex"
+                  :items="blogIndexOptions"
                   variant="soft"
+                  class="w-full"
+                  size="xl"
                 />
+              </UFormField>
+              <UFormField label="희망 키워드" name="keyword" required>
+                <div class="flex gap-2">
+                  <UInput
+                    v-model.trim="state.keyword"
+                    name="keyword"
+                    type="text"
+                    placeholder="예: 인공지능, 여행 팁 등"
+                    size="xl"
+                    class="flex-1"
+                    variant="soft"
+                    @keyup.enter="fetchRelatedKeywords"
+                  />
+                  <UButton
+                    color="neutral"
+                    variant="soft"
+                    size="xl"
+                    :loading="isLoadingKeywords"
+                    @click="fetchRelatedKeywords"
+                  >
+                    <UIcon name="i-heroicons-magnifying-glass" class="w-5 h-5" />
+                    조회
+                  </UButton>
+                </div>
                 <template #label>
                   <div class="inline-flex items-center">
-                    <span>검색 키워드</span>
-                    <Icon
+                    <span>희망 키워드</span>
+                    <UIcon
                       name="i-heroicons-information-circle"
                       class="w-4 h-4 text-neutral-600 inline-block ml-1"
                     />
                   </div>
                 </template>
+                <template #description>
+                  <span class="text-xs text-neutral-500">
+                    키워드 입력 후 조회 버튼을 클릭하면 연관 키워드와 검색량을
+                    확인할 수 있습니다.
+                  </span>
+                </template>
               </UFormField>
-              <div class="space-y-2">
-                <div class="flex items-center justify-between">
-                  <label
-                    class="text-sm font-medium text-neutral-900 dark:text-white"
-                  >
-                    서브 키워드
-                  </label>
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-neutral-500">
-                      {{ useAIRecommendation ? 'AI 추천' : '직접 입력' }}
-                    </span>
-                    <USwitch v-model="useAIRecommendation" />
+
+              <!-- 추천 키워드가 없을 때 경고 메시지 -->
+              <div
+                v-if="hasNoRecommendedKeywords"
+                class="rounded-xl border border-warning-300 dark:border-warning-700 overflow-hidden bg-warning-50 dark:bg-warning-950/20"
+              >
+                <div
+                  class="flex items-start gap-3 p-4"
+                >
+                  <UIcon
+                    name="i-heroicons-exclamation-triangle"
+                    class="w-5 h-5 text-warning-600 shrink-0 mt-0.5"
+                  />
+                  <div class="flex-1">
+                    <p class="text-sm font-semibold text-warning-700 dark:text-warning-400 mb-1">
+                      추천할 수 있는 키워드가 없습니다
+                    </p>
+                    <p class="text-xs text-warning-600 dark:text-warning-500 leading-relaxed">
+                      선택한 블로그 지수({{ state.blogIndex === 'normal' ? '일반' : '준최' }})에 적합한 검색량의 키워드가 없습니다.
+                      <span class="font-medium">희망 키워드를 변경</span>하거나
+                      <span class="font-medium">블로그 지수를 조정</span>해 주세요.
+                    </p>
                   </div>
                 </div>
+              </div>
 
-                <!-- FormField는 항상 렌더링하여 에러 표시 -->
-                <UFormField name="subKeywords" :required="!useAIRecommendation">
-                  <!-- AI 추천 모드 안내 -->
+              <!-- 추천 키워드 선택 영역 -->
+              <div
+                v-if="showKeywordResults && recommendedKeywordsForBlogIndex.length > 0"
+                class="rounded-xl border border-primary-200 dark:border-primary-800 overflow-hidden bg-primary-50/50 dark:bg-primary-950/20"
+              >
+                <div
+                  class="flex items-center gap-2 px-4 py-3 bg-primary-100 dark:bg-primary-900/30 border-b border-primary-200 dark:border-primary-800"
+                >
+                  <UIcon
+                    name="i-heroicons-star"
+                    class="w-5 h-5 text-primary-600"
+                  />
+                  <span
+                    class="text-sm font-semibold text-primary-900 dark:text-primary-100"
+                  >
+                    추천 키워드
+                    <span class="font-normal text-primary-600 dark:text-primary-400">
+                      ({{ state.blogIndex === 'optimal' ? '최적' : state.blogIndex === 'semi-optimal' ? '준최' : '일반' }} 블로그 지수 기준)
+                    </span>
+                  </span>
+                </div>
+
+                <div class="p-4">
+                  <!-- 최적: 자동 선택 안내 -->
                   <div
-                    v-if="useAIRecommendation"
-                    class="flex items-start gap-3 p-3 rounded-lg bg-primary-50 dark:bg-primary-950/20 border border-primary-200 dark:border-primary-800"
+                    v-if="isAutoSelectedKeyword"
+                    class="flex items-center gap-3 p-3 rounded-lg bg-success-50 dark:bg-success-950/20 border border-success-200 dark:border-success-800"
                   >
                     <UIcon
-                      name="i-heroicons-sparkles"
-                      class="w-5 h-5 text-primary-600 shrink-0 mt-0.5"
+                      name="i-heroicons-check-circle"
+                      class="w-5 h-5 text-success-600 shrink-0"
                     />
-                    <div
-                      class="flex-1 text-xs text-primary-700 dark:text-primary-400"
-                    >
-                      <p class="font-semibold mb-1">
-                        AI가 자동으로 서브 키워드를 추천합니다
+                    <div class="flex-1">
+                      <p class="text-sm font-medium text-success-700 dark:text-success-400">
+                        원본 키워드가 자동 선택되었습니다
                       </p>
-                      <p
-                        class="text-primary-600 dark:text-primary-500 leading-relaxed"
-                      >
-                        상위 노출 블로그를 수집한 후, 해당 블로그 내용의
-                        키워드를 AI로 분석하여 최적의 서브 키워드를 자동으로
-                        추출해드립니다.
+                      <p class="text-xs text-success-600 dark:text-success-500 mt-0.5">
+                        최적 블로그 지수에서는 원본 키워드 "{{ selectedRecommendedKeyword }}"가 추천됩니다.
                       </p>
                     </div>
                   </div>
 
-                  <!-- 직접 입력 모드 -->
-                  <UInputTags
-                    v-else
-                    v-model="state.subKeywords"
-                    name="subKeywords"
-                    size="xl"
-                    variant="soft"
-                    class="w-full"
-                    :max="5"
-                    placeholder="서브 키워드를 입력하고 Enter를 눌러 추가하세요"
-                  />
-                </UFormField>
+                  <!-- 준최/일반: 키워드 선택 -->
+                  <div v-else class="space-y-3">
+                    <p class="text-xs text-neutral-600 dark:text-neutral-400">
+                      아래 키워드 중 하나를 선택해주세요.
+                      <span class="text-neutral-400 dark:text-neutral-500">
+                        (괄호 안 숫자: 월간 검색량 PC+모바일 합산)
+                      </span>
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        v-for="kw in recommendedKeywordsForBlogIndex"
+                        :key="kw.relKeyword"
+                        type="button"
+                        class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all"
+                        :class="
+                          selectedRecommendedKeyword === kw.relKeyword
+                            ? 'bg-primary-600 text-white shadow-md ring-2 ring-primary-600 ring-offset-2 dark:ring-offset-neutral-900'
+                            : 'bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 border border-neutral-200 dark:border-neutral-700 hover:border-primary-300 hover:bg-primary-50 dark:hover:bg-primary-900/20'
+                        "
+                        @click="selectedRecommendedKeyword = kw.relKeyword"
+                      >
+                        <span>{{ kw.relKeyword }}</span>
+                        <span
+                          class="text-xs opacity-70"
+                          :class="
+                            selectedRecommendedKeyword === kw.relKeyword
+                              ? 'text-white/80'
+                              : 'text-neutral-500 dark:text-neutral-400'
+                          "
+                        >
+                          ({{ getCombinedSearchVolume(kw) }})
+                        </span>
+                      </button>
+                    </div>
+
+                    <!-- 선택된 키워드 표시 -->
+                    <div
+                      v-if="selectedRecommendedKeyword"
+                      class="flex items-center gap-2 pt-2 border-t border-primary-200 dark:border-primary-800"
+                    >
+                      <UIcon
+                        name="i-heroicons-check-circle"
+                        class="w-4 h-4 text-success-600"
+                      />
+                      <span class="text-sm text-neutral-700 dark:text-neutral-300">
+                        선택된 추천 키워드:
+                        <span class="font-semibold text-primary-600">
+                          {{ selectedRecommendedKeyword }}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
+
               <UFormField label="글자 수" name="length" required>
                 <input type="hidden" name="length" :value="state.length" />
                 <div class="flex justify-between py-1 gap-x-2.5">
@@ -514,12 +800,15 @@ const onSubmit = () => {
               block
               color="primary"
               :loading="isPending"
-              :disabled="isInsufficientBalance"
+              :disabled="isInsufficientBalance || !isKeywordRequirementMet"
               class="bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 font-bold mt-6 disabled:opacity-50 disabled:cursor-not-allowed"
               @click="onSubmit"
             >
               <template v-if="isInsufficientBalance">
                 BloC 부족 - 충전 필요
+              </template>
+              <template v-else-if="submitBlockReason">
+                {{ submitBlockReason }}
               </template>
               <template v-else>
                 스마트 원고 생성 시작 ({{ totalCost.toLocaleString() }} BloC

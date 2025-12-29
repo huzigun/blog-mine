@@ -4,7 +4,7 @@ import {
   createPersonaSchema,
   type CreatePersonaSchema,
   genderOptions,
-  occupationOptions,
+  blogTopicOptions,
 } from '~/schemas/persona';
 
 definePageMeta({
@@ -30,12 +30,13 @@ const { data: persona, status: fetchStatus } = await useApiFetch<Persona>(
 // 폼 상태 (기존 데이터로 초기화)
 const state = reactive<CreatePersonaSchema>({
   gender: genderOptions[0]!,
-  age: 30,
-  isMarried: false,
-  hasChildren: false,
-  occupation: '',
-  additionalInfo: '',
+  blogTopic: '',
+  characteristics: '',
 });
+
+// 직접 입력 모드 관리
+const isCustomBlogTopic = ref(false);
+const customBlogTopic = ref('');
 
 // 데이터 로드 시 폼 초기화
 watch(
@@ -43,22 +44,50 @@ watch(
   (newPersona) => {
     if (newPersona) {
       state.gender = newPersona.gender || genderOptions[0]!;
-      state.age = newPersona.age || 30;
-      state.isMarried = newPersona.isMarried || false;
-      state.hasChildren = newPersona.hasChildren || false;
-      state.occupation = newPersona.occupation || '';
-      state.additionalInfo = newPersona.additionalInfo || '';
+      state.characteristics = newPersona.characteristics || '';
+
+      // blogTopic이 옵션에 있는지 확인
+      const blogTopic = newPersona.blogTopic || '';
+      if (blogTopic && !blogTopicOptions.includes(blogTopic)) {
+        // 옵션에 없는 값이면 직접 입력 모드
+        isCustomBlogTopic.value = true;
+        customBlogTopic.value = blogTopic;
+        state.blogTopic = '직접 입력';
+      } else {
+        state.blogTopic = blogTopic;
+      }
     }
   },
   { immediate: true },
 );
 
+// 블로그 주제 선택 변경 감지
+watch(
+  () => state.blogTopic,
+  (newValue) => {
+    if (newValue === '직접 입력') {
+      isCustomBlogTopic.value = true;
+    } else {
+      isCustomBlogTopic.value = false;
+      customBlogTopic.value = '';
+    }
+  },
+);
+
 const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
   startTransition(async () => {
     try {
+      // 직접 입력인 경우 customBlogTopic 값 사용
+      const submitData = {
+        ...event.data,
+        blogTopic: isCustomBlogTopic.value
+          ? customBlogTopic.value
+          : event.data.blogTopic,
+      };
+
       await useApi(`/personas/${personaId.value}`, {
         method: 'PATCH',
-        body: event.data,
+        body: submitData,
       });
 
       toast.add({
@@ -118,57 +147,30 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                 />
               </UFormField>
 
-              <UFormField label="나이" name="age" required>
-                <UInput
-                  v-model.number="state.age"
-                  type="number"
-                  min="1"
-                  max="120"
-                  placeholder="나이를 입력해주세요"
-                  size="xl"
-                  class="w-full"
+              <UFormField label="운영중인 블로그 주제" name="blogTopic" required>
+                <USelect
+                  v-model="state.blogTopic"
+                  :items="blogTopicOptions"
+                  placeholder="블로그 주제를 선택해주세요"
                   variant="soft"
+                  class="w-full"
+                  size="xl"
                 />
               </UFormField>
 
-              <div class="grid grid-cols-2 gap-x-4">
-                <UFormField label="결혼 유무" name="isMarried">
-                  <URadioGroup
-                    v-model="state.isMarried"
-                    :items="[
-                      { label: '기혼', value: true },
-                      { label: '미혼', value: false },
-                    ]"
-                    orientation="horizontal"
-                    variant="card"
-                    color="primary"
-                    size="sm"
-                  />
-                </UFormField>
-
-                <UFormField label="자녀 유무" name="hasChildren">
-                  <URadioGroup
-                    v-model="state.hasChildren"
-                    :items="[
-                      { label: '있음', value: true },
-                      { label: '없음', value: false },
-                    ]"
-                    orientation="horizontal"
-                    variant="card"
-                    color="primary"
-                    size="sm"
-                  />
-                </UFormField>
-              </div>
-
-              <UFormField label="직업" name="occupation" required>
-                <USelect
-                  v-model="state.occupation"
-                  :items="occupationOptions"
-                  placeholder="직업을 선택해주세요"
-                  variant="soft"
-                  class="w-full"
+              <!-- 직접 입력 필드 -->
+              <UFormField
+                v-if="isCustomBlogTopic"
+                label="블로그 주제 직접 입력"
+                name="customBlogTopic"
+                required
+              >
+                <UInput
+                  v-model="customBlogTopic"
+                  placeholder="운영중인 블로그 주제를 직접 입력해주세요"
                   size="xl"
+                  class="w-full"
+                  variant="soft"
                 />
               </UFormField>
             </div>
@@ -176,11 +178,11 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
             <div class="flex flex-col gap-y-4 mb-8">
               <h4 class="font-bold">추가 설정</h4>
 
-              <UFormField label="추가 정보" name="additionalInfo">
+              <UFormField label="기타특징" name="characteristics">
                 <UTextarea
-                  v-model="state.additionalInfo"
+                  v-model="state.characteristics"
                   :rows="6"
-                  placeholder="페르소나에 대한 추가 정보를 입력해주세요. 예: 특별한 관심사, 선호하는 주제 등"
+                  placeholder="매주 새로운 맛집을 탐방하며 나만의 맛집 지도를 만들고 있어요. 3년째 전국의 숨은 맛집들을 찾아다니고 있으며, 지금까지 300곳 이상의 맛집을 방문했습니다."
                   size="xl"
                   class="w-full"
                   variant="soft"
@@ -280,9 +282,7 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                   <span
                     class="text-sm font-semibold text-neutral-900 dark:text-white"
                   >
-                    {{ persona.occupation }} ({{ persona.age }}세/{{
-                      persona.gender
-                    }})
+                    {{ persona.gender }} / {{ persona.blogTopic }}
                   </span>
                 </div>
 

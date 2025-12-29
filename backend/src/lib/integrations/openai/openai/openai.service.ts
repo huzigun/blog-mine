@@ -12,7 +12,7 @@ export interface GeneratePostRequest {
   keyword: string;
   postType: string;
   persona: Persona;
-  subKeywords: string[] | null;
+  recommendedKeyword?: string | null; // 선택된 추천 키워드
   length: number;
   additionalFields?: Record<string, any>;
   referenceContents?: string[]; // 상위 블로그 컨텐츠 참조
@@ -47,6 +47,13 @@ export class OpenAIService {
   private readonly summaryModel: string;
   private readonly generationModel: string;
   private encoder: any; // tiktoken encoder
+
+  // 정보성 포스트 타입 목록
+  private readonly INFORMATIONAL_POST_TYPES = [
+    '일반 키워드 정보성',
+    '병/의원 의료상식 정보성',
+    '법률상식 정보성',
+  ];
 
   // 원고 다양성을 위한 접근 방식
   private readonly DIVERSITY_APPROACHES = [
@@ -149,12 +156,32 @@ export class OpenAIService {
       }
     }
 
-    const systemPrompt = this.getSystemPrompt();
-    const referencePrompt = this.buildReferencePrompt(
-      request.referenceContents,
-      request.keyword,
-    );
-    const userPrompt = this.buildPrompt(request, placeInfo);
+    // 정보성 포스트 여부 확인
+    const isInformational = this.isInformationalPostType(request.postType);
+
+    // postType에 따라 다른 프롬프트 빌드
+    let systemPrompt: string;
+    let referencePrompt: string;
+    let userPrompt: string;
+
+    if (isInformational) {
+      // 정보성 포스트: 정보 추출 기반 프롬프트
+      systemPrompt = this.getInformationalSystemPrompt();
+      referencePrompt = ''; // 정보성은 유저 프롬프트에 분석 결과 포함
+      userPrompt = this.buildInformationalPrompt(
+        request,
+        request.referenceContents,
+      );
+    } else {
+      // 후기성 포스트: 기존 경험 기반 프롬프트
+      systemPrompt = this.getReviewSystemPrompt();
+      referencePrompt = this.buildReviewReferencePrompt(
+        request.referenceContents,
+        request.keyword,
+      );
+      userPrompt = this.buildReviewPrompt(request, placeInfo);
+    }
+
     const fullPrompt =
       systemPrompt + '\n\n' + referencePrompt + '\n\n' + userPrompt;
 
@@ -162,10 +189,10 @@ export class OpenAIService {
 
     try {
       this.logger.debug(
-        `Generating post with prompt length: ${fullPrompt.length} (reference: ${referencePrompt.length})`,
+        `Generating ${isInformational ? 'informational' : 'review'} post with prompt length: ${fullPrompt.length}`,
       );
 
-      // 메시지 구성: system(페르소나) + system(참조 블로그 - 캐싱 대상) + user(다양성 지침)
+      // 메시지 구성
       const messages: Array<{ role: 'system' | 'user'; content: string }> = [
         {
           role: 'system',
@@ -173,15 +200,15 @@ export class OpenAIService {
         },
       ];
 
-      // 상위 블로그 참조가 있으면 별도 system 메시지로 추가 (캐싱 효과)
-      if (referencePrompt) {
+      // 후기성 포스트: 상위 블로그 참조가 있으면 별도 system 메시지로 추가 (캐싱 효과)
+      if (!isInformational && referencePrompt) {
         messages.push({
           role: 'system',
           content: referencePrompt,
         });
       }
 
-      // 사용자 프롬프트 (다양성 전략 포함)
+      // 사용자 프롬프트
       messages.push({
         role: 'user',
         content: userPrompt,
@@ -309,9 +336,9 @@ export class OpenAIService {
   }
 
   /**
-   * 시스템 프롬프트 생성 (출력 규칙만)
+   * 후기성 포스트를 위한 시스템 프롬프트 생성
    */
-  private getSystemPrompt(): string {
+  private getReviewSystemPrompt(): string {
     return `[페르소나]
 네이버 블로그를 3~7년 이상 운영한 일반 사용자.
 정보 전달보다는 자신의 경험을 글로 남기는 데 익숙한 사람.
@@ -378,12 +405,134 @@ export class OpenAIService {
   }
 
   /**
-   * 상위 블로그 참조 프롬프트 생성 (캐싱 대상)
+   * 정보성 포스트를 위한 시스템 프롬프트 생성
+   */
+  private getInformationalSystemPrompt(): string {
+    return `당신은 네이버 블로그를 3~5년 이상 운영하며 특정 분야의 정보를 꾸준히 공유해온 사용자입니다.
+전문가처럼 딱딱하게 쓰기보다, '내가 직접 찾아보고 정리한 정보'를 공유하는 톤을 유지합니다.
+
+※ 중요: 이 글은 실제 정보 가치가 있어야 합니다. 스타일만 흉내내지 마세요.
+
+[출력 규칙]
+
+1. 반드시 아래 JSON 구조로 응답한다.
+{
+  "title": "\${title}",
+  "content": "<h2>...</h2><p>...</p>",
+  "tags": ["#태그1", "#태그2", ... "#태그30"]
+}
+
+2. content는 HTML 문자열 하나로만 구성한다.
+3. 허용 태그: <h2>, <h3>, <p>, <strong>, <ul>, <li>, <blockquote>
+4. 본문 문장은 <p> 내부에만 작성한다.
+5. 마크다운 기호 사용 금지
+6. # 기호는 tags 필드 내부에서만 사용
+
+[콘텐츠 작성 원칙]
+
+핵심: 정보의 "재구성"이지 "재배치"가 아님
+
+1. 정보 통합
+   - 상위 블로그들의 흩어진 정보를 하나의 관점으로 통합
+   - 중복 정보는 가장 정확하고 최신 버전으로
+   - 상충되는 정보는 비교하며 설명
+
+2. 정보 재구성
+   - 독자의 궁금증 순서대로 재배치
+   - 복잡한 정보는 단계별로 풀어서 설명
+   - 추상적 개념은 구체적 예시와 함께
+
+3. 정보 추가
+   - 상위 블로그들이 놓친 부분 보완
+   - 최신 뉴스/정책 변경사항 반영
+   - 실용적 활용 방법 추가
+
+4. 자연스러운 톤 유지
+   - "내가 이것저것 찾아보니까"
+   - "생각보다 복잡하더라고"
+   - "정리하면서 알게 된 건데"
+   - 정보 사이사이 개인 반응 삽입
+
+[필수 포함 요소]
+
+다음을 모두 포함해야 함:
+✓ 구체적인 숫자, 날짜, 기준 (분석 결과의 specific_data 활용)
+✓ 단계별 방법이나 절차 (있는 경우)
+✓ 실제 사례나 예시 (최소 1개)
+✓ 주의사항이나 흔한 실수
+✓ 비교가 필요한 경우 명확한 기준 제시
+
+[광고주 포함 시]
+
+광고주가 있는 경우:
+- 정보 제공 과정에서 선택지 중 하나로 자연스럽게 언급
+- 최소 2~3개 다른 옵션과 함께 비교
+- "내가 찾아본 곳 중에", "여기는 ~한 특징이 있더라고" 식으로
+- 본문 중간~후반부 (핵심 정보 전달 후)
+- 장점 나열 금지, 특징 위주로 설명
+
+[금지 표현]
+
+절대 사용하지 않는다:
+- 오늘은 ~에 대해 알아보겠습니다
+- ~을 총정리해드릴게요
+- 지금부터 차근차근
+- 아래에서 확인하세요
+- 많은 분들이 궁금해하시는
+- 도움이 되셨나요
+
+[구조 가이드]
+
+도입부 (1~2문단):
+- 이 정보를 왜 찾게 됐는지
+- 찾아보니 생각보다 복잡하거나 단순했던 점
+- 핵심 하나만 간단히 언급
+
+본문 (정보 우선순위대로):
+<h2>가장 많이 궁금해하는 것</h2>
+- 핵심 정보 + 구체적 데이터
+- "내가 찾아보니", "정리하면" 같은 개인 톤 유지
+
+<h2>두 번째로 중요한 정보</h2>
+- 세부 정보 + 예시
+- 정보 사이 개인 의견 삽입
+
+<h2>추가로 알아두면 좋은 것</h2>
+- 주의사항, 팁, 관련 정보
+- 광고주는 이 부분에 자연스럽게
+
+마무리:
+- 깔끔한 정리 없이 자연스럽게 종료
+- "결국", "마지막으로" 같은 뻔한 표현 금지
+- 추가 궁금증이나 개인 생각으로 끝
+
+[키워드 사용]
+
+- 메인 키워드: 제목 1회 + 본문 3~6회
+- 정보 설명하다 보면 자연스럽게 반복됨
+- 소제목에 1~2회 (억지로 X)
+- 연관 키워드도 맥락에 맞게
+
+[최종 체크]
+
+생성 후 스스로 확인:
+□ 이 글을 읽으면 실제로 궁금증이 해결되는가?
+□ 구체적인 정보(숫자, 방법, 예시)가 충분한가?
+□ 상위 블로그들의 정보를 단순 짜깁기한 게 아니라 재구성했는가?
+□ 블로그 톤을 유지하면서도 정보가 명확한가?
+□ 광고주가 너무 띄우기식으로 들어가지 않았는가?
+
+이 글의 목표:
+"정보를 얻으러 들어온 독자가 실제로 원하는 답을 찾고 나가게 만들기"`;
+  }
+
+  /**
+   * 후기성 포스트를 위한 상위 블로그 참조 프롬프트 생성 (캐싱 대상)
    * @param referenceContents - 상위 블로그 구조화된 요약 내용 (작성 노하우 학습용)
    * @param keyword - 검색 키워드
    * @returns 참조 블로그 프롬프트 (system 메시지용)
    */
-  private buildReferencePrompt(
+  private buildReviewReferencePrompt(
     referenceContents: string[] | undefined,
     keyword: string,
   ): string {
@@ -416,16 +565,43 @@ export class OpenAIService {
   }
 
   /**
-   * 사용자 프롬프트 생성
+   * 정보성 포스트를 위한 상위 블로그 참조 프롬프트 생성 (캐싱 대상)
+   * @param referenceContents - 상위 블로그에서 추출한 정보 JSON 배열
+   * @param keyword - 검색 키워드
+   * @returns 참조 블로그 프롬프트 (user 메시지용)
    */
-  private buildPrompt(
+  private buildInformationalReferencePrompt(
+    referenceContents: string[] | undefined,
+    keyword: string,
+  ): string {
+    if (!referenceContents || referenceContents.length === 0) {
+      return '';
+    }
+
+    let prompt = `<분석 결과>\n`;
+    prompt += `아래는 "${keyword}" 키워드로 상위 노출된 블로그들에서 추출한 정보입니다.\n\n`;
+
+    referenceContents.forEach((content, index) => {
+      prompt += `[블로그 ${index + 1} 정보 추출]\n`;
+      prompt += `${content}\n\n`;
+    });
+
+    prompt += `</분석 결과>\n`;
+
+    return prompt;
+  }
+
+  /**
+   * 후기성 포스트를 위한 사용자 프롬프트 생성
+   */
+  private buildReviewPrompt(
     request: GeneratePostRequest,
     placeInfo: PlaceInfo | null = null,
   ): string {
     let prompt = `[원고 정보 입력]\n\n`;
     prompt += `- 글 종류: ${request.postType}\n`;
     prompt += `- 주요 키워드: ${request.keyword}\n`;
-    prompt += `- 서브 키워드: ${request.subKeywords && request.subKeywords.length > 0 ? request.subKeywords.join(', ') : '상위 노출 블로그 분석을 통해 자동 추출'}\n`;
+    prompt += `- 추천 키워드: ${request.recommendedKeyword || '상위 노출 블로그 분석을 통해 자동 추출'}\n`;
     prompt += `- 목표 글자 수: ${request.length}자 (HTML 태그 제외 기준)\n`;
 
     // 추가 정보 (플레이스 링크, 위치 정보 등)
@@ -498,14 +674,11 @@ export class OpenAIService {
 
     // 페르소나 정보 (원고 정보 입력 다음에 배치)
     prompt += `[페르소나]\n\n`;
-    prompt += `- 나이: ${request.persona.age}세\n`;
     prompt += `- 성별: ${request.persona.gender}\n`;
-    prompt += `- 직업: ${request.persona.occupation}\n`;
-    prompt += `- 결혼 여부: ${request.persona.isMarried ? '기혼' : '미혼'}\n`;
-    prompt += `- 자녀 여부: ${request.persona.hasChildren ? '있음' : '없음'}\n`;
+    prompt += `- 운영중인 블로그 주제: ${request.persona.blogTopic}\n`;
     prompt += `- 글쓰기 스타일: 일반적인 네이버 블로거들의 친근하고 자연스러운 문체\n`;
-    if (request.persona.additionalInfo) {
-      prompt += `- 추가 정보: ${request.persona.additionalInfo}\n`;
+    if (request.persona.characteristics) {
+      prompt += `- 기타특징: ${request.persona.characteristics}\n`;
     }
     prompt += `\n이 페르소나의 시각과 경험을 바탕으로, 일반적인 네이버 블로거처럼 친근하고 자연스러운 글을 작성해주세요.\n`;
 
@@ -606,6 +779,93 @@ export class OpenAIService {
     prompt += `🎯 이 지침의 핵심 요약\n\n`;
     prompt += `❌ "잘 쓴 후기" → ✅ "사람이 남긴 기록"\n`;
     prompt += `❌ 정보 과잉 → ✅ 경험의 불완전함\n`;
+
+    return prompt;
+  }
+
+  /**
+   * 정보성 포스트를 위한 사용자 프롬프트 생성
+   */
+  private buildInformationalPrompt(
+    request: GeneratePostRequest,
+    referenceContents: string[] | undefined,
+  ): string {
+    let prompt = `[제공된 정보]\n\n`;
+
+    // 분석 결과 (상위 블로그에서 추출한 정보)
+    prompt += this.buildInformationalReferencePrompt(
+      referenceContents,
+      request.keyword,
+    );
+
+    // 광고주 정보 (있는 경우)
+    if (
+      request.additionalFields &&
+      Object.keys(request.additionalFields).length > 0
+    ) {
+      prompt += `\n<광고주 정보>\n`;
+      Object.entries(request.additionalFields).forEach(([key, value]) => {
+        if (value) {
+          prompt += `- ${key}: ${value}\n`;
+        }
+      });
+      prompt += `</광고주 정보>\n`;
+    }
+
+    prompt += `\n---\n\n`;
+
+    // 원고 정보
+    prompt += `[원고 정보]\n\n`;
+    prompt += `- 메인 키워드: ${request.keyword}\n`;
+    prompt += `- 추천 키워드: ${request.recommendedKeyword || '상위 노출 블로그 분석을 통해 자동 추출'}\n`;
+    prompt += `- 목표 글자 수: ${request.length}자 (HTML 태그 제외 기준)\n`;
+    prompt += `- 글 종류: ${request.postType}\n`;
+
+    prompt += `\n---\n\n`;
+
+    // 페르소나 정보
+    prompt += `[페르소나]\n\n`;
+    prompt += `- 성별: ${request.persona.gender}\n`;
+    prompt += `- 운영중인 블로그 주제: ${request.persona.blogTopic}\n`;
+    if (request.persona.characteristics) {
+      prompt += `- 기타특징: ${request.persona.characteristics}\n`;
+    }
+    prompt += `\n이 페르소나의 시각에서 정보를 정리하고 공유하는 톤으로 작성해주세요.\n`;
+
+    prompt += `\n---\n\n`;
+
+    // 다양성 전략 추가 (여러 원고 생성 시)
+    if (request.postIndex && request.totalCount && request.totalCount > 1) {
+      const approachIndex =
+        (request.postIndex - 1) % this.DIVERSITY_APPROACHES.length;
+      const approach = this.DIVERSITY_APPROACHES[approachIndex];
+      prompt += `[다양성 전략 (${request.postIndex}/${request.totalCount}번째 원고)]\n\n`;
+      prompt += `접근 방식: ${approach}\n`;
+      prompt += `어조: ${this.getDiverseTone(request.postIndex)}\n`;
+      prompt += `제목 스타일: ${this.getDiverseTitleStyle(request.postIndex)}\n`;
+      prompt += `강조점: 다른 원고들과는 다른 정보나 관점을 주요하게 다루기\n\n`;
+
+      // 이미 생성된 제목 중복 방지
+      if (request.existingTitles && request.existingTitles.length > 0) {
+        prompt += `⚠️ 제목 중복 방지: 다음 제목들과는 다른 제목을 사용\n`;
+        request.existingTitles.forEach((title, index) => {
+          prompt += `${index + 1}. ${title}\n`;
+        });
+        prompt += `\n`;
+      }
+
+      prompt += `---\n\n`;
+    }
+
+    // 작성 지침 요약
+    prompt += `[작성 지침 요약]\n\n`;
+    prompt += `1. 위 분석 결과를 바탕으로 정보를 재구성하여 작성\n`;
+    prompt += `2. 단순 정보 나열이 아닌, 독자 관점에서 궁금증 순서대로 구성\n`;
+    prompt += `3. "내가 찾아보니", "정리하면서 알게 된 건데" 같은 개인적 톤 유지\n`;
+    prompt += `4. 구체적인 숫자, 방법, 예시를 반드시 포함\n`;
+    prompt += `5. 광고주 정보가 있다면 본문 중후반부에 자연스럽게 녹이기\n\n`;
+
+    prompt += `위 정보를 바탕으로 블로그 글을 작성해주세요.\n`;
 
     return prompt;
   }
@@ -738,32 +998,17 @@ export class OpenAIService {
   }
 
   /**
-   * 블로그 작성 기법을 LLM으로 분석
-   * ⚠️ 참조 블로그는 다른 매장/주제를 다룬 사례입니다 (내용 복사 금지)
-   * @param content - 원본 블로그 콘텐츠
-   * @param keyword - 검색 키워드 (맥락 제공용)
-   * @returns 작성 기법 분석 결과 (문체, 구성, 패턴 등, 400-600자)
+   * 정보성 포스트 타입인지 확인
    */
-  async summarizeContent(content: string, keyword: string): Promise<string> {
-    try {
-      // 콘텐츠가 너무 짧으면 요약 불필요
-      if (content.length < 200) {
-        return content;
-      }
+  private isInformationalPostType(postType: string): boolean {
+    return this.INFORMATIONAL_POST_TYPES.includes(postType);
+  }
 
-      // 프롬프트 크기 제한 확대 (더 많은 맥락 제공)
-      const truncatedContent = content.substring(0, 5000);
-
-      this.logger.debug(
-        `Summarizing content (${truncatedContent.length} chars) for keyword: ${keyword}`,
-      );
-
-      const completion = await this.openai.chat.completions.create({
-        model: this.summaryModel, // 비용 효율적인 요약 모델
-        messages: [
-          {
-            role: 'system',
-            content: `블로그 작성 기법을 분석하는 전문가입니다.
+  /**
+   * 후기성 포스트를 위한 작성 기법 분석 프롬프트
+   */
+  private getReviewSummaryPrompt(): string {
+    return `블로그 작성 기법을 분석하는 전문가입니다.
 제공된 블로그에서 "어떻게 글을 쓰는가"에 대한 노하우를 추출해 요약하세요.
 
 [중요] 이 블로그는 다른 매장/주제를 다룬 사례입니다.
@@ -783,19 +1028,117 @@ export class OpenAIService {
 [출력 규칙]
 1. 분석한 규칙을 400자 미만으로 요약하여 작성한다.
 2. 요약 내용에 제외 대상을 포함하지 않는다.
-3. 문장을 중간에 끊지 말고 완결된 형태로 출력`,
-          },
-          {
-            role: 'user',
-            content: `다음은 "${keyword}" 키워드로 검색된 상위 노출 블로그입니다.
+3. 문장을 중간에 끊지 말고 완결된 형태로 출력`;
+  }
+
+  /**
+   * 정보성 포스트를 위한 정보 추출 프롬프트
+   */
+  private getInformationalSummaryPrompt(keyword: string): string {
+    return `당신은 블로그 콘텐츠에서 핵심 정보를 추출하는 정보 분석 전문가입니다.
+
+[목표]
+"${keyword}" 키워드로 검색한 사용자가 알고 싶어하는 핵심 정보를 구조화하여 추출합니다.
+
+[분석 관점]
+1. 검색 의도 파악: 이 키워드를 검색한 사람이 궁금해할 주요 질문들
+2. 핵심 정보 추출: 블로그에서 다루는 실질적인 정보 (정의, 방법, 비교, 장단점 등)
+3. 구체적 데이터: 수치, 기간, 비용, 절차 등 구체적인 정보
+4. 정보 공백: 블로그에서 다루지 않지만 사용자가 궁금해할 수 있는 부분
+5. 글 작성 앵글: 이 정보를 바탕으로 새 글을 쓸 때 차별화할 수 있는 관점
+
+[출력 형식 - JSON]
+{
+  "main_questions": ["검색자가 알고 싶어하는 주요 질문 3-5개"],
+  "core_info": {
+    "정의/개념": "키워드의 핵심 정의나 개념 설명",
+    "주요_방법/절차": ["단계별 방법이나 절차"],
+    "장단점": {"장점": [], "단점": []},
+    "비교_정보": "다른 것과의 비교 정보 (있는 경우)"
+  },
+  "specific_data": {
+    "비용/가격": "관련 비용 정보",
+    "기간/시간": "소요 기간이나 시간",
+    "수치_데이터": "기타 구체적 수치"
+  },
+  "info_gaps": ["블로그에서 다루지 않은 궁금한 점들"],
+  "writing_angles": ["새 글 작성 시 차별화 가능한 앵글 2-3개"],
+  "style_patterns": {
+    "도입_방식": "글 시작 패턴",
+    "정보_전달_순서": "정보 배치 흐름",
+    "강조_기법": "중요 정보 강조 방식"
+  }
+}
+
+[규칙]
+- 블로그 원문의 문장을 그대로 복사하지 말고, 정보만 추출하여 재구성
+- 해당 정보가 없으면 null 또는 빈 배열로 표시
+- 추측이 아닌 블로그에 실제로 있는 정보만 추출`;
+  }
+
+  /**
+   * 블로그 작성 기법을 LLM으로 분석
+   * ⚠️ 참조 블로그는 다른 매장/주제를 다룬 사례입니다 (내용 복사 금지)
+   * @param content - 원본 블로그 콘텐츠
+   * @param keyword - 검색 키워드 (맥락 제공용)
+   * @param postType - 포스트 타입 (후기성/정보성 구분용)
+   * @returns 작성 기법 분석 결과 또는 정보 추출 결과
+   */
+  async summarizeContent(
+    content: string,
+    keyword: string,
+    postType?: string,
+  ): Promise<string> {
+    try {
+      // 콘텐츠가 너무 짧으면 요약 불필요
+      if (content.length < 200) {
+        return content;
+      }
+
+      // 프롬프트 크기 제한 확대 (더 많은 맥락 제공)
+      const truncatedContent = content.substring(0, 5000);
+
+      // 정보성 포스트 여부 확인
+      const isInformational = postType
+        ? this.isInformationalPostType(postType)
+        : false;
+
+      this.logger.debug(
+        `Summarizing content (${truncatedContent.length} chars) for keyword: ${keyword}, postType: ${postType}, isInformational: ${isInformational}`,
+      );
+
+      // 포스트 타입에 따른 프롬프트 선택
+      const systemPrompt = isInformational
+        ? this.getInformationalSummaryPrompt(keyword)
+        : this.getReviewSummaryPrompt();
+
+      const userPrompt = isInformational
+        ? `다음은 "${keyword}" 키워드로 검색된 상위 노출 블로그입니다.
+이 블로그에서 검색자가 알고 싶어하는 핵심 정보를 추출하여 JSON 형식으로 정리해주세요:
+
+${truncatedContent}`
+        : `다음은 "${keyword}" 키워드로 검색된 상위 노출 블로그입니다.
 이 블로그의 작성 기법(문체, 구성, 패턴)을 분석하여 요약해주세요.
 구체적인 내용(장소명, 메뉴, 가격 등)은 제외하고, 어떻게 글을 쓰는지에 집중해주세요:
 
-${truncatedContent}`,
+${truncatedContent}`;
+
+      const completion = await this.openai.chat.completions.create({
+        model: this.summaryModel, // 비용 효율적인 요약 모델
+        messages: [
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
           },
         ],
         // temperature: 0.3, // 일관성 있는 요약
         max_completion_tokens: 2000, // 한글 600자 ≈ 840 토큰이지만 여유분 충분히 확보
+        // 정보성 포스트는 JSON 형식으로 응답 요청
+        ...(isInformational && { response_format: { type: 'json_object' } }),
       });
 
       const choice = completion.choices?.[0];

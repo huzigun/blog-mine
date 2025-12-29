@@ -71,45 +71,44 @@ model RefreshToken {
 }
 
 model Persona {
-  id             Int      @id @default(autoincrement())
-  gender         String
-  age            Int
-  isMarried      Boolean  @map("is_married")
-  hasChildren    Boolean  @map("has_children")
-  occupation     String
-  additionalInfo String?  @map("additional_info")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  userId         Int      @map("user_id")
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              Int      @id @default(autoincrement())
+  gender          String
+  blogTopic       String   @map("blog_topic") // 운영중인 블로그 주제
+  characteristics String?  @map("characteristics") // 기타특징 (기존 additionalInfo에서 변경)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  userId          Int      @map("user_id")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("personas")
 }
 
 model BlogPost {
-  id               Int        @id @default(autoincrement())
-  displayId        String     @unique @map("display_id")
-  keyword          String
-  persona          Json
-  postType         String     @map("post_type")
-  subKeywords      String[]   @map("sub_keywords")
-  length           Int        @default(300)
-  count            Int        @default(1)
-  additionalFields Json?      @map("additional_fields")
-  status           PostStatus @default(PENDING)
-  completedCount   Int        @default(0) @map("completed_count")
-  targetCount      Int        @map("target_count")
-  userId           Int        @map("user_id")
-  createdAt        DateTime   @default(now()) @map("created_at")
-  updatedAt        DateTime   @updatedAt @map("updated_at")
-  creditCost       Int?       @map("credit_cost")
+  id                  Int        @id @default(autoincrement())
+  displayId           String     @unique @map("display_id")
+  keyword             String
+  persona             Json
+  postType            String     @map("post_type")
+  subKeywords         String[]   @map("sub_keywords") // deprecated: 기존 호환성용
+  blogIndex           String?    @map("blog_index") // 작성 예정 블로그 지수 (normal, semi-optimal, optimal)
+  recommendedKeyword  String?    @map("recommended_keyword") // 선택된 추천 키워드
+  length              Int        @default(300)
+  count               Int        @default(1)
+  additionalFields    Json?      @map("additional_fields")
+  status              PostStatus @default(PENDING)
+  completedCount      Int        @default(0) @map("completed_count")
+  targetCount         Int        @map("target_count")
+  userId              Int        @map("user_id")
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
+  creditCost          Int?       @map("credit_cost")
   // 에러 추적 필드
-  lastError        String?    @map("last_error")
-  errorAt          DateTime?  @map("error_at")
-  startedAt        DateTime?  @map("started_at")
-  completedAt      DateTime?  @map("completed_at")
-  posts            AIPost[]
-  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastError           String?    @map("last_error")
+  errorAt             DateTime?  @map("error_at")
+  startedAt           DateTime?  @map("started_at")
+  completedAt         DateTime?  @map("completed_at")
+  posts               AIPost[]
+  user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([status])
@@ -705,4 +704,22 @@ enum AdminRole {
   ADMIN            // 일반 관리자
   SUPPORT          // 고객 지원 담당 (읽기 위주)
   VIEWER           // 조회 전용
+}
+
+// ============================================
+// 네이버 검색광고 API 캐시 (Naver Search Ad Cache)
+// ============================================
+
+/// 네이버 검색광고 API 연관 키워드 결과 일일 캐시
+model KeywordStatCache {
+  id          Int      @id @default(autoincrement())
+  keyword     String   // 조회 키워드
+  dateStr     String   @map("date_str") // 날짜 (YYYYMMDD 형식)
+  keywordList Json     @map("keyword_list") // KeywordStat[] 배열
+  fetchedAt   DateTime @default(now()) @map("fetched_at") // API 호출 시각
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([keyword, dateStr])
+  @@index([dateStr])
+  @@map("keyword_stat_caches")
 }
