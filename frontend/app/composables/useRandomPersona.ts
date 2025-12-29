@@ -1,10 +1,5 @@
 import type { CreatePersonaSchema } from '~/schemas/persona';
-import {
-  genderOptions,
-  occupationOptions,
-  blogStyleOptions,
-  blogToneOptions,
-} from '~/schemas/persona';
+import { occupationOptions } from '~/schemas/persona';
 
 /**
  * Random persona generator composable
@@ -52,20 +47,12 @@ export const useRandomPersona = () => {
     // 직업: 직업 옵션 중 랜덤 선택
     const occupation = getRandomItem(occupationOptions);
 
-    // 블로그 문체: 5가지 중 랜덤 선택
-    const blogStyle = getRandomItem(blogStyleOptions);
-
-    // 블로그 분위기: 8가지 중 랜덤 선택
-    const blogTone = getRandomItem(blogToneOptions);
-
     return {
       gender,
       age,
       isMarried,
       hasChildren,
       occupation,
-      blogStyle,
-      blogTone,
       additionalInfo: '',
     };
   };

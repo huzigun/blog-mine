@@ -109,8 +109,6 @@ export class BlogPostService {
         isMarried: persona.isMarried,
         hasChildren: persona.hasChildren,
         occupation: persona.occupation,
-        blogStyle: persona.blogStyle,
-        blogTone: persona.blogTone,
         additionalInfo: persona.additionalInfo,
         isRandom: false,
       };

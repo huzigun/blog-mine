@@ -77,8 +77,6 @@ model Persona {
   isMarried      Boolean  @map("is_married")
   hasChildren    Boolean  @map("has_children")
   occupation     String
-  blogStyle      String   @map("blog_style")
-  blogTone       String   @map("blog_tone")
   additionalInfo String?  @map("additional_info")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

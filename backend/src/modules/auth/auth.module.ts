@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -13,8 +13,8 @@ import { EmailModule } from '../../lib/integrations/email/email.module';
 
 @Module({
   imports: [
-    UserModule,
-    CreditModule,
+    forwardRef(() => UserModule), // 순환 의존성 해결: UserModule -> SubscriptionModule -> ... -> AuthModule
+    forwardRef(() => CreditModule), // 순환 의존성 해결: CreditModule -> NotificationModule -> AuthModule
     EmailModule,
     PassportModule,
     JwtModule.registerAsync({

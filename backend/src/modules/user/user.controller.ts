@@ -11,6 +11,7 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { UserService } from './user.service';
+import { SubscriptionService } from '@modules/subscription/subscription.service';
 import {
   UpdateBusinessInfoDto,
   ChangePasswordDto,
@@ -25,7 +26,10 @@ import { RequestUser } from '../auth/strategies/jwt.strategy';
 @Controller('user')
 @UseGuards(JwtAuthGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   /**
    * 현재 사용자 정보 조회
@@ -40,12 +44,9 @@ export class UserController {
       throw new NotFoundException('User not found');
     }
 
-    // Get the first active subscription (if any)
+    // SubscriptionService를 통해 현재 유효한 구독 조회 (만료일 체크 포함)
     const activeSubscription =
-      userWithBusinessInfo.subscriptions &&
-      userWithBusinessInfo.subscriptions.length > 0
-        ? userWithBusinessInfo.subscriptions[0]
-        : undefined;
+      await this.subscriptionService.getCurrentSubscription(user.id);
 
     return {
       id: userWithBusinessInfo.id,

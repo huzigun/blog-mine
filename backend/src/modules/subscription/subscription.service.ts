@@ -51,18 +51,28 @@ export class SubscriptionService {
 
   /**
    * 사용자의 현재 활성 구독 조회
+   * - ACTIVE/TRIAL 상태면서 만료일이 아직 지나지 않은 구독
+   * - PAST_DUE 상태는 유예기간이므로 만료일 체크 없이 포함
    */
   async getCurrentSubscription(userId: number) {
+    const now = new Date();
+
     const subscription = await this.prisma.userSubscription.findFirst({
       where: {
         userId,
-        status: {
-          in: [
-            SubscriptionStatus.TRIAL,
-            SubscriptionStatus.ACTIVE,
-            SubscriptionStatus.PAST_DUE,
-          ],
-        },
+        OR: [
+          // ACTIVE/TRIAL: 만료일이 아직 지나지 않은 경우
+          {
+            status: {
+              in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE],
+            },
+            expiresAt: { gt: now },
+          },
+          // PAST_DUE: 유예기간 중이므로 포함 (gracePeriodEndsAt 체크는 스케줄러에서)
+          {
+            status: SubscriptionStatus.PAST_DUE,
+          },
+        ],
       },
       include: {
         plan: true,
@@ -1374,13 +1384,15 @@ export class SubscriptionService {
   }
 
   /**
-   * Phase 4.1: 유예기간 만료 구독 처리
+   * Phase 4.1: 만료된 구독 처리
+   * - PAST_DUE 상태이면서 유예기간이 지난 구독
+   * - ACTIVE/TRIAL 상태이면서 expiresAt이 지난 구독 (자동갱신 실패 등)
    */
   async handleExpiredSubscriptions(): Promise<number> {
     const now = new Date();
 
-    // 유예기간 만료된 PAST_DUE 구독 조회
-    const expiredSubscriptions = await this.prisma.userSubscription.findMany({
+    // 1. 유예기간 만료된 PAST_DUE 구독 조회
+    const pastDueExpired = await this.prisma.userSubscription.findMany({
       where: {
         status: SubscriptionStatus.PAST_DUE,
         gracePeriodEndsAt: { lte: now },
@@ -1390,13 +1402,28 @@ export class SubscriptionService {
       },
     });
 
+    // 2. expiresAt이 지난 ACTIVE/TRIAL 구독 조회 (자동갱신 비활성화 또는 결제 실패)
+    const activeTrialExpired = await this.prisma.userSubscription.findMany({
+      where: {
+        status: {
+          in: [SubscriptionStatus.ACTIVE, SubscriptionStatus.TRIAL],
+        },
+        expiresAt: { lte: now },
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    const allExpired = [...pastDueExpired, ...activeTrialExpired];
+
     this.logger.log(
-      `Found ${expiredSubscriptions.length} subscriptions with expired grace period`,
+      `Found ${allExpired.length} expired subscriptions (PAST_DUE: ${pastDueExpired.length}, ACTIVE/TRIAL: ${activeTrialExpired.length})`,
     );
 
     let processedCount = 0;
 
-    for (const subscription of expiredSubscriptions) {
+    for (const subscription of allExpired) {
       try {
         await this.expireSubscription(subscription);
         processedCount++;
@@ -1417,6 +1444,12 @@ export class SubscriptionService {
   private async expireSubscription(
     subscription: SubscriptionWithPlan,
   ): Promise<void> {
+    const oldStatus = subscription.status;
+    const reason =
+      oldStatus === SubscriptionStatus.PAST_DUE
+        ? '유예기간 만료'
+        : '구독 기간 만료';
+
     await this.prisma.$transaction(async (tx) => {
       // 1. EXPIRED 상태로 변경
       await tx.userSubscription.update({
@@ -1433,12 +1466,12 @@ export class SubscriptionService {
           userId: subscription.userId,
           subscriptionId: subscription.id,
           action: SubscriptionAction.EXPIRED,
-          oldStatus: SubscriptionStatus.PAST_DUE,
+          oldStatus: oldStatus,
           newStatus: SubscriptionStatus.EXPIRED,
           planId: subscription.planId,
           planName: subscription.plan.displayName,
           planPrice: subscription.plan.price,
-          reason: '유예기간 만료',
+          reason: reason,
         },
       });
 
@@ -1472,7 +1505,7 @@ export class SubscriptionService {
             planId: freePlan.id,
             planName: freePlan.displayName,
             planPrice: 0,
-            reason: '유예기간 만료로 인한 자동 다운그레이드',
+            reason: `${reason}로 인한 자동 다운그레이드`,
           },
         });
       }

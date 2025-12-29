@@ -53,14 +53,6 @@ const columns: ColumnDef<Persona>[] = [
     cell: ({ row }) => (row.original.hasChildren ? '유' : '무'),
   },
   {
-    accessorKey: 'blogStyle',
-    header: '블로그 문체',
-  },
-  {
-    accessorKey: 'blogTone',
-    header: '블로그 분위기',
-  },
-  {
     id: 'actions',
     header: '액션',
     cell: ({ row }) => {

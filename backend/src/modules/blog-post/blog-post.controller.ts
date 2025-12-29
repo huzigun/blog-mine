@@ -20,6 +20,7 @@ import {
   SubmitPostDto,
 } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ActiveSubscriptionGuard } from '../subscription/guards/active-subscription.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
 import { OrderService } from './order.service';
@@ -47,8 +48,10 @@ export class BlogPostController {
   /**
    * 블로그 원고 생성 요청
    * POST /blog-posts
+   * 활성 구독 상태(TRIAL, ACTIVE)이고 만료일이 지나지 않은 경우에만 허용
    */
   @Post()
+  @UseGuards(ActiveSubscriptionGuard)
   async create(
     @GetRequestUser() user: RequestUser,
     @Body() createBlogPostDto: CreateBlogPostDto,

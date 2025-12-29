@@ -271,12 +271,6 @@ const formatDate = (dateString: string) => {
               {{ blogPost.persona.occupation }}
             </span>
           </div>
-          <div v-if="blogPost.persona.blogStyle">
-            <span class="text-neutral-500">스타일:</span>
-            <span class="ml-2 text-neutral-900 dark:text-neutral-100">
-              {{ blogPost.persona.blogStyle }}
-            </span>
-          </div>
         </div>
       </div>
     </template>

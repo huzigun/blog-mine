@@ -27,6 +27,7 @@ import {
   AdminDashboardController,
 } from './dashboard';
 import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
+import { SubscriptionModule } from '@modules/subscription/subscription.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
       }),
       inject: [ConfigService],
     }),
+    SubscriptionModule,
   ],
   controllers: [
     AdminAuthController,

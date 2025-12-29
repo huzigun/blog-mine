@@ -1,16 +1,24 @@
 import {
   Controller,
   Get,
+  Post,
   Query,
   Param,
+  Body,
   ParseIntPipe,
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
-import { AdminUsersService, AdminUsersQuery } from './admin-users.service';
+import {
+  AdminUsersService,
+  AdminUsersQuery,
+  AdjustCreditDto,
+  ChangeSubscriptionPlanDto,
+} from './admin-users.service';
 import { AdminJwtAuthGuard } from '../guards/admin-jwt-auth.guard';
 import { RolesGuard } from '../guards/roles.guard';
 import { Roles } from '../decorators/roles.decorator';
+import { CurrentAdmin } from '../decorators/current-admin.decorator';
 import { AdminRole } from '@prisma/client';
 
 @Controller('admin/users')
@@ -66,5 +74,33 @@ export class AdminUsersController {
     }
 
     return user;
+  }
+
+  /**
+   * 사용자 크레딧 조정 (관리자용)
+   * ADMIN 이상 권한 필요
+   */
+  @Post(':id/credits/adjust')
+  @Roles(AdminRole.SUPER_ADMIN, AdminRole.ADMIN)
+  async adjustCredits(
+    @Param('id', ParseIntPipe) userId: number,
+    @Body() dto: AdjustCreditDto,
+    @CurrentAdmin() admin: { id: number; email: string },
+  ) {
+    return this.adminUsersService.adjustCredits(userId, dto, admin.id);
+  }
+
+  /**
+   * 사용자 구독 플랜 변경 (관리자용)
+   * ADMIN 이상 권한 필요
+   */
+  @Post(':id/subscription/change-plan')
+  @Roles(AdminRole.SUPER_ADMIN, AdminRole.ADMIN)
+  async changeSubscriptionPlan(
+    @Param('id', ParseIntPipe) userId: number,
+    @Body() dto: ChangeSubscriptionPlanDto,
+    @CurrentAdmin() admin: { id: number; email: string },
+  ) {
+    return this.adminUsersService.changeSubscriptionPlan(userId, dto, admin.id);
   }
 }

@@ -14,8 +14,6 @@ export const createPersonaSchema = z.object({
   isMarried: z.boolean(),
   hasChildren: z.boolean(),
   occupation: z.string().min(1, '직업을 입력해주세요'),
-  blogStyle: z.string().min(1, '블로그 문체를 선택해주세요'),
-  blogTone: z.string().min(1, '블로그 분위기를 선택해주세요'),
   additionalInfo: z.string().optional(),
 });
 
@@ -42,23 +40,4 @@ export const occupationOptions = [
   '교사',
   '강사',
   '마케팅 담당자',
-];
-
-export const blogStyleOptions = [
-  '따뜻한 공감형',
-  '객관 정보형',
-  '유머∙위트형',
-  '전문가 신뢰형',
-  '브랜드 큐레이션형',
-];
-
-export const blogToneOptions = [
-  '편안한',
-  '공손한',
-  '열정적인',
-  '차분한',
-  '긍정적인',
-  '중립적인',
-  '신뢰감 있는',
-  '친밀한',
 ];

@@ -5,8 +5,6 @@ import {
   type CreatePersonaSchema,
   genderOptions,
   occupationOptions,
-  blogStyleOptions,
-  blogToneOptions,
 } from '~/schemas/persona';
 
 definePageMeta({
@@ -36,8 +34,6 @@ const state = reactive<CreatePersonaSchema>({
   isMarried: false,
   hasChildren: false,
   occupation: '',
-  blogStyle: blogStyleOptions[0]!,
-  blogTone: blogToneOptions[0]!,
   additionalInfo: '',
 });
 
@@ -51,8 +47,6 @@ watch(
       state.isMarried = newPersona.isMarried || false;
       state.hasChildren = newPersona.hasChildren || false;
       state.occupation = newPersona.occupation || '';
-      state.blogStyle = newPersona.blogStyle || blogStyleOptions[0]!;
-      state.blogTone = newPersona.blogTone || blogToneOptions[0]!;
       state.additionalInfo = newPersona.additionalInfo || '';
     }
   },
@@ -180,43 +174,13 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
             </div>
 
             <div class="flex flex-col gap-y-4 mb-8">
-              <h4 class="font-bold">블로그 스타일</h4>
-
-              <UFormField label="블로그 문체" name="blogStyle" required>
-                <USelect
-                  v-model="state.blogStyle"
-                  :items="blogStyleOptions"
-                  variant="soft"
-                  class="w-full"
-                  size="xl"
-                />
-                <template #hint>
-                  <p class="text-xs text-neutral-600">
-                    원고 작성 시 사용할 문체를 선택해주세요
-                  </p>
-                </template>
-              </UFormField>
-
-              <UFormField label="블로그 분위기" name="blogTone" required>
-                <USelect
-                  v-model="state.blogTone"
-                  :items="blogToneOptions"
-                  variant="soft"
-                  class="w-full"
-                  size="xl"
-                />
-                <template #hint>
-                  <p class="text-xs text-neutral-600">
-                    원고의 전체적인 분위기를 선택해주세요
-                  </p>
-                </template>
-              </UFormField>
+              <h4 class="font-bold">추가 설정</h4>
 
               <UFormField label="추가 정보" name="additionalInfo">
                 <UTextarea
                   v-model="state.additionalInfo"
                   :rows="6"
-                  placeholder="페르소나에 대한 추가 정보를 입력해주세요. 예: 특별한 관심사, 글쓰기 스타일, 선호하는 주제 등"
+                  placeholder="페르소나에 대한 추가 정보를 입력해주세요. 예: 특별한 관심사, 선호하는 주제 등"
                   size="xl"
                   class="w-full"
                   variant="soft"
@@ -319,19 +283,6 @@ const onSubmit = async (event: FormSubmitEvent<CreatePersonaSchema>) => {
                     {{ persona.occupation }} ({{ persona.age }}세/{{
                       persona.gender
                     }})
-                  </span>
-                </div>
-
-                <div
-                  class="flex items-center justify-between p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800"
-                >
-                  <span class="text-sm text-neutral-600 dark:text-neutral-400">
-                    블로그 스타일
-                  </span>
-                  <span
-                    class="text-sm font-semibold text-neutral-900 dark:text-white"
-                  >
-                    {{ persona.blogStyle }} / {{ persona.blogTone }}
                   </span>
                 </div>
 

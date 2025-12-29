@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAdminApiFetch, useAdminApi } from '~/composables/useAdminApi';
+import { AdminUserCreditAdjustModal, AdminUserSubscriptionPlanChangeModal } from '#components';
 
 definePageMeta({
   layout: 'admin',
@@ -9,6 +10,7 @@ definePageMeta({
 const { hasMinRole } = useAdminAuth();
 const route = useRoute();
 const toast = useToast();
+const overlay = useOverlay();
 
 // 권한 체크
 if (!hasMinRole('SUPPORT')) {
@@ -124,6 +126,36 @@ const getSubscriptionLabel = (status: string | undefined) => {
 const formatCurrency = (amount: number | null | undefined) => {
   if (amount == null) return '-';
   return amount.toLocaleString() + '원';
+};
+
+// 크레딧 조정 모달 (useOverlay)
+const creditAdjustModal = overlay.create(AdminUserCreditAdjustModal);
+
+const openCreditAdjustModal = async () => {
+  const result = await creditAdjustModal.open({
+    userId: userId.value,
+    userName: user.value?.email || '',
+    currentCredits: user.value?.creditAccount || null,
+  });
+
+  if (result) {
+    refresh();
+  }
+};
+
+// 구독 플랜 변경 모달 (useOverlay)
+const subscriptionChangeModal = overlay.create(AdminUserSubscriptionPlanChangeModal);
+
+const openSubscriptionChangeModal = async () => {
+  const result = await subscriptionChangeModal.open({
+    userId: userId.value,
+    userName: user.value?.email || '',
+    currentSubscription: user.value?.subscription || null,
+  });
+
+  if (result) {
+    refresh();
+  }
 };
 </script>
 
@@ -254,14 +286,26 @@ const formatCurrency = (amount: number | null | undefined) => {
       <UCard>
         <template #header>
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold">구독 정보</h2>
-            <UBadge
-              v-if="user.subscription"
-              :color="getSubscriptionColor(user.subscription.status)"
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-semibold">구독 정보</h2>
+              <UBadge
+                v-if="user.subscription"
+                :color="getSubscriptionColor(user.subscription.status)"
+              >
+                {{ getSubscriptionLabel(user.subscription.status) }}
+              </UBadge>
+              <UBadge v-else color="neutral">미구독</UBadge>
+            </div>
+            <UButton
+              v-if="hasMinRole('ADMIN') && user.subscription"
+              color="primary"
+              variant="outline"
+              size="sm"
+              icon="i-heroicons-arrow-path"
+              @click="openSubscriptionChangeModal"
             >
-              {{ getSubscriptionLabel(user.subscription.status) }}
-            </UBadge>
-            <UBadge v-else color="neutral">미구독</UBadge>
+              플랜 변경
+            </UButton>
           </div>
         </template>
 
@@ -320,7 +364,19 @@ const formatCurrency = (amount: number | null | undefined) => {
       <!-- 크레딧 정보 -->
       <UCard>
         <template #header>
-          <h2 class="text-lg font-semibold">크레딧</h2>
+          <div class="flex items-center justify-between">
+            <h2 class="text-lg font-semibold">크레딧</h2>
+            <UButton
+              v-if="hasMinRole('ADMIN')"
+              color="primary"
+              variant="outline"
+              size="sm"
+              icon="i-heroicons-plus-circle"
+              @click="openCreditAdjustModal"
+            >
+              크레딧 조정
+            </UButton>
+          </div>
         </template>
 
         <div v-if="user.creditAccount" class="grid grid-cols-2 md:grid-cols-4 gap-4">

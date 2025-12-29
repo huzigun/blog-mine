@@ -37,19 +37,29 @@ export class CreditService {
   /**
    * 활성 구독 검증
    * - 크레딧 사용 시 실시간으로 구독 상태 확인
+   * - ACTIVE/TRIAL: 만료일이 아직 지나지 않은 경우만 유효
+   * - PAST_DUE: 유예기간이므로 만료일 체크 없이 허용
    * @param userId 사용자 ID
    */
   private async validateActiveSubscription(userId: number) {
+    const now = new Date();
+
     const subscription = await this.prisma.userSubscription.findFirst({
       where: {
         userId,
-        status: {
-          in: [
-            SubscriptionStatus.TRIAL,
-            SubscriptionStatus.ACTIVE,
-            SubscriptionStatus.PAST_DUE,
-          ],
-        },
+        OR: [
+          // ACTIVE/TRIAL: 만료일이 아직 지나지 않은 경우
+          {
+            status: {
+              in: [SubscriptionStatus.TRIAL, SubscriptionStatus.ACTIVE],
+            },
+            expiresAt: { gt: now },
+          },
+          // PAST_DUE: 유예기간 중이므로 포함
+          {
+            status: SubscriptionStatus.PAST_DUE,
+          },
+        ],
       },
       orderBy: {
         createdAt: 'desc',
@@ -59,13 +69,6 @@ export class CreditService {
     if (!subscription) {
       throw new ForbiddenException(
         '활성 구독을 찾을 수 없습니다. 플랜을 선택해주세요.',
-      );
-    }
-
-    // 만료 날짜 실시간 체크
-    if (new Date() > subscription.expiresAt) {
-      throw new ForbiddenException(
-        '구독이 만료되었습니다. 구독을 갱신해주세요.',
       );
     }
   }

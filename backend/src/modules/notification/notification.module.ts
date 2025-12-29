@@ -8,7 +8,7 @@ import { SseAuthGuard } from '@modules/auth/guards/sse-auth.guard';
 @Module({
   imports: [
     forwardRef(() => AuthModule), // forwardRef로 순환 의존성 해결
-    UserModule,
+    forwardRef(() => UserModule), // UserModule -> SubscriptionModule -> NotificationModule 순환 의존성 해결
   ],
   controllers: [NotificationController],
   providers: [NotificationService, SseAuthGuard],

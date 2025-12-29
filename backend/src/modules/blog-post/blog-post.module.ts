@@ -8,6 +8,7 @@ import { NaverApiModule } from '../../lib/integrations/naver/naver-api/naver-api
 import { CreditModule } from '../credit/credit.module';
 import { PromptLogModule } from '@lib/integrations/openai/prompt-log';
 import { NotificationModule } from '../notification/notification.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 import { OrderService } from './order.service';
 
 @Module({
@@ -18,6 +19,7 @@ import { OrderService } from './order.service';
     CreditModule,
     PromptLogModule,
     NotificationModule,
+    SubscriptionModule,
     HttpModule,
   ],
   controllers: [BlogPostController],

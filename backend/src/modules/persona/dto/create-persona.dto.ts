@@ -18,12 +18,6 @@ export class CreatePersonaDto {
   occupation: string;
 
   @IsString()
-  blogStyle: string;
-
-  @IsString()
-  blogTone: string;
-
-  @IsString()
   @IsOptional()
   additionalInfo?: string;
 }
