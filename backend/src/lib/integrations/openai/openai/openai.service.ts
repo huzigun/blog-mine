@@ -116,9 +116,22 @@ export class OpenAIService {
     if (request.additionalFields && request.additionalFields['placeUrl']) {
       try {
         const url = new URL(request.additionalFields['placeUrl']);
-        const paths = url.pathname.split('/');
-        const targetId = paths[paths.length - 2];
-        this.logger.debug(`Fetching place info for placeId: ${targetId}`);
+        const paths = url.pathname.split('/').filter((p) => p); // 빈 문자열 제거
+
+        // 도메인에 따라 placeId 추출 위치가 다름
+        // m.place.naver.com: /restaurant/1234567890/home → paths[1]이 ID (paths.length - 2)
+        // map.naver.com: /place/1234567890 → paths[1]이 ID (paths.length - 1)
+        let targetId: string;
+        if (url.hostname === 'map.naver.com') {
+          targetId = paths[paths.length - 1];
+        } else {
+          // m.place.naver.com 또는 기타 place.naver.com
+          targetId = paths[paths.length - 2];
+        }
+
+        this.logger.debug(
+          `Fetching place info for placeId: ${targetId} (from ${url.hostname})`,
+        );
         placeInfo = await this.crawler.getPlaceInfo(targetId);
         if (placeInfo) {
           this.logger.debug(
