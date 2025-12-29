@@ -15,9 +15,7 @@ export class AdminDashboardService {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
     // 각 유저별 최신 구독 ID 조회
-    const latestSubscriptionIds = await this.prisma.$queryRaw<
-      { id: number }[]
-    >`
+    const latestSubscriptionIds = await this.prisma.$queryRaw<{ id: number }[]>`
       SELECT us.id
       FROM user_subscriptions us
       INNER JOIN (

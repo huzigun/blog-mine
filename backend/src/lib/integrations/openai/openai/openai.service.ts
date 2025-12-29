@@ -119,10 +119,13 @@ export class OpenAIService {
       );
     }
 
+    // additionalFields 또는 extra 필드에서 네이버 플레이스 URL 추출
     let placeInfo: PlaceInfo | null = null;
-    if (request.additionalFields && request.additionalFields['placeUrl']) {
+    const placeUrl = this.extractPlaceUrl(request.additionalFields);
+
+    if (placeUrl) {
       try {
-        const url = new URL(request.additionalFields['placeUrl']);
+        const url = new URL(placeUrl);
         const paths = url.pathname.split('/').filter((p) => p); // 빈 문자열 제거
 
         // 도메인에 따라 placeId 추출 위치가 다름
@@ -1002,6 +1005,36 @@ export class OpenAIService {
    */
   private isInformationalPostType(postType: string): boolean {
     return this.INFORMATIONAL_POST_TYPES.includes(postType);
+  }
+
+  /**
+   * additionalFields에서 네이버 플레이스 URL 추출
+   * - placeUrl 필드가 있으면 직접 사용 (하위 호환성)
+   * - extra 필드에서 네이버 플레이스 URL 패턴 추출
+   */
+  private extractPlaceUrl(
+    additionalFields?: Record<string, any>,
+  ): string | null {
+    if (!additionalFields) return null;
+
+    // 직접 placeUrl 필드 확인 (하위 호환성)
+    if (additionalFields['placeUrl']) {
+      return additionalFields['placeUrl'] as string;
+    }
+
+    // extra 필드에서 네이버 플레이스 URL 추출
+    const extra = additionalFields['extra'];
+    if (typeof extra === 'string') {
+      // naver.me, place.naver.com, map.naver.com URL 패턴 매칭
+      const urlPattern =
+        /https?:\/\/(?:naver\.me\/\w+|(?:m\.)?place\.naver\.com\/[^\s]+|map\.naver\.com\/[^\s]+)/i;
+      const match = extra.match(urlPattern);
+      if (match) {
+        return match[0];
+      }
+    }
+
+    return null;
   }
 
   /**

@@ -429,7 +429,10 @@ export class CreditService {
     }
     // 한도 초과 임박 (90% 이상 사용)
     else if (usagePercent >= 90) {
-      await this.notificationService.sendUsageLimitWarning(userId, usagePercent);
+      await this.notificationService.sendUsageLimitWarning(
+        userId,
+        usagePercent,
+      );
     }
     // 크레딧 부족 경고 (80% 이상 사용)
     else if (usagePercent >= 80) {

@@ -14,12 +14,12 @@ import { PrismaModule } from '../../../../lib/database/prisma.module';
     }),
     PrismaModule,
   ],
-  providers: [NaverApiService, BlogRankService, CrawlerService, SearchAdService],
-  exports: [
+  providers: [
     NaverApiService,
     BlogRankService,
     CrawlerService,
     SearchAdService,
   ],
+  exports: [NaverApiService, BlogRankService, CrawlerService, SearchAdService],
 })
 export class NaverApiModule {}

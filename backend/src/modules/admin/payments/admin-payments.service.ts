@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import { Prisma, PaymentStatus } from '@prisma/client';
 
@@ -174,7 +178,9 @@ export class AdminPaymentsService {
     const refundAmount = dto.amount || payment.amount;
 
     if (refundAmount > payment.amount) {
-      throw new BadRequestException('환불 금액이 결제 금액을 초과할 수 없습니다.');
+      throw new BadRequestException(
+        '환불 금액이 결제 금액을 초과할 수 없습니다.',
+      );
     }
 
     // 이미 부분 환불된 경우 남은 금액 확인
@@ -227,7 +233,11 @@ export class AdminPaymentsService {
    */
   async getStats() {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const [

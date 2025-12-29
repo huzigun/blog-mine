@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PrismaService } from '@lib/database/prisma.service';
 import { Prisma, SubscriptionStatus, SubscriptionAction } from '@prisma/client';
 
@@ -30,9 +34,7 @@ export class AdminSubscriptionsService {
    * 각 유저별 최신 구독 ID 목록 조회
    */
   private async getLatestSubscriptionIds(): Promise<number[]> {
-    const latestSubscriptionIds = await this.prisma.$queryRaw<
-      { id: number }[]
-    >`
+    const latestSubscriptionIds = await this.prisma.$queryRaw<{ id: number }[]>`
       SELECT us.id
       FROM user_subscriptions us
       INNER JOIN (
@@ -215,7 +217,8 @@ export class AdminSubscriptionsService {
       data: {
         status: dto.status,
         // 취소 상태로 변경 시 취소일 기록
-        canceledAt: dto.status === 'CANCELED' ? new Date() : subscription.canceledAt,
+        canceledAt:
+          dto.status === 'CANCELED' ? new Date() : subscription.canceledAt,
         // 활성화로 변경 시 취소일 초기화
         ...(dto.status === 'ACTIVE' && { canceledAt: null }),
       },
@@ -287,7 +290,8 @@ export class AdminSubscriptionsService {
       data: {
         expiresAt: newExpiresAt,
         // 만료된 구독을 연장하면 활성화
-        status: subscription.status === 'EXPIRED' ? 'ACTIVE' : subscription.status,
+        status:
+          subscription.status === 'EXPIRED' ? 'ACTIVE' : subscription.status,
       },
       select: {
         id: true,
@@ -320,7 +324,8 @@ export class AdminSubscriptionsService {
         planName: subscription.plan.displayName || subscription.plan.name,
         planPrice: 0, // 관리자 연장은 무료
         expiresAt: newExpiresAt,
-        reason: dto.reason || `관리자(ID: ${adminId})에 의한 ${dto.days}일 기간 연장`,
+        reason:
+          dto.reason || `관리자(ID: ${adminId})에 의한 ${dto.days}일 기간 연장`,
       },
     });
 
@@ -419,7 +424,8 @@ export class AdminSubscriptionsService {
   ): SubscriptionAction {
     if (newStatus === 'CANCELED') return 'CANCELLED';
     if (newStatus === 'ACTIVE' && oldStatus === 'EXPIRED') return 'REACTIVATED';
-    if (newStatus === 'ACTIVE' && oldStatus === 'CANCELED') return 'REACTIVATED';
+    if (newStatus === 'ACTIVE' && oldStatus === 'CANCELED')
+      return 'REACTIVATED';
     if (newStatus === 'EXPIRED') return 'EXPIRED';
     // 그 외의 상태 변경은 RENEWED로 처리 (관리자에 의한 상태 복구 등)
     return 'RENEWED';

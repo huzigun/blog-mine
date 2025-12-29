@@ -46,16 +46,22 @@ export class AdminAuthService {
     });
 
     if (!admin || admin.deletedAt) {
-      throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
+      throw new UnauthorizedException(
+        '이메일 또는 비밀번호가 올바르지 않습니다.',
+      );
     }
 
     if (!admin.isActive) {
-      throw new UnauthorizedException('비활성화된 계정입니다. 관리자에게 문의하세요.');
+      throw new UnauthorizedException(
+        '비활성화된 계정입니다. 관리자에게 문의하세요.',
+      );
     }
 
     const isPasswordValid = await bcrypt.compare(password, admin.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('이메일 또는 비밀번호가 올바르지 않습니다.');
+      throw new UnauthorizedException(
+        '이메일 또는 비밀번호가 올바르지 않습니다.',
+      );
     }
 
     // 마지막 로그인 정보 업데이트
@@ -68,11 +74,23 @@ export class AdminAuthService {
     });
 
     // 활동 로그 기록
-    await this.logActivity(admin.id, 'auth.login', null, null, null, ipAddress, userAgent);
+    await this.logActivity(
+      admin.id,
+      'auth.login',
+      null,
+      null,
+      null,
+      ipAddress,
+      userAgent,
+    );
 
     // 토큰 발급
     const accessToken = this.generateAccessToken(admin);
-    const refreshToken = await this.createRefreshToken(admin.id, ipAddress, userAgent);
+    const refreshToken = await this.createRefreshToken(
+      admin.id,
+      ipAddress,
+      userAgent,
+    );
 
     return {
       accessToken,
@@ -227,7 +245,10 @@ export class AdminAuthService {
       throw new NotFoundException('관리자를 찾을 수 없습니다.');
     }
 
-    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, admin.password);
+    const isCurrentPasswordValid = await bcrypt.compare(
+      currentPassword,
+      admin.password,
+    );
     if (!isCurrentPasswordValid) {
       throw new BadRequestException('현재 비밀번호가 올바르지 않습니다.');
     }
@@ -245,7 +266,15 @@ export class AdminAuthService {
     });
 
     // 활동 로그 기록
-    await this.logActivity(adminId, 'auth.password_change', null, null, null, ipAddress, userAgent);
+    await this.logActivity(
+      adminId,
+      'auth.password_change',
+      null,
+      null,
+      null,
+      ipAddress,
+      userAgent,
+    );
 
     this.logger.log(`Admin ${adminId} changed password`);
 

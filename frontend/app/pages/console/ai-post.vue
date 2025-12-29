@@ -18,7 +18,7 @@ const overlay = useOverlay();
 const postDoneModal = overlay.create(PostDone);
 
 interface SimplePersona
-  extends Pick<Persona, 'id' | 'occupation' | 'age' | 'gender'> {}
+  extends Pick<Persona, 'id' | 'blogTopic' | 'gender'> {}
 
 // 특별한 값으로 "임의 생성" 옵션 구분
 const RANDOM_PERSONA_VALUE = -1;
@@ -33,7 +33,7 @@ const { data: personas } = await useApiFetch<
   lazy: true,
   transform: (data: any) => {
     const personaList = data.map((item: SimplePersona) => ({
-      label: `${item.occupation} (${item.age}세, ${item.gender})`,
+      label: `${item.blogTopic} (${item.gender})`,
       value: item.id,
     }));
 

@@ -145,7 +145,9 @@ export class EmailService {
         `,
       });
 
-      this.logger.log(`✅ 비밀번호 재설정 인증 코드 이메일 전송 완료: ${email}`);
+      this.logger.log(
+        `✅ 비밀번호 재설정 인증 코드 이메일 전송 완료: ${email}`,
+      );
     } catch (error) {
       this.logger.error(`❌ 이메일 전송 실패: ${email}`, error);
       throw new Error('이메일 전송에 실패했습니다.');
@@ -475,7 +477,10 @@ export class EmailService {
         `✅ 크레딧 충전 완료 이메일 전송 완료: ${email} (${receiptNumber})`,
       );
     } catch (error) {
-      this.logger.error(`❌ 크레딧 충전 완료 이메일 전송 실패: ${email}`, error);
+      this.logger.error(
+        `❌ 크레딧 충전 완료 이메일 전송 실패: ${email}`,
+        error,
+      );
       // 이메일 실패는 충전에 영향을 주지 않도록 throw하지 않음
     }
   }
@@ -491,8 +496,14 @@ export class EmailService {
     responseMessage: string;
     respondedAt: Date;
   }): Promise<void> {
-    const { email, name, subject, originalMessage, responseMessage, respondedAt } =
-      data;
+    const {
+      email,
+      name,
+      subject,
+      originalMessage,
+      responseMessage,
+      respondedAt,
+    } = data;
 
     // 날짜 포맷팅
     const formatDateTime = (date: Date) =>

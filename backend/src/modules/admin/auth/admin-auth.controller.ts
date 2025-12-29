@@ -60,7 +60,12 @@ export class AdminAuthController {
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
-    return this.adminAuthService.createAdmin(createDto, adminId, ipAddress, userAgent);
+    return this.adminAuthService.createAdmin(
+      createDto,
+      adminId,
+      ipAddress,
+      userAgent,
+    );
   }
 
   /**
@@ -68,11 +73,18 @@ export class AdminAuthController {
    */
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refreshToken(@Body() refreshDto: AdminRefreshTokenDto, @Req() req: Request) {
+  async refreshToken(
+    @Body() refreshDto: AdminRefreshTokenDto,
+    @Req() req: Request,
+  ) {
     const ipAddress = req.ip || req.socket.remoteAddress;
     const userAgent = req.headers['user-agent'];
 
-    return this.adminAuthService.refreshToken(refreshDto.refreshToken, ipAddress, userAgent);
+    return this.adminAuthService.refreshToken(
+      refreshDto.refreshToken,
+      ipAddress,
+      userAgent,
+    );
   }
 
   /**

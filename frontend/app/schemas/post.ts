@@ -31,32 +31,12 @@ export const fieldConfigsByType: Record<
         required: true,
       },
       {
-        name: 'placeUrl',
-        label: '플레이스 정보 링크',
-        type: 'text',
-        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
-      },
-      {
-        name: 'visitDate',
-        label: '방문한 시간',
-        type: 'text',
-        placeholder:
-          '아침, 점심, 저녁 등 언제 방문했는지 적어주세요 분위기 표현에 사용돼요 (예시: 저녁 7시, 주말 오후)',
-      },
-      {
-        name: 'menus',
-        label: '대표 메뉴',
-        type: 'text',
-        placeholder:
-          '대표 메뉴를 최대 3개까지 알려주세요. 간단한 설명까지 적어주시면 원고에 그대로 반영됩니다',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 플레이스 링크: https://naver.me/xxx\n- 대표 메뉴: 꼬리곰탕 12,000원, 수육 25,000원\n- 방문 시간: 주말 점심\n- 분위기: 깔끔하고 넓은 홀, 주차 가능\n- 강조 포인트: 3대째 내려오는 전통, 푸짐한 양',
+        rows: 6,
       },
     ],
   },
@@ -72,36 +52,12 @@ export const fieldConfigsByType: Record<
         required: true,
       },
       {
-        name: 'placeUrl',
-        label: '플레이스 정보 링크',
-        type: 'text',
-        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
-      },
-      {
-        name: 'visitDate',
-        label: '방문 날짜',
-        type: 'text',
-        placeholder: '예: 2024년 1월 15일',
-      },
-      {
-        name: 'mainAttraction',
-        label: '대표 메뉴/상품/체험 명',
-        type: 'text',
-        placeholder: '그곳에서 경험한 대표적인 메뉴나 프로그램 등을 알려주세요',
-      },
-      {
-        name: 'location',
-        label: '위치 및 접근성',
-        type: 'text',
-        placeholder: '주소 및 교통편 정보',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 플레이스 링크: https://naver.me/xxx\n- 방문 날짜: 2024년 12월 주말\n- 이용 서비스: 1인 네일아트 50,000원\n- 위치/주차: 강남역 3번 출구 도보 5분, 건물 내 주차 가능\n- 강조 포인트: 친절한 서비스, 깔끔한 시설',
+        rows: 6,
       },
     ],
   },
@@ -118,25 +74,12 @@ export const fieldConfigsByType: Record<
         required: true,
       },
       {
-        name: 'travelDates',
-        label: '여행 일자 및 일정:',
-        type: 'text',
-        placeholder:
-          '여행 기간을 알려주세요 (예시: 5/5-5/6,1박 2일, 3박 4일 등)',
-      },
-      {
-        name: 'mainAttractions',
-        label: '주요 방문지',
-        type: 'text',
-        placeholder: '여행 중 들렀던 관광지 또는 장소에 대해 적어주세요',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 여행 일정: 12/20~12/22, 2박 3일\n- 방문지: 양림동 펭귄마을, 무등산 국립공원\n- 맛집: 송정떡갈비, 광주 오리탕\n- 숙소: 양림동 게스트하우스\n- 강조 포인트: 걷기 좋은 골목, 감성 카페 투어',
+        rows: 6,
       },
     ],
   },
@@ -153,11 +96,11 @@ export const fieldConfigsByType: Record<
       },
       {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 구매처: 쿠팡, 공식 홈페이지\n- 가격: 39,000원 (할인가 29,000원)\n- 사용 기간: 2주\n- 장점: 가성비 좋음, 디자인 예쁨\n- 단점: 배송이 조금 늦음\n- 강조 포인트: 민감성 피부에도 자극 없음',
+        rows: 6,
       },
     ],
   },
@@ -170,23 +113,16 @@ export const fieldConfigsByType: Record<
         label: '핵심 내용',
         type: 'text',
         placeholder:
-          '설명하려는 키워드 또는 주제를 적어주세요 글의 방향성과 구성 흐름을 잡는 기준이 됩니다(예시: 반려견 미용법)',
+          '설명하려는 키워드 또는 주제를 적어주세요 (예시: 반려견 미용법)',
         required: true,
       },
       {
-        name: 'purpose',
-        label: '글의 목적',
-        type: 'text',
-        placeholder:
-          '이 글을 쓰는 이유를 알려주세요. 교육, 브랜드 홍보, 정보 제공, 브랜드 신뢰 확보, 기타가 될 수 있어요',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 글의 목적: 정보 제공, 브랜드 홍보\n- 타겟 독자: 반려견 초보 양육자\n- 포함할 내용: 미용 주기, 비용, 셀프 미용 팁\n- 광고주: OO 펫샵 (강남점)\n- 강조 포인트: 전문가가 알려주는 실용 정보',
+        rows: 6,
       },
     ],
   },
@@ -199,29 +135,16 @@ export const fieldConfigsByType: Record<
         label: '핵심 내용',
         type: 'text',
         placeholder:
-          '설명하려는 키워드 또는 주제를 적어주세요 글의 방향성과 구성 흐름을 잡는 기준이 됩니다(예시: 반려견 미용법)',
+          '설명하려는 의료 주제를 적어주세요 (예시: 임플란트 수술 과정)',
         required: true,
       },
       {
-        name: 'companyName',
-        label: '병원 이름',
-        type: 'text',
-        placeholder:
-          '참고하거나 소개할 병원 또는 의료 기관의 이름을 알려주세요',
-      },
-      {
-        name: 'placeUrl',
-        label: '플레이스 정보 링크',
-        type: 'text',
-        placeholder: '방문업체의 PLACE 링크를 입력해주세요.',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 병원명: OO치과의원\n- 플레이스 링크: https://naver.me/xxx\n- 진료 과목: 임플란트, 교정\n- 위치: 강남역 2번 출구\n- 강조 포인트: 20년 경력 전문의, 무통 마취',
+        rows: 6,
       },
     ],
   },
@@ -233,22 +156,16 @@ export const fieldConfigsByType: Record<
         label: '핵심 내용',
         type: 'text',
         placeholder:
-          '설명하려는 키워드 또는 주제를 적어주세요 글의 방향성과 구성 흐름을 잡는 기준이 됩니다(예시: 반려견 미용법)',
+          '설명하려는 법률 주제를 적어주세요 (예시: 이혼 소송 절차)',
         required: true,
       },
       {
-        name: 'companyName',
-        label: '기업 이름',
-        type: 'text',
-        placeholder: '참고할 법률 사무소, 기관, 변호사명을 적어주세요',
-      },
-      {
         name: 'extra',
-        label: '강조할 내용',
+        label: '추가 정보',
         type: 'textarea',
         placeholder:
-          '글에 포함되면 좋은 구체적인 요청사항을 알려주시면 더 정확하고 현실적인 원고 생성에 도움이 됩니다 (예시: 가격, 위치, 영업시간, 후기 스타일, 실제 방문 경험 등)',
-        rows: 4,
+          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 법률사무소: OO법률사무소\n- 전문 분야: 이혼, 재산분할\n- 변호사: 홍길동 변호사 (10년 경력)\n- 위치: 서초동 법원 인근\n- 강조 포인트: 무료 상담, 높은 승소율',
+        rows: 6,
       },
     ],
   },

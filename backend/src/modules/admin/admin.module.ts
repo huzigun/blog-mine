@@ -8,24 +8,12 @@ import {
   AdminSubscriptionsService,
   AdminSubscriptionsController,
 } from './subscriptions';
-import {
-  AdminPaymentsService,
-  AdminPaymentsController,
-} from './payments';
+import { AdminPaymentsService, AdminPaymentsController } from './payments';
 import { AdminPostsService, AdminPostsController } from './posts';
-import {
-  AdminContactsService,
-  AdminContactsController,
-} from './contacts';
-import {
-  AdminAdminsService,
-  AdminAdminsController,
-} from './admins';
+import { AdminContactsService, AdminContactsController } from './contacts';
+import { AdminAdminsService, AdminAdminsController } from './admins';
 import { AdminPlansService, AdminPlansController } from './plans';
-import {
-  AdminDashboardService,
-  AdminDashboardController,
-} from './dashboard';
+import { AdminDashboardService, AdminDashboardController } from './dashboard';
 import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
 import { SubscriptionModule } from '@modules/subscription/subscription.module';
 
