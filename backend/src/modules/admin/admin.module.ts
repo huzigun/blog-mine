@@ -14,6 +14,10 @@ import { AdminContactsService, AdminContactsController } from './contacts';
 import { AdminAdminsService, AdminAdminsController } from './admins';
 import { AdminPlansService, AdminPlansController } from './plans';
 import { AdminDashboardService, AdminDashboardController } from './dashboard';
+import {
+  AdminDeployProductsService,
+  AdminDeployProductsController,
+} from './deploy-products';
 import { AdminJwtStrategy } from './guards/admin-jwt.strategy';
 import { SubscriptionModule } from '@modules/subscription/subscription.module';
 
@@ -42,6 +46,7 @@ import { SubscriptionModule } from '@modules/subscription/subscription.module';
     AdminAdminsController,
     AdminPlansController,
     AdminDashboardController,
+    AdminDeployProductsController,
   ],
   providers: [
     AdminAuthService,
@@ -53,6 +58,7 @@ import { SubscriptionModule } from '@modules/subscription/subscription.module';
     AdminAdminsService,
     AdminPlansService,
     AdminDashboardService,
+    AdminDeployProductsService,
     AdminJwtStrategy,
   ],
   exports: [AdminAuthService],

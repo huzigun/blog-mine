@@ -134,3 +134,46 @@ export const orderSchema = z.object({
 });
 
 export type OrderSchema = z.infer<typeof orderSchema>;
+
+/**
+ * 원고 배포 요청 모달 스키마 (DeployModal)
+ * - 동적 maxPostCount를 인자로 받아 스키마 생성
+ */
+export const createDeployOrderSchema = (maxPostCount: number) =>
+  z.object({
+    // 배포 제목
+    deployTitle: z
+      .string({ required_error: '배포 제목을 입력해주세요' })
+      .min(3, '배포 제목은 최소 3글자 이상이어야 합니다')
+      .max(100, '배포 제목은 최대 100자까지 입력 가능합니다'),
+
+    // 업체명
+    companyName: z
+      .string({ required_error: '업체명을 입력해주세요' })
+      .min(1, '업체명을 입력해주세요')
+      .max(100, '업체명은 최대 100자까지 입력 가능합니다'),
+
+    // 연락처
+    applicantPhone: z
+      .string({ required_error: '연락처를 입력해주세요' })
+      .min(1, '연락처를 입력해주세요')
+      .regex(
+        /^01[016789]-?\d{3,4}-?\d{4}$/,
+        '올바른 휴대폰 번호 형식으로 입력해주세요 (예: 010-1234-5678)',
+      ),
+
+    // 이메일
+    applicantEmail: z
+      .string({ required_error: '이메일 주소를 입력해주세요' })
+      .min(1, '이메일 주소를 입력해주세요')
+      .email('올바른 이메일 형식으로 입력해주세요'),
+
+    // 하루 배포 건수
+    dailyUploadCount: z
+      .number({ required_error: '일 업로드 건수를 입력해주세요' })
+      .int('일 업로드 건수는 정수여야 합니다')
+      .min(1, '일 업로드 건수는 최소 1건 이상이어야 합니다')
+      .max(maxPostCount, `일 업로드 건수는 최대 ${maxPostCount}건까지 가능합니다`),
+  });
+
+export type DeployOrderSchema = z.infer<ReturnType<typeof createDeployOrderSchema>>;

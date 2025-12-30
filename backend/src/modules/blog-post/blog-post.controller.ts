@@ -12,30 +12,16 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import { BlogPostService } from './blog-post.service';
-import {
-  CreateBlogPostDto,
-  FilterBlogPostDto,
-  CreateOrderDto,
-  SubmitPostDto,
-} from './dto';
+import { DeployService } from './deploy.service';
+import { S3UploadInterceptor } from './interceptors';
+import { CreateBlogPostDto, FilterBlogPostDto, DeployOrderDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { HelloDmService } from '@lib/integrations/hello-dm/hello-dm.service';
 import { ActiveSubscriptionGuard } from '../subscription/guards/active-subscription.guard';
 import { GetRequestUser } from '../auth/decorators/request-user.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
-import { OrderService } from './order.service';
 import { SearchAdService } from '@lib/integrations/naver/naver-api/search.ad.service';
-
-// Multer file type definition
-interface MulterFile {
-  fieldname: string;
-  originalname: string;
-  encoding: string;
-  mimetype: string;
-  size: number;
-  buffer: Buffer;
-}
 
 @Controller('blog-posts')
 @UseGuards(JwtAuthGuard)
@@ -44,8 +30,9 @@ export class BlogPostController {
 
   constructor(
     private readonly blogPostService: BlogPostService,
-    private readonly orderService: OrderService,
+    private readonly deployService: DeployService,
     private readonly searchAdService: SearchAdService,
+    private readonly helloDmService: HelloDmService,
   ) {}
 
   /**
@@ -150,7 +137,7 @@ export class BlogPostController {
 
   /**
    * 진행 상황 조회
-   * GET /blog-post/:id/progress
+   * GET /blog-posts/:id/progress
    */
   @Get(':id/progress')
   async getProgress(
@@ -162,103 +149,62 @@ export class BlogPostController {
   }
 
   /**
-   * 원고 배포 신청
-   * POST /blog-post/order
-   * FormData로 파일과 함께 전송됨
+   * 원고 배포 요청
+   * POST /blog-posts/:id/deploy
+   *
+   * - 파일은 S3UploadInterceptor에 의해 바로 S3로 스트리밍 업로드됨
+   * - 업로드된 파일 정보는 req.file에 S3File 형태로 저장
    */
-  @Post('order')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize: 500 * 1024 * 1024, // 500MB
-      },
-      fileFilter: (req, file, callback) => {
-        // ZIP 파일만 허용
-        const allowedMimeTypes = [
-          'application/zip',
-          'application/x-zip-compressed',
-          'application/x-zip',
-        ];
-        const isZip =
-          allowedMimeTypes.includes(file.mimetype) ||
-          file.originalname.toLowerCase().endsWith('.zip');
-
-        if (isZip) {
-          callback(null, true);
-        } else {
-          callback(new Error('ZIP 파일만 업로드 가능합니다.'), false);
-        }
-      },
-    }),
-  )
-  createOrder(
+  @Post(':id/deploy')
+  @UseInterceptors(S3UploadInterceptor)
+  deploy(
+    @Param('id', ParseIntPipe) id: number,
     @GetRequestUser() user: RequestUser,
-    @Body() createOrderDto: CreateOrderDto,
-    @UploadedFile() file?: MulterFile,
+    @Body() deployOrderDto: DeployOrderDto,
+    @UploadedFile() attachmentFile?: Express.MulterS3.File,
   ) {
     const userId = user.id;
 
-    // 상품별 배포 수량 파싱
-    let productDistributions: Array<{ productId: string; quantity: number }> =
-      [];
-    try {
-      productDistributions = JSON.parse(createOrderDto.productDistributions);
-    } catch (e) {
-      this.logger.warn('Failed to parse productDistributions', e);
+    this.logger.log(
+      `원고 배포 요청 - userId: ${userId}, blogPostId: ${id}, productId: ${deployOrderDto.productId}`,
+    );
+
+    return this.deployService.deployBlogPost(
+      userId,
+      id,
+      deployOrderDto,
+      attachmentFile,
+    );
+  }
+
+  /**
+   * 배포 결과 조회
+   * GET /blog-posts/:id/deploy-result?page=1&limit=30
+   *
+   * - HelloDM API를 통해 배포된 블로그 포스팅 목록 조회
+   * - 페이징 지원
+   */
+  @Get(':id/deploy-result')
+  async getDeployResult(
+    @Param('id', ParseIntPipe) id: number,
+    @GetRequestUser() user: RequestUser,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = user.id;
+
+    // 해당 BlogPost가 사용자 소유인지 확인
+    const blogPost = await this.blogPostService.findOne(id, userId);
+
+    if (!blogPost.helloPostNo) {
+      throw new BadRequestException('배포되지 않은 원고입니다.');
     }
 
-    // 디버그 로깅
-    this.logger.debug('=== 원고 배포 신청 데이터 ===');
-    this.logger.debug(`userId: ${userId}`);
-    this.logger.debug(`companyName: ${createOrderDto.companyName}`);
-    this.logger.debug(`naverMapUrl: ${createOrderDto.naverMapUrl || '(없음)'}`);
-    this.logger.debug(
-      `requiredContent: ${createOrderDto.requiredContent.substring(0, 100)}...`,
-    );
-    this.logger.debug(`applicantName: ${createOrderDto.applicantName}`);
-    this.logger.debug(`applicantPhone: ${createOrderDto.applicantPhone}`);
-    this.logger.debug(`applicantEmail: ${createOrderDto.applicantEmail}`);
-    this.logger.debug(`dailyUploadCount: ${createOrderDto.dailyUploadCount}`);
-    this.logger.debug(
-      `adGuidelineAgreement: ${createOrderDto.adGuidelineAgreement}`,
-    );
-    this.logger.debug(
-      `productDistributions: ${JSON.stringify(productDistributions)}`,
-    );
-
-    if (file) {
-      this.logger.debug('=== 업로드된 파일 정보 ===');
-      this.logger.debug(`filename: ${file.originalname}`);
-      this.logger.debug(`mimetype: ${file.mimetype}`);
-      this.logger.debug(
-        `size: ${(file.size / (1024 * 1024)).toFixed(2)} MB (${file.size} bytes)`,
-      );
-    } else {
-      this.logger.debug('업로드된 파일 없음');
-    }
-
-    const orderDatas: SubmitPostDto[] = productDistributions.map((el) => {
-      return {
-        // adcompany: createOrderDto.applicantName,
-        adcompany: '테스트',
-        adhp: createOrderDto.applicantPhone,
-        ademail: createOrderDto.applicantEmail,
-        title: '테스트',
-        wgCostImage: createOrderDto.adGuidelineAgreement,
-        wgMapLink: createOrderDto.naverMapUrl,
-        okdayCnt: createOrderDto.dailyUploadCount,
-        mosu: el.quantity,
-        orderItem: Number(el.productId),
-        wgCompany: createOrderDto.companyName,
-        wgContent: createOrderDto.requiredContent,
-        wgKeyword: ['test'],
-      };
+    // HelloDM API로 배포 결과 조회
+    return this.helloDmService.getBlogList({
+      postNo: blogPost.helloPostNo,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 30,
     });
-
-    // TODO: 실제 배포 신청 로직 구현
-
-    return {
-      orderDatas,
-    };
   }
 }

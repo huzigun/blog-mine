@@ -14,6 +14,9 @@ interface BlogPost {
   userId: number;
   createdAt: string;
   updatedAt: string;
+  // 배포 관련 필드
+  helloPostNo?: number | null; // HelloDM API 배포 완료 시 반환받은 post_no
+  deployedAt?: string | null; // 배포 요청 완료 시각
   _count?: {
     posts: number;
   };

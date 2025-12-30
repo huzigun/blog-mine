@@ -22,6 +22,9 @@ import { NicepayModule } from './lib/integrations/nicepay/nicepay.module';
 import { EmailModule } from './lib/integrations/email/email.module';
 import { DateModule } from './lib/date';
 import { SchedulerModule } from './lib/scheduler';
+import { HelloDmModule } from '@lib/integrations/hello-dm/hello-dm.module';
+import { DeployProductModule } from './modules/deploy-product/deploy-product.module';
+import { S3Module } from './lib/integrations/s3';
 
 @Module({
   imports: [
@@ -57,6 +60,9 @@ import { SchedulerModule } from './lib/scheduler';
     NotificationModule,
     AdminModule,
     NaverApiModule,
+    HelloDmModule,
+    DeployProductModule,
+    S3Module,
   ],
   controllers: [AppController],
   providers: [AppService],

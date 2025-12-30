@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { HttpModule } from '@nestjs/axios';
 import { BlogPostController } from './blog-post.controller';
 import { BlogPostService } from './blog-post.service';
+import { DeployService } from './deploy.service';
 import { PrismaModule } from '../../lib/database/prisma.module';
 import { OpenAIModule } from '../../lib/integrations/openai/openai/openai.module';
 import { NaverApiModule } from '../../lib/integrations/naver/naver-api/naver-api.module';
@@ -9,7 +9,8 @@ import { CreditModule } from '../credit/credit.module';
 import { PromptLogModule } from '@lib/integrations/openai/prompt-log';
 import { NotificationModule } from '../notification/notification.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
-import { OrderService } from './order.service';
+import { HelloDmModule } from '@lib/integrations/hello-dm/hello-dm.module';
+import { S3Module } from '@lib/integrations/s3';
 
 @Module({
   imports: [
@@ -20,10 +21,11 @@ import { OrderService } from './order.service';
     PromptLogModule,
     NotificationModule,
     SubscriptionModule,
-    HttpModule,
+    HelloDmModule,
+    S3Module,
   ],
   controllers: [BlogPostController],
-  providers: [BlogPostService, OrderService],
-  exports: [BlogPostService, OrderService],
+  providers: [BlogPostService, DeployService],
+  exports: [BlogPostService, DeployService],
 })
 export class BlogPostModule {}

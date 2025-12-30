@@ -7,12 +7,18 @@ import {
   USkeleton,
   UPagination,
 } from '#components';
+import DeployModal from '~/components/order/DeployModal.vue';
+import DeployResultModal from '~/components/order/DeployResultModal.vue';
 
 definePageMeta({
   middleware: ['auth'],
 });
 
 const route = useRoute();
+const toast = useToast();
+const overlay = useOverlay();
+const deployModal = overlay.create(DeployModal);
+const deployResultModal = overlay.create(DeployResultModal);
 const blogPostId = computed(() => Number(route.params.id));
 
 // Fetch blog post detail with generated posts
@@ -118,6 +124,62 @@ const totalPages = computed(() => {
   return Math.ceil(blogPost.value.posts.length / itemsPerPage);
 });
 
+// 원고 생성 완료 여부 (BlogPost status가 COMPLETED 또는 FAILED)
+const isGenerationComplete = computed(() => {
+  if (!blogPost.value) return false;
+  return (
+    blogPost.value.status === 'COMPLETED' || blogPost.value.status === 'FAILED'
+  );
+});
+
+// 성공적으로 생성된 원고 수 (posts 배열에 있는 것이 성공한 원고)
+const successPostCount = computed(() => {
+  if (!blogPost.value?.posts) return 0;
+  return blogPost.value.posts.length;
+});
+
+// 이미 배포된 원고인지 확인
+const isDeployed = computed(() => !!blogPost.value?.helloPostNo);
+
+// 배포 요청 모달 열기
+const openDeployModal = async () => {
+  if (successPostCount.value === 0) {
+    toast.add({
+      title: '배포 불가',
+      description: '성공적으로 생성된 원고가 없습니다.',
+      color: 'error',
+    });
+    return;
+  }
+
+  const instance = deployModal.open({
+    blogPostId: blogPostId.value,
+    totalPostCount: successPostCount.value,
+  });
+
+  const result = await instance.result;
+  if (result) {
+    // 배포 요청 성공 시 새로고침
+    await refresh();
+  }
+};
+
+// 배포 결과 확인 모달 열기
+const openDeployResultModal = () => {
+  if (!blogPost.value?.helloPostNo) {
+    toast.add({
+      title: '조회 불가',
+      description: '배포되지 않은 원고입니다.',
+      color: 'error',
+    });
+    return;
+  }
+
+  deployResultModal.open({
+    blogPostId: blogPostId.value,
+    helloPostNo: blogPost.value.helloPostNo,
+  });
+};
 </script>
 
 <template>
@@ -174,6 +236,70 @@ const totalPages = computed(() => {
     <div v-else class="space-y-6">
       <!-- Settings Card -->
       <BlogPostSummaryCard :blog-post="blogPost" />
+
+      <!-- 배포 신청 완료 상태 (이미 배포된 경우) -->
+      <div
+        v-if="isDeployed"
+        class="p-4 rounded-xl bg-linear-to-r from-success-50 to-emerald-50 dark:from-success-950/30 dark:to-emerald-950/30 border border-success-200 dark:border-success-800"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <h3
+              class="font-semibold text-neutral-900 dark:text-white flex items-center gap-2"
+            >
+              <UIcon
+                name="i-heroicons-check-circle"
+                class="w-5 h-5 text-success-600"
+              />
+              배포 신청 완료
+            </h3>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+              배포번호: #{{ blogPost.helloPostNo }}
+              <span v-if="blogPost.deployedAt" class="ml-2">
+                ({{
+                  new Date(blogPost.deployedAt).toLocaleDateString('ko-KR')
+                }})
+              </span>
+            </p>
+          </div>
+          <UButton
+            color="success"
+            size="lg"
+            @click="openDeployResultModal"
+            class="shrink-0"
+          >
+            <UIcon name="i-heroicons-chart-bar-square" class="w-5 h-5 mr-2" />
+            배포 결과 확인
+          </UButton>
+        </div>
+      </div>
+
+      <!-- 배포 요청 버튼 (원고 생성 완료 시에만 표시, 아직 배포 안 된 경우) -->
+      <div
+        v-else-if="isGenerationComplete && successPostCount > 0"
+        class="p-4 rounded-xl bg-linear-to-r from-primary-50 to-blue-50 dark:from-primary-950/30 dark:to-blue-950/30 border border-primary-200 dark:border-primary-800"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="font-semibold text-neutral-900 dark:text-white">
+              원고 생성 완료
+            </h3>
+            <p class="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+              {{ successPostCount }}개의 원고가 준비되었습니다. 블로그에
+              배포하시겠습니까?
+            </p>
+          </div>
+          <UButton
+            color="primary"
+            size="lg"
+            @click="openDeployModal"
+            class="shrink-0"
+          >
+            <UIcon name="i-heroicons-rocket-launch" class="w-5 h-5 mr-2" />
+            배포 요청
+          </UButton>
+        </div>
+      </div>
 
       <!-- Generated Posts Card -->
       <UCard>
@@ -233,10 +359,7 @@ const totalPages = computed(() => {
           </div>
 
           <!-- Pagination -->
-          <div
-            v-if="totalPages > 1"
-            class="flex justify-center mt-6"
-          >
+          <div v-if="totalPages > 1" class="flex justify-center mt-6">
             <UPagination
               v-model="currentPage"
               :total="blogPost.posts.length"

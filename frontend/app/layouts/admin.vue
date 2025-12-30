@@ -53,6 +53,12 @@ const menuItems = [
     to: '/admin/plans',
     minRole: 'ADMIN' as const,
   },
+  {
+    label: '배포 상품',
+    icon: 'i-heroicons-cube',
+    to: '/admin/deploy-products',
+    minRole: 'ADMIN' as const,
+  },
 ];
 
 const { hasMinRole } = useAdminAuth();

@@ -107,6 +107,9 @@ model BlogPost {
   errorAt             DateTime?  @map("error_at")
   startedAt           DateTime?  @map("started_at")
   completedAt         DateTime?  @map("completed_at")
+  // 배포 관련 필드
+  helloPostNo         Int?       @map("hello_post_no") // HelloDM API 배포 완료 시 반환받은 post_no
+  deployedAt          DateTime?  @map("deployed_at") // 배포 요청 완료 시각
   posts               AIPost[]
   user                User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -704,6 +707,28 @@ enum AdminRole {
   ADMIN            // 일반 관리자
   SUPPORT          // 고객 지원 담당 (읽기 위주)
   VIEWER           // 조회 전용
+}
+
+// ============================================
+// 배포 상품 (Deploy Product)
+// ============================================
+
+/// 배포 상품 관리 테이블
+model DeployProduct {
+  id          Int      @id @default(autoincrement())
+  itemId      Int      @unique @map("item_id") // 외부 시스템 연동용 상품 ID (필수, 유니크)
+  name        String   // 상품명 (예: 일반노출형, 상위 노출형)
+  tag         String   // 태그 (예: 입문용 • 가벼운 체험용)
+  credit      Int      // 상품 가격 (BloC)
+  description String?  // 상품 설명
+  features    String[] // 상품 특징 목록
+  sortOrder   Int      @default(0) @map("sort_order") // 정렬 순서
+  isActive    Boolean  @default(true) @map("is_active") // 활성화 여부
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, sortOrder])
+  @@map("deploy_products")
 }
 
 // ============================================

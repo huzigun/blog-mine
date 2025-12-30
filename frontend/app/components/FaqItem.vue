@@ -19,8 +19,9 @@ const toggleOpen = () => {
     >
       {{ label }}
       <u-icon
-        name="i-heroicons-chevron-down-16-solid transition-all"
+        name="i-heroicons-chevron-down-16-solid"
         size="30"
+        class="transition-all"
         :class="{
           'rotate-180': !open,
         }"
