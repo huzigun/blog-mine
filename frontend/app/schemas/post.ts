@@ -184,6 +184,7 @@ export const postTypes = [
  * AI 포스트 생성 메인 폼 스키마 (동적 필드 제외)
  */
 // 베이스 객체 스키마 (refine 전)
+// 참고: subKeywords는 recommendedKeyword로 대체되어 스키마에서 제거됨
 const baseObjectSchema = z.object({
   postType: z
     .string({ required_error: '포스트 유형을 선택해주세요' })
@@ -201,21 +202,6 @@ const baseObjectSchema = z.object({
     .string({ required_error: '검색 키워드를 입력해주세요' })
     .min(1, '검색 키워드를 입력해주세요')
     .max(100, '검색 키워드는 최대 100자까지 입력 가능합니다'),
-  subKeywords: z
-    .union([
-      z
-        .array(z.string())
-        .min(1, '최소 1개 이상의 서브 키워드를 입력해주세요')
-        .max(5, '서브 키워드는 최대 5개까지 입력 가능합니다'),
-      z.null(),
-      z.array(z.string()).length(0),
-    ])
-    .nullable()
-    .transform((val) => {
-      // 빈 배열을 null로 변환
-      if (Array.isArray(val) && val.length === 0) return null;
-      return val;
-    }),
   length: z
     .number({ required_error: '글자 수를 선택해주세요' })
     .positive('글자 수를 선택해주세요')
@@ -238,18 +224,5 @@ export const aiPostSchema = baseObjectSchema.refine(
     path: ['personaId'],
   },
 );
-
-// 직접 입력 모드용 스키마 (서브 키워드 필수)
-export const manualInputPostSchema = baseObjectSchema
-  .extend({
-    subKeywords: z
-      .array(z.string())
-      .min(1, '최소 1개 이상의 서브 키워드를 입력해주세요')
-      .max(5, '서브 키워드는 최대 5개까지 입력 가능합니다'),
-  })
-  .refine((data) => data.personaId || data.useRandomPersona, {
-    message: '페르소나를 선택하거나 임의 생성을 선택해주세요',
-    path: ['personaId'],
-  });
 
 export type AiPostSchema = z.infer<typeof aiPostSchema>;

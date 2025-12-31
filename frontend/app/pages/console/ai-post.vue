@@ -1,10 +1,8 @@
 <script lang="ts" setup>
-import type { FormSubmitEvent } from '@nuxt/ui';
 import {
   fieldConfigsByType,
   postTypes,
   aiPostSchema,
-  type AiPostSchema,
 } from '~/schemas/post';
 
 definePageMeta({
@@ -309,7 +307,7 @@ watch(
 
 const toast = useToast();
 
-const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
+const postRequest = async () => {
   // additionalFields 정리: 빈 값 제거, 모두 비어있으면 null
   const cleanedFields: Record<string, any> = {};
   let hasFields = false;
@@ -323,7 +321,7 @@ const postRequest = async (e: FormSubmitEvent<AiPostSchema>) => {
   });
 
   // 페르소나 처리: 임의 생성인 경우 플래그 설정
-  let personaId = e.data.personaId;
+  let personaId = state.personaId;
   let useRandomPersona = false;
 
   if (personaId === RANDOM_PERSONA_VALUE) {
@@ -390,13 +388,25 @@ const resetForm = () => {
   selectedRecommendedKeyword.value = null;
 };
 
-const onSubmit = () => {
+const onSubmit = async () => {
   if (!mainForm.value) {
     return;
   }
 
-  // state.fields는 이미 v-model로 바인딩되어 있으므로 별도 추출 불필요
-  mainForm.value.submit();
+  // UForm의 validate 메서드를 사용하여 유효성 검사 후 직접 postRequest 호출
+  try {
+    await mainForm.value.validate({ silent: false });
+    // 유효성 검사 통과 시 직접 API 호출
+    await postRequest();
+  } catch (errors) {
+    // 유효성 검사 실패 시 UForm이 자동으로 에러 표시
+    // 사용자에게 추가 안내 토스트 메시지
+    toast.add({
+      title: '입력 확인 필요',
+      description: '필수 입력 항목을 확인해주세요.',
+      color: 'warning',
+    });
+  }
 };
 </script>
 
@@ -411,7 +421,6 @@ const onSubmit = () => {
       <div class="grid grid-cols-2 gap-x-5 items-start">
         <article>
           <UForm
-            @submit.prevent="postRequest"
             :state="state"
             :schema="currentSchema"
             ref="mainForm"

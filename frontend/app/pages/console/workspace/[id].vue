@@ -28,22 +28,25 @@ const {
   refresh,
 } = await useApiFetch<BlogPost>(`/blog-posts/${blogPostId.value}`);
 
-// Auto-refresh every 5 seconds if status is IN_PROGRESS
+// Auto-refresh every 5 seconds if status is IN_PROGRESS (client-side only)
 const refreshInterval = ref<NodeJS.Timeout | null>(null);
 
-watchEffect(() => {
-  if (blogPost.value?.status === 'IN_PROGRESS') {
-    if (!refreshInterval.value) {
-      refreshInterval.value = setInterval(() => {
-        refresh();
-      }, 5000); // 5초마다 갱신
+// setInterval은 서버에서 실행되면 안 되므로 onMounted 내부에서 watchEffect 설정
+onMounted(() => {
+  watchEffect(() => {
+    if (blogPost.value?.status === 'IN_PROGRESS') {
+      if (!refreshInterval.value) {
+        refreshInterval.value = setInterval(() => {
+          refresh();
+        }, 5000); // 5초마다 갱신
+      }
+    } else {
+      if (refreshInterval.value) {
+        clearInterval(refreshInterval.value);
+        refreshInterval.value = null;
+      }
     }
-  } else {
-    if (refreshInterval.value) {
-      clearInterval(refreshInterval.value);
-      refreshInterval.value = null;
-    }
-  }
+  });
 });
 
 // Cleanup on unmount
