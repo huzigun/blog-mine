@@ -6,6 +6,8 @@ export default defineAppConfig({
       primary: 'brand',
       secondary: 'purple',
       neutral: 'zinc',
+      success: 'success',
+      error: 'coral-red',
     },
     theme: {
       colors: [

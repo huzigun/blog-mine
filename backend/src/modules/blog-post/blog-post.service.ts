@@ -159,6 +159,8 @@ export class BlogPostService {
         postType: dto.postType,
         blogIndex: dto.blogIndex, // 작성 예정 블로그 지수
         recommendedKeyword: dto.recommendedKeyword || null, // 추천 키워드
+        placeUrl: dto.placeUrl || null, // 네이버 플레이스 URL (맛집 후기 전용)
+        productUrl: dto.productUrl || null, // 제품 URL (제품 후기 전용, 저장만)
         subKeywords: [], // deprecated: 빈 배열로 유지
         length: dto.length,
         count: dto.count,
@@ -694,6 +696,7 @@ export class BlogPostService {
       postType: blogPost.postType,
       persona: actualPersona,
       recommendedKeyword: blogPost.recommendedKeyword, // 추천 키워드 사용
+      placeUrl: blogPost.placeUrl, // 네이버 플레이스 URL (맛집 후기 전용)
       length: blogPost.length,
       additionalFields: blogPost.additionalFields as Record<string, any>,
       referenceContents,

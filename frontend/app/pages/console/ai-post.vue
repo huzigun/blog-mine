@@ -1,9 +1,5 @@
 <script lang="ts" setup>
-import {
-  fieldConfigsByType,
-  postTypes,
-  aiPostSchema,
-} from '~/schemas/post';
+import { fieldConfigsByType, postTypes, aiPostSchema } from '~/schemas/post';
 
 definePageMeta({
   middleware: 'auth',
@@ -11,6 +7,14 @@ definePageMeta({
 
 const [isPending, startTransition] = useTransition();
 const auth = useAuth();
+const router = useRouter();
+const overlay = useOverlay();
+
+// 원고 요청 완료 모달
+const PostRequestCompleteModal = defineAsyncComponent(
+  () => import('~/components/console/PostRequestCompleteModal.vue'),
+);
+const postCompleteModal = overlay.create(PostRequestCompleteModal);
 
 interface SimplePersona extends Pick<Persona, 'id' | 'blogTopic' | 'gender'> {}
 
@@ -96,6 +100,26 @@ const showKeywordResults = ref(false);
 // 추천 키워드 선택 상태
 const selectedRecommendedKeyword = ref<string | null>(null);
 
+// 키워드 조회 프로세스가 필요한 postType (맛집 후기만 해당)
+const KEYWORD_SEARCH_REQUIRED_TYPES = ['맛집 후기'];
+
+// 현재 postType이 키워드 조회가 필요한 타입인지 여부
+const requiresKeywordSearch = computed(() => {
+  return KEYWORD_SEARCH_REQUIRED_TYPES.includes(state.postType);
+});
+
+// 제품 URL이 필요한 타입 (제품 후기)
+const PRODUCT_URL_REQUIRED_TYPES = ['제품 후기'];
+
+// 현재 postType이 제품 URL이 필요한 타입인지 여부
+const requiresProductUrl = computed(() => {
+  return PRODUCT_URL_REQUIRED_TYPES.includes(state.postType);
+});
+
+// URL 필드 터치 상태 (사용자가 입력했거나 blur 이벤트가 발생한 경우)
+const placeUrlTouched = ref(false);
+const productUrlTouched = ref(false);
+
 // 검색량 기준 필터링 임계값
 const SEARCH_VOLUME_THRESHOLDS = {
   normal: 10000, // 일반: 1만건 이상 제외
@@ -159,14 +183,19 @@ const isKeywordRequirementMet = computed(() => {
   if (!state.keyword || state.keyword.trim().length === 0) {
     return false;
   }
-  // 연관 키워드 조회가 완료되어 있어야 함
-  if (!showKeywordResults.value) {
-    return false;
+
+  // 키워드 조회가 필요한 타입인 경우 (맛집 후기)
+  if (requiresKeywordSearch.value) {
+    // 연관 키워드 조회가 완료되어 있어야 함
+    if (!showKeywordResults.value) {
+      return false;
+    }
+    // 추천 키워드가 선택되어 있어야 함
+    if (!selectedRecommendedKeyword.value) {
+      return false;
+    }
   }
-  // 추천 키워드가 선택되어 있어야 함
-  if (!selectedRecommendedKeyword.value) {
-    return false;
-  }
+
   return true;
 });
 
@@ -175,15 +204,40 @@ const submitBlockReason = computed(() => {
   if (!state.keyword || state.keyword.trim().length === 0) {
     return '희망 키워드를 입력해주세요';
   }
-  if (!showKeywordResults.value) {
-    return '키워드 조회를 완료해주세요';
+
+  // 키워드 조회가 필요한 타입인 경우 (맛집 후기)
+  if (requiresKeywordSearch.value) {
+    if (!showKeywordResults.value) {
+      return '키워드 조회를 완료해주세요';
+    }
+    if (hasNoRecommendedKeywords.value) {
+      return '추천 키워드가 없습니다';
+    }
+    if (!selectedRecommendedKeyword.value) {
+      return '추천 키워드를 선택해주세요';
+    }
   }
-  if (hasNoRecommendedKeywords.value) {
-    return '추천 키워드가 없습니다';
+
+  // PLACE URL 필수 입력 검증 (맛집 후기 타입)
+  if (requiresKeywordSearch.value) {
+    if (!state.placeUrl || state.placeUrl.trim() === '') {
+      return 'PLACE URL을 입력해주세요';
+    }
+    if (!isPlaceUrlValid.value) {
+      return '올바른 네이버 플레이스 URL을 입력해주세요';
+    }
   }
-  if (!selectedRecommendedKeyword.value) {
-    return '추천 키워드를 선택해주세요';
+
+  // 제품 URL 필수 입력 검증 (제품 후기 타입)
+  if (requiresProductUrl.value) {
+    if (!state.productUrl || state.productUrl.trim() === '') {
+      return '제품 URL을 입력해주세요';
+    }
+    if (!isProductUrlValid.value) {
+      return '올바른 URL 형식을 입력해주세요';
+    }
   }
+
   return null;
 });
 
@@ -251,6 +305,79 @@ const getCombinedSearchVolume = (kw: KeywordStat): string => {
   return total.toLocaleString();
 };
 
+// 네이버 플레이스 URL 패턴 검증
+// 허용 패턴: naver.me/*, m.place.naver.com/*, place.naver.com/*, map.naver.com/*
+const NAVER_PLACE_URL_PATTERN =
+  /^https?:\/\/(?:naver\.me\/\w+|(?:m\.)?place\.naver\.com\/[^\s]+|map\.naver\.com\/[^\s]+)$/i;
+
+const isValidNaverPlaceUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return true; // 빈 값은 허용 (선택 입력)
+  return NAVER_PLACE_URL_PATTERN.test(url.trim());
+};
+
+// Place URL 유효성 상태 (맛집 후기 타입에서만 필수)
+// touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
+const placeUrlError = computed((): string | undefined => {
+  // 맛집 후기 타입이 아니면 검증 불필요
+  if (!requiresKeywordSearch.value) return undefined;
+
+  // 터치되지 않은 상태에서는 에러 표시하지 않음
+  if (!placeUrlTouched.value) return undefined;
+
+  // 맛집 후기 타입일 때 필수 입력
+  if (!state.placeUrl || state.placeUrl.trim() === '') {
+    return 'PLACE URL을 입력해주세요.';
+  }
+  if (!isValidNaverPlaceUrl(state.placeUrl)) {
+    return '네이버 지도 또는 플레이스 URL만 입력 가능합니다.';
+  }
+  return undefined;
+});
+
+// Place URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
+const isPlaceUrlValid = computed(() => {
+  if (!requiresKeywordSearch.value) return true;
+  if (!state.placeUrl || state.placeUrl.trim() === '') return false;
+  return isValidNaverPlaceUrl(state.placeUrl);
+});
+
+// 제품 URL 유효성 검사 (일반 URL 형식)
+const isValidProductUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return false; // 빈 값은 허용 안함 (필수 입력)
+  try {
+    new URL(url.trim());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Product URL 유효성 상태 (제품 후기 타입에서만 필수)
+// touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
+const productUrlError = computed((): string | undefined => {
+  // 제품 후기 타입이 아니면 검증 불필요
+  if (!requiresProductUrl.value) return undefined;
+
+  // 터치되지 않은 상태에서는 에러 표시하지 않음
+  if (!productUrlTouched.value) return undefined;
+
+  // 제품 후기 타입일 때 필수 입력
+  if (!state.productUrl || state.productUrl.trim() === '') {
+    return '제품 URL을 입력해주세요.';
+  }
+  if (!isValidProductUrl(state.productUrl)) {
+    return '올바른 URL 형식을 입력해주세요.';
+  }
+  return undefined;
+});
+
+// Product URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
+const isProductUrlValid = computed(() => {
+  if (!requiresProductUrl.value) return true;
+  if (!state.productUrl || state.productUrl.trim() === '') return false;
+  return isValidProductUrl(state.productUrl);
+});
+
 // 동적 state (postType별 필드값 저장)
 const state = reactive<{
   postType: string;
@@ -259,6 +386,8 @@ const state = reactive<{
   keyword: string;
   length: number;
   count: number;
+  placeUrl: string; // 맛집 후기용 PLACE URL
+  productUrl: string; // 제품 후기용 제품 URL
   fields: Record<string, any>;
 }>({
   postType: postTypes[0] as string,
@@ -267,15 +396,21 @@ const state = reactive<{
   keyword: '',
   length: 1500,
   count: 1,
+  placeUrl: '', // 맛집 후기용 PLACE URL
+  productUrl: '', // 제품 후기용 제품 URL
   // 동적 필드 값들을 저장할 객체
   fields: {} as Record<string, string | number>,
 });
 
-// postType 변경 시 fields 초기화
+// postType 변경 시 fields, URL 및 touched 상태 초기화
 watch(
   () => state.postType,
   () => {
     state.fields = {};
+    state.placeUrl = '';
+    state.productUrl = '';
+    placeUrlTouched.value = false;
+    productUrlTouched.value = false;
   },
 );
 
@@ -330,6 +465,21 @@ const postRequest = async () => {
     personaId = undefined; // personaId는 undefined로
   }
 
+  // 추천 키워드 결정: 키워드 조회가 필요한 타입이면 선택된 값, 아니면 희망 키워드 사용
+  const recommendedKeyword = requiresKeywordSearch.value
+    ? selectedRecommendedKeyword.value
+    : state.keyword.trim();
+
+  // PLACE URL 처리: 맛집 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
+  const placeUrl = requiresKeywordSearch.value
+    ? state.placeUrl.trim()
+    : undefined;
+
+  // 제품 URL 처리: 제품 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
+  const productUrl = requiresProductUrl.value
+    ? state.productUrl.trim()
+    : undefined;
+
   // 최종 요청 데이터 (subKeywords 대신 recommendedKeyword 사용)
   const finalData = {
     postType: state.postType,
@@ -339,31 +489,40 @@ const postRequest = async () => {
     personaId,
     useRandomPersona,
     blogIndex: state.blogIndex,
-    recommendedKeyword: selectedRecommendedKeyword.value, // 선택된 추천 키워드
+    recommendedKeyword, // 선택된 추천 키워드 또는 희망 키워드
+    placeUrl, // 맛집 후기용 PLACE URL (필수)
+    productUrl, // 제품 후기용 제품 URL (필수, 저장만 함)
     additionalFields: hasFields ? cleanedFields : null, // 비어있으면 null
   };
 
-  startTransition(async () => {
+  await startTransition(async () => {
     try {
-      const result = await useApi<{
-        id: number;
-      }>('/blog-posts', {
-        method: 'POST',
-        body: finalData,
+      // const result = await useApi<{
+      //   id: number;
+      // }>('/blog-posts', {
+      //   method: 'POST',
+      //   body: finalData,
+      // });
+
+      // if (!result.id) {
+      //   throw new Error('원고 생성 요청에 실패했습니다.');
+      // }
+
+      // await auth.fetchUser();
+
+      await new Promise((res) => {
+        setTimeout(() => {
+          res(true);
+        }, 3000);
       });
 
-      if (!result.id) {
-        throw new Error('원고 생성 요청에 실패했습니다.');
+      // 모달 열기 및 사용자 액션 처리
+      const action = await postCompleteModal.open({ count: finalData.count });
+
+      if (action === 'navigate') {
+        return navigateTo('/console/workspace');
       }
-
-      await auth.fetchUser();
-      resetForm(); // 폼 리셋
-
-      toast.add({
-        title: '원고 생성 요청 완료',
-        description: `${finalData.count}개의 원고 생성이 시작되었습니다. 원고 관리 페이지에서 확인하세요.`,
-        color: 'success',
-      });
+      return resetForm(); // 폼 리셋
     } catch (err: any) {
       toast.add({
         title: '원고 생성 실패',
@@ -381,16 +540,29 @@ const resetForm = () => {
   state.keyword = '';
   state.length = 1500;
   state.count = 1;
+  state.placeUrl = '';
+  state.productUrl = '';
   state.fields = {};
   // 연관 키워드 상태 초기화
   relatedKeywords.value = [];
   showKeywordResults.value = false;
   selectedRecommendedKeyword.value = null;
+  // touched 상태 초기화
+  placeUrlTouched.value = false;
+  productUrlTouched.value = false;
 };
 
 const onSubmit = async () => {
   if (!mainForm.value) {
     return;
+  }
+
+  // 제출 시 모든 URL 필드를 touched 상태로 설정 (에러 표시 활성화)
+  if (requiresKeywordSearch.value) {
+    placeUrlTouched.value = true;
+  }
+  if (requiresProductUrl.value) {
+    productUrlTouched.value = true;
   }
 
   // UForm의 validate 메서드를 사용하여 유효성 검사 후 직접 postRequest 호출
@@ -420,11 +592,7 @@ const onSubmit = async () => {
 
       <div class="grid grid-cols-2 gap-x-5 items-start">
         <article>
-          <UForm
-            :state="state"
-            :schema="currentSchema"
-            ref="mainForm"
-          >
+          <UForm :state="state" :schema="currentSchema" ref="mainForm">
             <div class="flex flex-col gap-y-4 mb-8">
               <h4 class="font-bold">원고 개요</h4>
               <UFormField label="포스트 유형" name="postType" required>
@@ -482,12 +650,13 @@ const onSubmit = async () => {
                 />
               </UFormField>
               <UFormField label="희망 키워드" name="keyword" required>
-                <div class="flex gap-2">
+                <!-- 맛집 후기: 조회 버튼 포함 -->
+                <div v-if="requiresKeywordSearch" class="flex gap-2">
                   <UInput
                     v-model.trim="state.keyword"
                     name="keyword"
                     type="text"
-                    placeholder="예: 인공지능, 여행 팁 등"
+                    placeholder="예: 강남 맛집, 홍대 카페 등"
                     size="xl"
                     class="flex-1"
                     variant="soft"
@@ -507,16 +676,28 @@ const onSubmit = async () => {
                     조회
                   </UButton>
                 </div>
+                <!-- 다른 타입: 단순 입력 필드 -->
+                <UInput
+                  v-else
+                  v-model.trim="state.keyword"
+                  name="keyword"
+                  type="text"
+                  placeholder="예: 인공지능, 여행 팁 등"
+                  size="xl"
+                  class="w-full"
+                  variant="soft"
+                />
                 <template #label>
                   <div class="inline-flex items-center">
                     <span>희망 키워드</span>
                     <UIcon
+                      v-if="requiresKeywordSearch"
                       name="i-heroicons-information-circle"
                       class="w-4 h-4 text-neutral-600 inline-block ml-1"
                     />
                   </div>
                 </template>
-                <template #description>
+                <template v-if="requiresKeywordSearch" #description>
                   <span class="text-xs text-neutral-500">
                     키워드 입력 후 조회 버튼을 클릭하면 연관 키워드와 검색량을
                     확인할 수 있습니다.
@@ -524,9 +705,9 @@ const onSubmit = async () => {
                 </template>
               </UFormField>
 
-              <!-- 추천 키워드가 없을 때 경고 메시지 -->
+              <!-- 추천 키워드가 없을 때 경고 메시지 (맛집 후기 타입만) -->
               <div
-                v-if="hasNoRecommendedKeywords"
+                v-if="requiresKeywordSearch && hasNoRecommendedKeywords"
                 class="rounded-xl border border-warning-300 dark:border-warning-700 overflow-hidden bg-warning-50 dark:bg-warning-950/20"
               >
                 <div class="flex items-start gap-3 p-4">
@@ -555,9 +736,10 @@ const onSubmit = async () => {
                 </div>
               </div>
 
-              <!-- 추천 키워드 선택 영역 -->
+              <!-- 추천 키워드 선택 영역 (맛집 후기 타입만) -->
               <div
                 v-if="
+                  requiresKeywordSearch &&
                   showKeywordResults &&
                   recommendedKeywordsForBlogIndex.length > 0
                 "
@@ -706,6 +888,63 @@ const onSubmit = async () => {
           </UForm>
 
           <div class="flex flex-col gap-y-4">
+            <!-- 맛집 후기 전용: PLACE URL 입력 (필수) -->
+            <div v-if="requiresKeywordSearch" class="mb-2">
+              <h4 class="font-bold mb-1">네이버 플레이스 정보</h4>
+              <p class="text-[13px] text-muted dark:text-gray-400 mb-2">
+                네이버 플레이스 URL을 입력하면 매장 정보를 자동으로 가져옵니다.
+              </p>
+              <UFormField
+                label="PLACE URL"
+                name="placeUrl"
+                :error="placeUrlError"
+                required
+              >
+                <UInput
+                  v-model.trim="state.placeUrl"
+                  name="placeUrl"
+                  type="url"
+                  placeholder="예: https://map.naver.com/p/entry/place/1234567890"
+                  size="xl"
+                  class="w-full"
+                  variant="soft"
+                  :color="placeUrlError ? 'error' : undefined"
+                  @blur="placeUrlTouched = true"
+                />
+              </UFormField>
+            </div>
+
+            <!-- 제품 후기 전용: 제품 URL 입력 (필수) -->
+            <div v-if="requiresProductUrl" class="mb-2">
+              <h4 class="font-bold mb-1">제품 정보</h4>
+              <p class="text-[13px] text-muted dark:text-gray-400 mb-2">
+                제품 구매 페이지 URL을 입력해주세요.
+              </p>
+              <UFormField
+                label="제품 URL"
+                name="productUrl"
+                :error="productUrlError"
+                required
+              >
+                <UInput
+                  v-model.trim="state.productUrl"
+                  name="productUrl"
+                  type="url"
+                  placeholder="예: https://www.coupang.com/vp/products/123456789"
+                  size="xl"
+                  class="w-full"
+                  variant="soft"
+                  :color="productUrlError ? 'error' : undefined"
+                  @blur="productUrlTouched = true"
+                />
+                <template #description>
+                  <span class="text-xs text-neutral-500">
+                    쿠팡, 네이버 쇼핑 등 제품 구매 페이지 URL을 입력해주세요.
+                  </span>
+                </template>
+              </UFormField>
+            </div>
+
             <div>
               <h4 class="font-bold mb-1">원고 정보 입력</h4>
               <p class="text-[13px] text-muted dark:text-gray-400 mb-2">

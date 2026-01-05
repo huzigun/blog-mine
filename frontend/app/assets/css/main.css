@@ -21,7 +21,7 @@
   --color-brand-950: #1f184e;
 
   /* Custom success color - flatter, more muted green */
-  --color-success-50: #f0fdf4;
+  /* --color-success-50: #f0fdf4;
   --color-success-100: #dcfce7;
   --color-success-200: #bbf7d0;
   --color-success-300: #86efac;
@@ -31,7 +31,31 @@
   --color-success-700: #15803d;
   --color-success-800: #166534;
   --color-success-900: #14532d;
-  --color-success-950: #052e16;
+  --color-success-950: #052e16; */
+
+  --color-success-50: #f1f8f3;
+  --color-success-100: #deede2;
+  --color-success-200: #bedcc7;
+  --color-success-300: #93c2a4;
+  --color-success-400: #65a27e;
+  --color-success-500: #4c956c;
+  --color-success-600: #32694b;
+  --color-success-700: #28543e;
+  --color-success-800: #214432;
+  --color-success-900: #1c382b;
+  --color-success-950: #0f1f17;
+
+  --color-coral-red-50: #fff1f1;
+  --color-coral-red-100: #ffe0e1;
+  --color-coral-red-200: #ffc7c8;
+  --color-coral-red-300: #ffa0a2;
+  --color-coral-red-400: #ff696b;
+  --color-coral-red-500: #f94144;
+  --color-coral-red-600: #e61c1f;
+  --color-coral-red-700: #c21316;
+  --color-coral-red-800: #a01416;
+  --color-coral-red-900: #851719;
+  --color-coral-red-950: #480708;
 
   --ui-text: var(--color-zinc-950);
 }

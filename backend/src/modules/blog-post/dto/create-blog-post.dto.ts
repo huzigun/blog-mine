@@ -9,6 +9,7 @@ import {
   IsBoolean,
   ValidateIf,
   IsIn,
+  IsUrl,
 } from 'class-validator';
 
 export class CreateBlogPostDto {
@@ -40,6 +41,16 @@ export class CreateBlogPostDto {
   @IsOptional()
   @IsString()
   recommendedKeyword?: string | null;
+
+  // 네이버 플레이스 URL (맛집 후기 전용)
+  @IsOptional()
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  placeUrl?: string | null;
+
+  // 제품 URL (제품 후기 전용, 저장만 하고 사용 안함)
+  @IsOptional()
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  productUrl?: string | null;
 
   @IsNumber()
   @IsInt()

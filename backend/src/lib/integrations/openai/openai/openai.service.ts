@@ -13,6 +13,7 @@ export interface GeneratePostRequest {
   postType: string;
   persona: Persona;
   recommendedKeyword?: string | null; // 선택된 추천 키워드
+  placeUrl?: string | null; // 네이버 플레이스 URL (맛집 후기 전용)
   length: number;
   additionalFields?: Record<string, any>;
   referenceContents?: string[]; // 상위 블로그 컨텐츠 참조
@@ -119,9 +120,10 @@ export class OpenAIService {
       );
     }
 
-    // additionalFields 또는 extra 필드에서 네이버 플레이스 URL 추출
+    // 플레이스 URL에서 장소 정보 추출 (placeUrl이 제공된 경우에만 수행)
     let placeInfo: PlaceInfo | null = null;
-    const placeUrl = this.extractPlaceUrl(request.additionalFields);
+    // 우선순위: request.placeUrl > additionalFields에서 추출 (하위 호환성)
+    const placeUrl = request.placeUrl || this.extractPlaceUrl(request.additionalFields);
 
     if (placeUrl) {
       try {
