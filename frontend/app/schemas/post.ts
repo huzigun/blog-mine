@@ -180,6 +180,28 @@ export const postTypes = [
   '병/의원 의료상식 정보성',
   '법률상식 정보성',
 ];
+
+// 원고 말투(톤) 옵션
+export const writingToneOptions = [
+  {
+    value: 'casual',
+    label: '~해요체',
+    description: '구어체 / 친근형',
+  },
+  {
+    value: 'formal',
+    label: '~습니다체',
+    description: '격식형 / 정보 전달형',
+  },
+  {
+    value: 'narrative',
+    label: '~한다체',
+    description: '서술형 / 분석·인사이트형',
+  },
+] as const;
+
+export type WritingTone = (typeof writingToneOptions)[number]['value'];
+
 /**
  * AI 포스트 생성 메인 폼 스키마 (동적 필드 제외)
  */
@@ -214,6 +236,9 @@ const baseObjectSchema = z.object({
     .int('원고 수는 정수여야 합니다')
     .min(1, '원고 수는 최소 1개 이상이어야 합니다')
     .max(100, '원고 수는 최대 100개까지 입력 가능합니다'),
+  writingTone: z.enum(['casual', 'formal', 'narrative'], {
+    required_error: '원고 말투를 선택해주세요',
+  }),
 });
 
 // AI 추천 모드용 스키마 (기본)

@@ -1,5 +1,11 @@
 <script lang="ts" setup>
-import { fieldConfigsByType, postTypes, aiPostSchema } from '~/schemas/post';
+import {
+  fieldConfigsByType,
+  postTypes,
+  aiPostSchema,
+  writingToneOptions,
+  type WritingTone,
+} from '~/schemas/post';
 
 definePageMeta({
   middleware: 'auth',
@@ -9,6 +15,8 @@ const [isPending, startTransition] = useTransition();
 const auth = useAuth();
 const router = useRouter();
 const overlay = useOverlay();
+const mainForm = useTemplateRef('mainForm');
+const toast = useToast();
 
 // 원고 요청 완료 모달
 const PostRequestCompleteModal = defineAsyncComponent(
@@ -42,8 +50,6 @@ const { data: personas } = await useApiFetch<
     ];
   },
 });
-
-const mainForm = useTemplateRef('mainForm');
 
 // BloC 비용 계산 (원고당 고정 비용)
 const CREDIT_COST_PER_POST = 5; // 원고 1개당 5 BloC
@@ -386,6 +392,7 @@ const state = reactive<{
   keyword: string;
   length: number;
   count: number;
+  writingTone: WritingTone; // 원고 말투
   placeUrl: string; // 맛집 후기용 PLACE URL
   productUrl: string; // 제품 후기용 제품 URL
   fields: Record<string, any>;
@@ -396,6 +403,7 @@ const state = reactive<{
   keyword: '',
   length: 1500,
   count: 1,
+  writingTone: 'casual', // 기본값: ~해요체
   placeUrl: '', // 맛집 후기용 PLACE URL
   productUrl: '', // 제품 후기용 제품 URL
   // 동적 필드 값들을 저장할 객체
@@ -439,8 +447,6 @@ watch(
     }
   },
 );
-
-const toast = useToast();
 
 const postRequest = async () => {
   // additionalFields 정리: 빈 값 제거, 모두 비어있으면 null
@@ -489,6 +495,7 @@ const postRequest = async () => {
     personaId,
     useRandomPersona,
     blogIndex: state.blogIndex,
+    writingTone: state.writingTone, // 원고 말투
     recommendedKeyword, // 선택된 추천 키워드 또는 희망 키워드
     placeUrl, // 맛집 후기용 PLACE URL (필수)
     productUrl, // 제품 후기용 제품 URL (필수, 저장만 함)
@@ -540,6 +547,7 @@ const resetForm = () => {
   state.keyword = '';
   state.length = 1500;
   state.count = 1;
+  state.writingTone = 'casual';
   state.placeUrl = '';
   state.productUrl = '';
   state.fields = {};
@@ -882,6 +890,18 @@ const onSubmit = async () => {
                   size="xl"
                   class="w-full"
                   variant="soft"
+                />
+              </UFormField>
+              <UFormField label="원고 말투" name="writingTone" required>
+                <URadioGroup
+                  v-model="state.writingTone"
+                  :items="
+                    writingToneOptions.map((opt) => ({
+                      value: opt.value,
+                      label: `${opt.label} (${opt.description})`,
+                    }))
+                  "
+                  orientation="vertical"
                 />
               </UFormField>
             </div>

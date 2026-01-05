@@ -33,6 +33,11 @@ export class CreateBlogPostDto {
   @IsIn(['normal', 'semi-optimal', 'optimal'])
   blogIndex: string;
 
+  // 원고 말투 (casual: ~해요체, formal: ~습니다체, narrative: ~한다체)
+  @IsString()
+  @IsIn(['casual', 'formal', 'narrative'])
+  writingTone: string;
+
   // 희망 키워드
   @IsString()
   keyword: string;

@@ -158,6 +158,7 @@ export class BlogPostService {
         keyword: dto.keyword,
         postType: dto.postType,
         blogIndex: dto.blogIndex, // 작성 예정 블로그 지수
+        writingTone: dto.writingTone, // 원고 말투
         recommendedKeyword: dto.recommendedKeyword || null, // 추천 키워드
         placeUrl: dto.placeUrl || null, // 네이버 플레이스 URL (맛집 후기 전용)
         productUrl: dto.productUrl || null, // 제품 URL (제품 후기 전용, 저장만)
@@ -697,6 +698,7 @@ export class BlogPostService {
       persona: actualPersona,
       recommendedKeyword: blogPost.recommendedKeyword, // 추천 키워드 사용
       placeUrl: blogPost.placeUrl, // 네이버 플레이스 URL (맛집 후기 전용)
+      writingTone: blogPost.writingTone, // 원고 말투
       length: blogPost.length,
       additionalFields: blogPost.additionalFields as Record<string, any>,
       referenceContents,

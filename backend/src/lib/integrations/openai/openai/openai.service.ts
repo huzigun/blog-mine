@@ -14,6 +14,7 @@ export interface GeneratePostRequest {
   persona: Persona;
   recommendedKeyword?: string | null; // 선택된 추천 키워드
   placeUrl?: string | null; // 네이버 플레이스 URL (맛집 후기 전용)
+  writingTone?: string | null; // 원고 말투 (casual: ~해요체, formal: ~습니다체, narrative: ~한다체)
   length: number;
   additionalFields?: Record<string, any>;
   referenceContents?: string[]; // 상위 블로그 컨텐츠 참조
@@ -681,11 +682,23 @@ export class OpenAIService {
     prompt += `[페르소나]\n\n`;
     prompt += `- 성별: ${request.persona.gender}\n`;
     prompt += `- 운영중인 블로그 주제: ${request.persona.blogTopic}\n`;
-    prompt += `- 글쓰기 스타일: 일반적인 네이버 블로거들의 친근하고 자연스러운 문체\n`;
     if (request.persona.characteristics) {
       prompt += `- 기타특징: ${request.persona.characteristics}\n`;
     }
-    prompt += `\n이 페르소나의 시각과 경험을 바탕으로, 일반적인 네이버 블로거처럼 친근하고 자연스러운 글을 작성해주세요.\n`;
+    prompt += `\n이 페르소나의 시각과 경험을 바탕으로 글을 작성해주세요.\n`;
+
+    prompt += `\n---\n\n`;
+
+    // 말투 설정
+    const toneInfo = this.getWritingToneDescription(request.writingTone);
+    prompt += `[말투 설정]\n\n`;
+    prompt += `- 선택된 말투: ${toneInfo.name}\n`;
+    prompt += `- 설명: ${toneInfo.description}\n`;
+    prompt += `- 예시 문장:\n`;
+    toneInfo.examples.forEach((example) => {
+      prompt += `  • "${example}"\n`;
+    });
+    prompt += `\n⚠️ 중요: 위 말투를 글 전체에 일관되게 적용해주세요. 문장 끝맺음이 해당 말투와 일치해야 합니다.\n`;
 
     prompt += `\n---\n\n`;
 
@@ -864,6 +877,19 @@ export class OpenAIService {
 
     prompt += `\n---\n\n`;
 
+    // 말투 설정
+    const toneInfo = this.getWritingToneDescription(request.writingTone);
+    prompt += `[말투 설정]\n\n`;
+    prompt += `- 선택된 말투: ${toneInfo.name}\n`;
+    prompt += `- 설명: ${toneInfo.description}\n`;
+    prompt += `- 예시 문장:\n`;
+    toneInfo.examples.forEach((example) => {
+      prompt += `  • "${example}"\n`;
+    });
+    prompt += `\n⚠️ 중요: 위 말투를 글 전체에 일관되게 적용해주세요. 문장 끝맺음이 해당 말투와 일치해야 합니다.\n`;
+
+    prompt += `\n---\n\n`;
+
     // 다양성 전략 추가 (여러 원고 생성 시)
     if (request.postIndex && request.totalCount && request.totalCount > 1) {
       const approachIndex =
@@ -985,6 +1011,60 @@ export class OpenAIService {
       '실용 가이드형 제목 (예: 완벽 가이드)',
     ];
     return titleStyles[(postIndex - 1) % titleStyles.length];
+  }
+
+  /**
+   * 말투 코드를 프롬프트용 설명으로 변환
+   * @param writingTone - 말투 코드 (casual, formal, narrative)
+   * @returns 프롬프트에 사용할 말투 설명
+   */
+  private getWritingToneDescription(writingTone: string | null | undefined): {
+    name: string;
+    description: string;
+    examples: string[];
+  } {
+    const toneMap: Record<
+      string,
+      { name: string; description: string; examples: string[] }
+    > = {
+      casual: {
+        name: '~해요체 (구어체 / 친근형)',
+        description:
+          '친근하고 부드러운 말투로, 독자와 대화하듯 편안하게 작성합니다. 블로그에서 가장 흔히 사용되는 친근한 문체입니다.',
+        examples: [
+          '오늘 다녀온 곳 진짜 좋았어요!',
+          '여기 분위기가 너무 예뻐요.',
+          '이거 완전 추천해요!',
+          '생각보다 맛있더라고요.',
+        ],
+      },
+      formal: {
+        name: '~습니다체 (격식형 / 정보 전달형)',
+        description:
+          '격식을 갖춘 정중한 말투로, 정보를 명확하게 전달합니다. 신뢰감 있고 전문적인 느낌을 줍니다.',
+        examples: [
+          '오늘 방문한 곳을 소개해 드리겠습니다.',
+          '이곳의 분위기는 매우 좋았습니다.',
+          '강력히 추천드립니다.',
+          '예상보다 맛이 좋았습니다.',
+        ],
+      },
+      narrative: {
+        name: '~한다체 (서술형 / 분석·인사이트형)',
+        description:
+          '객관적이고 분석적인 서술체로, 에세이나 칼럼처럼 작성합니다. 인사이트를 전달하는 데 효과적입니다.',
+        examples: [
+          '오늘 다녀온 곳은 기대 이상이었다.',
+          '이곳의 분위기는 독특한 매력이 있다.',
+          '충분히 재방문할 가치가 있다.',
+          '예상과 달리 만족스러운 경험이었다.',
+        ],
+      },
+    };
+
+    return (
+      toneMap[writingTone || 'casual'] || toneMap['casual']
+    );
   }
 
   /**
