@@ -34,4 +34,40 @@ interface AIPost {
   completionTokens: number | null;
   totalTokens: number | null;
   createdAt: string;
+  // 버전 관리 필드
+  currentVersion: number;
+  editCount: number;
+  versions?: AIPostVersion[];
+}
+
+interface AIPostVersion {
+  version: number;
+  title: string | null;
+  content: string;
+  editRequest: string | null;
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  createdAt: string;
+}
+
+// 수정 요청 응답 인터페이스
+interface EditAIPostResponse {
+  success: boolean;
+  isValidRequest: boolean;
+  message: string;
+  data?: {
+    version: number;
+    title: string;
+    content: string;
+    remainingEdits: number;
+  };
+}
+
+// 버전 목록 응답 인터페이스
+interface AIPostVersionListResponse {
+  currentVersion: number;
+  editCount: number;
+  maxEdits: number;
+  versions: AIPostVersion[];
 }

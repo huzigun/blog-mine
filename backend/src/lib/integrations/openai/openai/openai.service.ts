@@ -69,6 +69,20 @@ export class OpenAIService {
     'Q&A 형식으로 독자의 궁금증을 하나씩 해결하는 방식',
   ];
 
+  /**
+   * 요약/검증용 모델명 조회 (GPT-4o-mini 또는 환경변수 설정값)
+   */
+  getSummaryModel(): string {
+    return this.summaryModel;
+  }
+
+  /**
+   * 생성용 모델명 조회 (GPT-4o 또는 환경변수 설정값)
+   */
+  getGenerationModel(): string {
+    return this.generationModel;
+  }
+
   constructor(
     private readonly configService: ConfigService,
     private crawler: CrawlerService,
@@ -124,7 +138,8 @@ export class OpenAIService {
     // 플레이스 URL에서 장소 정보 추출 (placeUrl이 제공된 경우에만 수행)
     let placeInfo: PlaceInfo | null = null;
     // 우선순위: request.placeUrl > additionalFields에서 추출 (하위 호환성)
-    const placeUrl = request.placeUrl || this.extractPlaceUrl(request.additionalFields);
+    const placeUrl =
+      request.placeUrl || this.extractPlaceUrl(request.additionalFields);
 
     if (placeUrl) {
       try {
@@ -1062,9 +1077,7 @@ export class OpenAIService {
       },
     };
 
-    return (
-      toneMap[writingTone || 'casual'] || toneMap['casual']
-    );
+    return toneMap[writingTone || 'casual'] || toneMap['casual'];
   }
 
   /**
@@ -1314,6 +1327,230 @@ ${truncatedContent}`;
       );
       // 요약 실패 시 fallback 요약 반환
       return this.fallbackSummary(content);
+    }
+  }
+
+  /**
+   * 수정 요청 유효성 검사 (GPT-4o-mini)
+   * 사용자 입력이 블로그 원고 수정 요청인지 판별
+   * @param request - 사용자 수정 요청 문장
+   * @returns 유효 여부와 이유
+   */
+  async validateEditRequest(
+    request: string,
+  ): Promise<{ isValid: boolean; reason: string }> {
+    if (!this.openai) {
+      throw new Error(
+        'OpenAI service is not configured. Please set OPENAI_API_KEY environment variable.',
+      );
+    }
+
+    const systemPrompt = `당신은 사용자의 입력이 "블로그 원고를 수정해달라는 요청"인지 판별하는 전문가입니다.
+
+[핵심 원칙 - 매우 중요]
+1. 기본적으로 "유효한 수정 요청"으로 판단하세요 (default: true)
+2. 명백하게 수정 의도가 없는 경우만 거부하세요
+3. 조금이라도 원고를 변경하려는 의도가 보이면 무조건 유효입니다
+
+[✅ 유효한 수정 요청 - 다음 중 하나라도 해당하면 무조건 유효]
+1. 내용 삭제/제거: "가격 제거", "전화번호 빼줘", "~부분 지워줘", "삭제해줘"
+2. 내용 추가: "~추가해줘", "넣어줘", "더 써줘", "결론 추가"
+3. 내용 수정/변경: "바꿔줘", "변경해줘", "고쳐줘", "수정해줘"
+4. 문체/스타일: "친근하게", "간결하게", "전문적으로", "자연스럽게"
+5. 구조 변경: "순서 바꿔", "문단 나눠", "소제목 추가", "소제목 없이", "연결되도록"
+6. 형식 변경: "줄바꿈", "들여쓰기", "목록으로", "문장으로"
+7. 길이 조절: "짧게", "길게", "줄여줘", "늘려줘", "요약해줘"
+8. 톤 변경: "부드럽게", "강하게", "공식적으로", "캐주얼하게"
+9. 특정 단어/표현 언급: 원고에 있는 특정 내용을 언급하면 수정 의도로 해석
+
+[❌ 유효하지 않은 요청 - 이것만 거부]
+- 평가/감상 질문: "이 글 어때?", "잘 썼어?", "괜찮아?" (물음표로 끝나는 감상 질문)
+- 완전히 새 글 작성: "새 글 써줘", "다른 주제로", "처음부터 다시"
+- 일반 대화: "안녕", "고마워", "뭐해?", 인사말
+- 정보 요청: "~가 뭐야?", "알려줘" (원고와 무관한 질문)
+
+[판별 규칙 - 반드시 따르세요]
+1. "~해줘", "~하게", "~없이", "~되도록" 등의 지시형 표현 → 무조건 유효
+2. "소제목", "문단", "문장", "내용", "부분" 등 원고 요소 언급 → 무조건 유효
+3. "자연스럽게", "매끄럽게", "부드럽게" 등 품질 개선 표현 → 무조건 유효
+4. "연결", "흐름", "구성" 등 구조 관련 표현 → 무조건 유효
+5. 애매하면 100% 유효로 판단 (사용자 편의 우선)
+
+[응답 형식]
+{
+  "isValid": true 또는 false,
+  "reason": "판별 이유"
+}`;
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: this.summaryModel,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          {
+            role: 'user',
+            content: `다음 입력이 블로그 원고 수정 요청인지 판별해주세요. JSON 형식으로 응답해주세요:\n\n"${request}"`,
+          },
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 200,
+      });
+
+      const choice = completion.choices?.[0];
+
+      // 상세 로깅
+      this.logger.debug(
+        `Validation API response: model=${completion.model}, finish_reason=${choice?.finish_reason}, refusal=${choice?.message?.refusal || 'none'}`,
+      );
+
+      // refusal 체크
+      if (choice?.message?.refusal) {
+        this.logger.warn(`Validation refused: ${choice.message.refusal}`);
+        // refusal의 경우 기본적으로 유효한 수정 요청으로 처리 (사용자 편의)
+        return { isValid: true, reason: '수정 요청으로 판단됩니다.' };
+      }
+
+      const content = choice?.message?.content;
+
+      if (!content) {
+        this.logger.warn(
+          `No content in validation response. finish_reason: ${choice?.finish_reason}`,
+        );
+        // content가 없는 경우도 기본적으로 유효한 수정 요청으로 처리 (사용자 편의)
+        return { isValid: true, reason: '수정 요청으로 판단됩니다.' };
+      }
+
+      const result = JSON.parse(content) as {
+        isValid: boolean;
+        reason: string;
+      };
+      this.logger.debug(
+        `Edit request validation: isValid=${result.isValid}, reason=${result.reason}`,
+      );
+      return result;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to validate edit request: ${error.message}`,
+        error.stack,
+      );
+      return {
+        isValid: false,
+        reason: '수정 요청 판별 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 블로그 원고 수정 (GPT-4o)
+   * 기존 원고와 수정 요청을 조합하여 수정된 원고 생성
+   * @param params - 수정 파라미터
+   * @returns 수정된 원고와 토큰 사용량
+   */
+  async editPost(params: {
+    originalContent: string;
+    originalTitle: string;
+    editRequest: string;
+    writingTone?: string | null;
+    userId?: number;
+    blogPostId?: number;
+    aiPostId?: number;
+  }): Promise<{
+    title: string;
+    content: string;
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    prompts: {
+      systemPrompt: string;
+      userPrompt: string;
+    };
+  }> {
+    if (!this.openai) {
+      throw new Error(
+        'OpenAI service is not configured. Please set OPENAI_API_KEY environment variable.',
+      );
+    }
+
+    const toneInfo = this.getWritingToneDescription(params.writingTone);
+
+    const systemPrompt = `당신은 블로그 원고 수정 전문가입니다.
+사용자의 수정 요청에 따라 원고를 수정합니다.
+
+[수정 원칙]
+1. 수정 요청에 명시된 부분만 수정하고, 나머지는 최대한 유지합니다.
+2. 원고의 핵심 메시지와 정보는 보존합니다.
+3. 말투는 "${toneInfo.name}"을 유지합니다.
+4. HTML 구조는 기존 형식을 따릅니다.
+
+[말투 설명]
+${toneInfo.description}
+
+[출력 형식]
+반드시 다음 JSON 형식으로 응답하세요:
+{
+  "title": "수정된 제목",
+  "content": "<p>수정된 HTML 본문</p>..."
+}
+
+[허용 HTML 태그]
+<h2>, <h3>, <p>, <strong>, <ul>, <li>, <blockquote>`;
+
+    const userPrompt = `[현재 제목]
+${params.originalTitle}
+
+[현재 본문]
+${params.originalContent}
+
+[수정 요청]
+${params.editRequest}
+
+위 수정 요청에 따라 원고를 수정해주세요.`;
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: this.generationModel, // GPT-4o
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+        max_completion_tokens: 8000,
+      });
+
+      const content = completion.choices?.[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('수정된 원고를 받지 못했습니다.');
+      }
+
+      const result = JSON.parse(content) as {
+        title: string;
+        content: string;
+      };
+
+      if (!result.title || !result.content) {
+        throw new Error('수정된 원고 형식이 올바르지 않습니다.');
+      }
+
+      const usage = completion.usage;
+      this.logger.debug(
+        `Post edited: title="${result.title.substring(0, 30)}...", tokens=${usage?.total_tokens}`,
+      );
+
+      return {
+        title: result.title,
+        content: result.content,
+        promptTokens: usage?.prompt_tokens || 0,
+        completionTokens: usage?.completion_tokens || 0,
+        totalTokens: usage?.total_tokens || 0,
+        prompts: {
+          systemPrompt,
+          userPrompt,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to edit post: ${error.message}`, error.stack);
+      throw error;
     }
   }
 

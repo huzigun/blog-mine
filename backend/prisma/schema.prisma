@@ -122,20 +122,41 @@ model BlogPost {
 }
 
 model AIPost {
-  id               Int      @id @default(autoincrement())
-  blogPostId       Int      @map("blog_post_id")
+  id               Int             @id @default(autoincrement())
+  blogPostId       Int             @map("blog_post_id")
   content          String
-  retryCount       Int      @default(0) @map("retry_count")
-  lastError        String?  @map("last_error")
-  createdAt        DateTime @default(now()) @map("created_at")
-  completionTokens Int?     @map("completion_tokens")
-  promptTokens     Int?     @map("prompt_tokens")
-  totalTokens      Int?     @map("total_tokens")
+  retryCount       Int             @default(0) @map("retry_count")
+  lastError        String?         @map("last_error")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  completionTokens Int?            @map("completion_tokens")
+  promptTokens     Int?            @map("prompt_tokens")
+  totalTokens      Int?            @map("total_tokens")
   title            String?
-  blogPost         BlogPost @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  // 버전 관리 필드
+  currentVersion   Int             @default(1) @map("current_version")
+  editCount        Int             @default(0) @map("edit_count") // 수정 시도 횟수 (최대 3)
+  blogPost         BlogPost        @relation(fields: [blogPostId], references: [id], onDelete: Cascade)
+  versions         AIPostVersion[]
 
   @@index([blogPostId, createdAt])
   @@map("ai_posts")
+}
+
+model AIPostVersion {
+  id               Int      @id @default(autoincrement())
+  aiPostId         Int      @map("ai_post_id")
+  version          Int      @default(1)
+  title            String?
+  content          String
+  editRequest      String?  @map("edit_request") // 사용자 수정 요청 원문
+  promptTokens     Int?     @map("prompt_tokens")
+  completionTokens Int?     @map("completion_tokens")
+  totalTokens      Int?     @map("total_tokens")
+  createdAt        DateTime @default(now()) @map("created_at")
+  aiPost           AIPost   @relation(fields: [aiPostId], references: [id], onDelete: Cascade)
+
+  @@index([aiPostId, version])
+  @@map("ai_post_versions")
 }
 
 model KeywordDate {

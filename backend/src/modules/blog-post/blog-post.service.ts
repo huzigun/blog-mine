@@ -12,6 +12,12 @@ import { CreditService } from '@modules/credit/credit.service';
 import { NotificationService } from '@modules/notification/notification.service';
 import { PromptLogService } from '@lib/integrations/openai/prompt-log';
 import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
+import {
+  EditAIPostDto,
+  EditAIPostResponse,
+  AIPostVersionListResponse,
+  AIPostVersionResponse,
+} from './dto/edit-ai-post.dto';
 import { generateRandomPersona } from './random-persona.util';
 import { getDatePrefix, generateDisplayId } from './display-id.util';
 
@@ -26,6 +32,9 @@ export class BlogPostService {
 
   // BloC 비용 정의 (원고당 고정 비용)
   private readonly CREDIT_COST_PER_POST = 5; // 원고 1개당 1 BloC
+
+  // 수정 횟수 제한
+  private readonly MAX_EDIT_COUNT = 3;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -749,7 +758,7 @@ export class BlogPostService {
           systemPrompt: result.prompts.systemPrompt,
           userPrompt: result.prompts.userPrompt,
           fullPrompt: result.prompts.fullPrompt,
-          model: 'gpt-4o',
+          model: this.openaiService.getGenerationModel(),
           promptTokens: result.usage.promptTokens,
           completionTokens: result.usage.completionTokens,
           totalTokens: result.usage.totalTokens,
@@ -914,5 +923,333 @@ export class BlogPostService {
         setTimeout(() => reject(new Error(errorMessage)), ms),
       ),
     ]);
+  }
+
+  /**
+   * 원고 수정 요청 처리
+   * 1. 수정 요청인지 GPT-4o-mini로 판별
+   * 2. 판별 실패해도 수정 횟수 차감
+   * 3. 판별 성공 시 GPT-4o로 원고 수정
+   * 4. 수정된 원고를 새 버전으로 저장
+   */
+  async editAIPost(
+    userId: number,
+    blogPostId: number,
+    postId: number,
+    dto: EditAIPostDto,
+  ): Promise<EditAIPostResponse> {
+    // 1. BlogPost 조회 및 권한 확인
+    const blogPost = await this.prisma.blogPost.findFirst({
+      where: { id: blogPostId, userId },
+    });
+
+    if (!blogPost) {
+      throw new NotFoundException(`BlogPost with id ${blogPostId} not found`);
+    }
+
+    // 2. AIPost 조회
+    const aiPost = await this.prisma.aIPost.findFirst({
+      where: { id: postId, blogPostId },
+    });
+
+    if (!aiPost) {
+      throw new NotFoundException(`AIPost with id ${postId} not found`);
+    }
+
+    // 3. 수정 횟수 제한 확인
+    if (aiPost.editCount >= this.MAX_EDIT_COUNT) {
+      return {
+        success: false,
+        isValidRequest: false,
+        message: `수정 횟수를 모두 사용했습니다. (${this.MAX_EDIT_COUNT}회 제한)`,
+      };
+    }
+
+    // 4. 수정 횟수 미리 차감 (판별 실패해도 차감)
+    await this.prisma.aIPost.update({
+      where: { id: postId },
+      data: { editCount: { increment: 1 } },
+    });
+
+    const remainingEdits = this.MAX_EDIT_COUNT - aiPost.editCount - 1;
+    const startTime = Date.now();
+
+    // 5. 수정 요청 판별 (GPT-4o-mini)
+    const validation = await this.openaiService.validateEditRequest(
+      dto.request,
+    );
+
+    if (!validation.isValid) {
+      this.logger.log(
+        `Edit request rejected for AIPost ${postId}: ${validation.reason}`,
+      );
+      return {
+        success: false,
+        isValidRequest: false,
+        message: `수정 요청이 아닙니다: ${validation.reason} (남은 수정 횟수: ${remainingEdits}회)`,
+      };
+    }
+
+    // 6. 원고 수정 (GPT-4o)
+    try {
+      const editResult = await this.openaiService.editPost({
+        originalTitle: aiPost.title || '',
+        originalContent: aiPost.content,
+        editRequest: dto.request,
+        writingTone: blogPost.writingTone,
+        userId,
+        blogPostId,
+        aiPostId: postId,
+      });
+
+      const responseTime = Date.now() - startTime;
+
+      // 7. 첫 수정인 경우 v1 원본을 AIPostVersion에 저장
+      if (aiPost.currentVersion === 1) {
+        const existingV1 = await this.prisma.aIPostVersion.findFirst({
+          where: { aiPostId: postId, version: 1 },
+        });
+
+        if (!existingV1) {
+          await this.prisma.aIPostVersion.create({
+            data: {
+              aiPostId: postId,
+              version: 1,
+              title: aiPost.title,
+              content: aiPost.content,
+              editRequest: null, // 원본은 수정 요청 없음
+              promptTokens: aiPost.promptTokens,
+              completionTokens: aiPost.completionTokens,
+              totalTokens: aiPost.totalTokens,
+            },
+          });
+        }
+      }
+
+      // 8. 새 버전 생성
+      const newVersion = aiPost.currentVersion + 1;
+
+      await this.prisma.aIPostVersion.create({
+        data: {
+          aiPostId: postId,
+          version: newVersion,
+          title: editResult.title,
+          content: editResult.content,
+          editRequest: dto.request,
+          promptTokens: editResult.promptTokens,
+          completionTokens: editResult.completionTokens,
+          totalTokens: editResult.totalTokens,
+        },
+      });
+
+      // 8. AIPost 현재 버전 및 내용 업데이트 (즉시 반영)
+      await this.prisma.aIPost.update({
+        where: { id: postId },
+        data: {
+          title: editResult.title,
+          content: editResult.content,
+          currentVersion: newVersion,
+          promptTokens: editResult.promptTokens,
+          completionTokens: editResult.completionTokens,
+          totalTokens: editResult.totalTokens,
+        },
+      });
+
+      // 9. 프롬프트 로그 저장
+      await this.promptLogService.logPrompt({
+        userId,
+        blogPostId,
+        aiPostId: postId,
+        systemPrompt: editResult.prompts.systemPrompt,
+        userPrompt: editResult.prompts.userPrompt,
+        fullPrompt: `${editResult.prompts.systemPrompt}\n\n${editResult.prompts.userPrompt}`,
+        model: this.openaiService.getGenerationModel(),
+        promptTokens: editResult.promptTokens,
+        completionTokens: editResult.completionTokens,
+        totalTokens: editResult.totalTokens,
+        response: JSON.stringify({
+          title: editResult.title,
+          content: editResult.content,
+        }),
+        responseTime,
+        success: true,
+        purpose: 'blog_edit',
+        metadata: {
+          editRequest: dto.request,
+          version: newVersion,
+        },
+      });
+
+      this.logger.log(
+        `AIPost ${postId} edited successfully: v${aiPost.currentVersion} -> v${newVersion}`,
+      );
+
+      return {
+        success: true,
+        isValidRequest: true,
+        message: `원고가 수정되었습니다. (v${newVersion}, 남은 수정 횟수: ${remainingEdits}회)`,
+        data: {
+          version: newVersion,
+          title: editResult.title,
+          content: editResult.content,
+          remainingEdits,
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to edit AIPost ${postId}: ${error.message}`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `원고 수정 중 오류가 발생했습니다: ${error.message}`,
+      );
+    }
+  }
+
+  /**
+   * 원고 버전 목록 조회
+   */
+  async getAIPostVersions(
+    userId: number,
+    blogPostId: number,
+    postId: number,
+  ): Promise<AIPostVersionListResponse> {
+    // 1. BlogPost 권한 확인
+    const blogPost = await this.prisma.blogPost.findFirst({
+      where: { id: blogPostId, userId },
+    });
+
+    if (!blogPost) {
+      throw new NotFoundException(`BlogPost with id ${blogPostId} not found`);
+    }
+
+    // 2. AIPost 조회
+    const aiPost = await this.prisma.aIPost.findFirst({
+      where: { id: postId, blogPostId },
+      include: {
+        versions: {
+          orderBy: { version: 'asc' },
+        },
+      },
+    });
+
+    if (!aiPost) {
+      throw new NotFoundException(`AIPost with id ${postId} not found`);
+    }
+
+    // 3. 버전 목록 구성
+    // v1 원본 찾기: AIPostVersion에 저장된 v1이 있으면 사용, 없으면 현재 aiPost 데이터 사용
+    const v1Version = aiPost.versions.find((v) => v.version === 1);
+    const v1Data = v1Version
+      ? {
+          version: 1,
+          title: v1Version.title,
+          content: v1Version.content,
+          editRequest: null,
+          createdAt: v1Version.createdAt,
+        }
+      : {
+          // v1이 AIPostVersion에 없으면 (아직 수정 안 됨) aiPost 사용
+          version: 1,
+          title: aiPost.title,
+          content: aiPost.content,
+          editRequest: null,
+          createdAt: aiPost.createdAt,
+        };
+
+    const versions = [
+      // v1: 원본
+      v1Data,
+      // v2+: 수정 버전들 (전체 콘텐츠 포함)
+      ...aiPost.versions
+        .filter((v) => v.version > 1)
+        .map((v) => ({
+          version: v.version,
+          title: v.title,
+          content: v.content, // 전체 콘텐츠 포함
+          editRequest: v.editRequest,
+          createdAt: v.createdAt,
+        })),
+    ];
+
+    return {
+      currentVersion: aiPost.currentVersion,
+      editCount: aiPost.editCount,
+      maxEdits: this.MAX_EDIT_COUNT,
+      versions,
+    };
+  }
+
+  /**
+   * 특정 버전 조회
+   */
+  async getAIPostVersion(
+    userId: number,
+    blogPostId: number,
+    postId: number,
+    version: number,
+  ): Promise<AIPostVersionResponse> {
+    // 1. BlogPost 권한 확인
+    const blogPost = await this.prisma.blogPost.findFirst({
+      where: { id: blogPostId, userId },
+    });
+
+    if (!blogPost) {
+      throw new NotFoundException(`BlogPost with id ${blogPostId} not found`);
+    }
+
+    // 2. AIPost 조회
+    const aiPost = await this.prisma.aIPost.findFirst({
+      where: { id: postId, blogPostId },
+    });
+
+    if (!aiPost) {
+      throw new NotFoundException(`AIPost with id ${postId} not found`);
+    }
+
+    // 3. v1은 원본 AIPost에서 가져옴
+    if (version === 1) {
+      // v1 원본 데이터: 현재 버전이 1이면 현재 content, 아니면 versions에서 찾아야 함
+      // 하지만 v1은 AIPostVersion에 저장되지 않으므로 원본을 따로 저장해야 함
+      // 현재 구조에서는 수정 전 원본이 없으므로, 첫 생성 시 v1을 versions에 저장하도록 변경 필요
+      // 임시로: 현재 버전이 1이면 aiPost.content, 아니면 v1 데이터 없음 처리
+      if (aiPost.currentVersion === 1) {
+        return {
+          version: 1,
+          title: aiPost.title,
+          content: aiPost.content,
+          editRequest: null,
+          promptTokens: aiPost.promptTokens,
+          completionTokens: aiPost.completionTokens,
+          totalTokens: aiPost.totalTokens,
+          createdAt: aiPost.createdAt,
+        };
+      } else {
+        // v1이 수정되었으므로 원본 조회 불가 (현재 구조 한계)
+        throw new BadRequestException(
+          '원본 버전(v1)은 수정 후 조회할 수 없습니다. 버전 히스토리에서 확인하세요.',
+        );
+      }
+    }
+
+    // 4. v2+ 수정 버전은 AIPostVersion에서 조회
+    const postVersion = await this.prisma.aIPostVersion.findFirst({
+      where: { aiPostId: postId, version },
+    });
+
+    if (!postVersion) {
+      throw new NotFoundException(`Version ${version} not found`);
+    }
+
+    return {
+      version: postVersion.version,
+      title: postVersion.title,
+      content: postVersion.content,
+      editRequest: postVersion.editRequest,
+      promptTokens: postVersion.promptTokens,
+      completionTokens: postVersion.completionTokens,
+      totalTokens: postVersion.totalTokens,
+      createdAt: postVersion.createdAt,
+    };
   }
 }

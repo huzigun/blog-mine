@@ -9,6 +9,7 @@ import {
 } from '#components';
 import DeployModal from '~/components/order/DeployModal.vue';
 import DeployResultModal from '~/components/order/DeployResultModal.vue';
+import EditSidebar from '~/components/post/EditSidebar.vue';
 
 definePageMeta({
   middleware: ['auth'],
@@ -20,6 +21,39 @@ const overlay = useOverlay();
 const deployModal = overlay.create(DeployModal);
 const deployResultModal = overlay.create(DeployResultModal);
 const blogPostId = computed(() => Number(route.params.id));
+
+// 수정 사이드바 상태
+const isEditSidebarOpen = ref(false);
+const editingPost = ref<AIPost | null>(null);
+
+// 수정 사이드바 열기
+const openEditSidebar = (post: AIPost) => {
+  editingPost.value = post;
+  isEditSidebarOpen.value = true;
+};
+
+// 수정 사이드바 닫기
+const closeEditSidebar = (updated: boolean) => {
+  isEditSidebarOpen.value = false;
+  editingPost.value = null;
+};
+
+// 원고 업데이트 핸들러 (사이드바에서 수정 완료 시)
+const handlePostUpdated = async (updatedPost: AIPost) => {
+  if (!blogPost.value?.posts) return;
+
+  // posts 배열에서 해당 원고 즉시 업데이트 (UI 즉각 반영)
+  const index = blogPost.value.posts.findIndex((p) => p.id === updatedPost.id);
+  if (index !== -1) {
+    blogPost.value.posts[index] = updatedPost;
+  }
+
+  // editingPost도 업데이트
+  editingPost.value = updatedPost;
+
+  // 서버에서 최신 데이터 새로고침 (버전 정보 등 동기화)
+  await refresh();
+};
 
 // Fetch blog post detail with generated posts
 const {
@@ -356,8 +390,10 @@ const openDeployResultModal = () => {
               :key="post.id"
               :post="post"
               :index="(currentPage - 1) * itemsPerPage + index"
+              :blog-post-id="blogPostId"
               @copy-text="copyTextToClipboard"
               @copy-html="copyHtmlToClipboard"
+              @edit="openEditSidebar"
             />
           </div>
 
@@ -372,5 +408,14 @@ const openDeployResultModal = () => {
         </div>
       </UCard>
     </div>
+
+    <!-- 원고 수정 사이드바 -->
+    <EditSidebar
+      v-if="isEditSidebarOpen && editingPost"
+      :post="editingPost"
+      :blog-post-id="blogPostId"
+      @close="closeEditSidebar"
+      @updated="handlePostUpdated"
+    />
   </section>
 </template>

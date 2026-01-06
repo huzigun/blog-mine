@@ -15,7 +15,12 @@ import {
 import { BlogPostService } from './blog-post.service';
 import { DeployService } from './deploy.service';
 import { S3UploadInterceptor } from './interceptors';
-import { CreateBlogPostDto, FilterBlogPostDto, DeployOrderDto } from './dto';
+import {
+  CreateBlogPostDto,
+  FilterBlogPostDto,
+  DeployOrderDto,
+} from './dto';
+import { EditAIPostDto } from './dto/edit-ai-post.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { HelloDmService } from '@lib/integrations/hello-dm/hello-dm.service';
 import { ActiveSubscriptionGuard } from '../subscription/guards/active-subscription.guard';
@@ -206,5 +211,54 @@ export class BlogPostController {
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 30,
     });
+  }
+
+  /**
+   * 원고 수정 요청
+   * POST /blog-posts/:blogPostId/posts/:postId/edit
+   */
+  @Post(':blogPostId/posts/:postId/edit')
+  async editPost(
+    @Param('blogPostId', ParseIntPipe) blogPostId: number,
+    @Param('postId', ParseIntPipe) postId: number,
+    @GetRequestUser() user: RequestUser,
+    @Body() editDto: EditAIPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.editAIPost(userId, blogPostId, postId, editDto);
+  }
+
+  /**
+   * 원고 버전 목록 조회
+   * GET /blog-posts/:blogPostId/posts/:postId/versions
+   */
+  @Get(':blogPostId/posts/:postId/versions')
+  async getVersions(
+    @Param('blogPostId', ParseIntPipe) blogPostId: number,
+    @Param('postId', ParseIntPipe) postId: number,
+    @GetRequestUser() user: RequestUser,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.getAIPostVersions(userId, blogPostId, postId);
+  }
+
+  /**
+   * 특정 버전 조회
+   * GET /blog-posts/:blogPostId/posts/:postId/versions/:version
+   */
+  @Get(':blogPostId/posts/:postId/versions/:version')
+  async getVersion(
+    @Param('blogPostId', ParseIntPipe) blogPostId: number,
+    @Param('postId', ParseIntPipe) postId: number,
+    @Param('version', ParseIntPipe) version: number,
+    @GetRequestUser() user: RequestUser,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.getAIPostVersion(
+      userId,
+      blogPostId,
+      postId,
+      version,
+    );
   }
 }
