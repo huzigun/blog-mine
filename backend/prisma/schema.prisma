@@ -188,21 +188,22 @@ model BlogRank {
 }
 
 model Blog {
-  id            Int               @id @default(autoincrement())
-  link          String            @unique
-  title         String
-  description   String?
-  bloggerName   String            @map("blogger_name")
-  bloggerLink   String            @map("blogger_link")
-  postDate      String            @map("post_date")
-  content       String?
-  realUrl       String?           @map("real_url")
-  lastFetchedAt DateTime?         @map("last_fetched_at")
-  updatedAt     DateTime          @updatedAt @map("updated_at")
-  createdAt     DateTime          @default(now()) @map("created_at")
-  summary       String?
-  ranks         BlogRank[]
-  tracking      KeywordTracking[]
+  id              Int                @id @default(autoincrement())
+  link            String             @unique
+  title           String
+  description     String?
+  bloggerName     String             @map("blogger_name")
+  bloggerLink     String             @map("blogger_link")
+  postDate        String             @map("post_date")
+  content         String?
+  realUrl         String?            @map("real_url")
+  lastFetchedAt   DateTime?          @map("last_fetched_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  summary         String?            // deprecated: 타입 구분 없는 기존 요약 (BlogSummaryCache로 대체)
+  ranks           BlogRank[]
+  tracking        KeywordTracking[]
+  summaryCaches   BlogSummaryCache[] // 타입별 요약 캐시
 
   @@index([bloggerName])
   @@map("blogs")
@@ -771,4 +772,27 @@ model KeywordStatCache {
   @@unique([keyword, dateStr])
   @@index([dateStr])
   @@map("keyword_stat_caches")
+}
+
+// ============================================
+// 상위 블로그 학습 결과 캐시 (Post Type별)
+// ============================================
+
+/// 상위 블로그 학습 결과를 postType별로 캐싱
+/// - 동일한 블로그라도 후기성/정보성에 따라 다른 프롬프트로 요약됨
+/// - blogId+postType 조합으로 캐싱하여 한번 학습한 블로그는 재학습 없이 참조
+model BlogSummaryCache {
+  id          Int      @id @default(autoincrement())
+  blogId      Int      @map("blog_id") // 원본 Blog 참조
+  postType    String   @map("post_type") // 원고 타입 (맛집 후기, 제품 후기, 일반 키워드 정보성 등)
+  category    String   // 카테고리 (review | info)
+  summary     String   // GPT 요약 결과 (JSON 형식, 작성 기법 분석)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  blog        Blog     @relation(fields: [blogId], references: [id], onDelete: Cascade)
+
+  @@unique([blogId, postType]) // 블로그+타입 조합으로 유니크 (한번 학습하면 영구 캐싱)
+  @@index([postType]) // 타입별 조회 최적화
+  @@index([blogId])
+  @@map("blog_summary_caches")
 }

@@ -21,8 +21,8 @@ defineProps<Props>();
 
 const route = useRoute();
 
-// Collapsible navigation state
-const expandedItems = ref<Set<string>>(new Set());
+// Collapsible navigation state (스마트 원고 생성 기본 펼침)
+const expandedItems = ref<Set<string>>(new Set(['스마트 원고 생성']));
 const toggleItem = (itemName: string) => {
   if (expandedItems.value.has(itemName)) {
     expandedItems.value.delete(itemName);
@@ -52,6 +52,38 @@ const navigationGroups: NavigationGroup[] = [
         name: '스마트 원고 생성',
         to: '/console/ai-post',
         icon: 'i-heroicons-sparkles',
+        subItems: [
+          {
+            name: '맛집 후기',
+            to: '/console/ai-post/restaurant',
+            icon: 'i-heroicons-cake',
+          },
+          {
+            name: '제품 후기',
+            to: '/console/ai-post/product',
+            icon: 'i-heroicons-shopping-bag',
+          },
+          {
+            name: '여행 후기',
+            to: '/console/ai-post/travel',
+            icon: 'i-heroicons-map',
+          },
+          {
+            name: '일반 키워드 정보성',
+            to: '/console/ai-post/general',
+            icon: 'i-heroicons-document-text',
+          },
+          {
+            name: '병/의원 의료상식',
+            to: '/console/ai-post/medical',
+            icon: 'i-heroicons-heart',
+          },
+          {
+            name: '법률상식',
+            to: '/console/ai-post/legal',
+            icon: 'i-heroicons-scale',
+          },
+        ],
       },
       {
         name: '원고 보관함',

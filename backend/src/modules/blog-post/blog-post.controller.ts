@@ -17,6 +17,12 @@ import { DeployService } from './deploy.service';
 import { S3UploadInterceptor } from './interceptors';
 import {
   CreateBlogPostDto,
+  CreateRestaurantPostDto,
+  CreateProductPostDto,
+  CreateGeneralReviewPostDto,
+  CreateGeneralPostDto,
+  CreateMedicalPostDto,
+  CreateLegalPostDto,
   FilterBlogPostDto,
   DeployOrderDto,
 } from './dto';
@@ -100,7 +106,7 @@ export class BlogPostController {
   }
 
   /**
-   * 블로그 원고 생성 요청
+   * 블로그 원고 생성 요청 (기존 범용 엔드포인트)
    * POST /blog-posts
    * 활성 구독 상태(TRIAL, ACTIVE)이고 만료일이 지나지 않은 경우에만 허용
    */
@@ -112,6 +118,108 @@ export class BlogPostController {
   ) {
     const userId = user.id;
     return this.blogPostService.create(userId, createBlogPostDto);
+  }
+
+  /**
+   * 맛집 후기 원고 생성 요청
+   * POST /blog-posts/restaurant
+   */
+  @Post('restaurant')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createRestaurant(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateRestaurantPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '맛집 후기',
+    });
+  }
+
+  /**
+   * 제품 후기 원고 생성 요청
+   * POST /blog-posts/product
+   */
+  @Post('product')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createProduct(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateProductPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '제품 후기',
+    });
+  }
+
+  /**
+   * 일반 후기 원고 생성 요청
+   * POST /blog-posts/travel
+   */
+  @Post('travel')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createGeneralReview(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateGeneralReviewPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '일반 후기',
+    });
+  }
+
+  /**
+   * 일반 키워드 정보성 원고 생성 요청
+   * POST /blog-posts/general
+   */
+  @Post('general')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createGeneral(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateGeneralPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '일반 키워드 정보성',
+    });
+  }
+
+  /**
+   * 병/의원 의료상식 원고 생성 요청
+   * POST /blog-posts/medical
+   */
+  @Post('medical')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createMedical(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateMedicalPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '병/의원 의료상식 정보성',
+    });
+  }
+
+  /**
+   * 법률상식 원고 생성 요청
+   * POST /blog-posts/legal
+   */
+  @Post('legal')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createLegal(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateLegalPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.create(userId, {
+      ...dto,
+      postType: '법률상식 정보성',
+    });
   }
 
   /**

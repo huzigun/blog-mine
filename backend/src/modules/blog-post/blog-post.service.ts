@@ -789,6 +789,8 @@ export class BlogPostService {
   /**
    * 상위 블로그 참조 컨텐츠 조회 및 요약 생성
    * - 배치 처리 시 한 번만 호출되어 DB 조회 및 요약 생성 최소화
+   * - postType별로 다른 프롬프트를 사용하므로 BlogSummaryCache에 타입별로 캐싱
+   * - blogId + postType 조합으로 영구 캐싱 (한번 학습한 블로그는 재학습 없이 참조)
    * @param keyword - 검색 키워드
    * @param postType - 포스트 타입 (후기성/정보성 구분용)
    */
@@ -814,23 +816,39 @@ export class BlogPostService {
       take: 10,
     });
 
-    // 상위 10개 블로그 중 summary가 없는 것만 요약 생성
+    // 정보성/후기성 카테고리 결정
+    const category = this.getPostCategory(postType || '');
+    const effectivePostType = postType || 'default';
+
+    // 상위 10개 블로그에 대해 캐시 확인 및 요약 생성
     const referenceContents: string[] = [];
 
     for (const blogRank of topBlogs) {
       const blog = blogRank.blog;
 
-      // summary가 있으면 바로 재사용 (토큰 절약)
-      if (blog.summary) {
-        referenceContents.push(blog.summary);
+      // 1. BlogSummaryCache에서 blogId + postType 조합으로 캐시 확인 (영구 캐싱)
+      const cachedSummary = await this.prisma.blogSummaryCache.findUnique({
+        where: {
+          blogId_postType: {
+            blogId: blog.id,
+            postType: effectivePostType,
+          },
+        },
+      });
+
+      if (cachedSummary) {
+        referenceContents.push(cachedSummary.summary);
+        this.logger.debug(
+          `Using cached summary for blog ${blog.id} (${effectivePostType})`,
+        );
         continue;
       }
 
-      // summary가 없으면 새로 생성
+      // 2. 캐시가 없으면 새로 생성
       if (blog.content && blog.content.length > 200) {
         try {
           this.logger.debug(
-            `Generating summary for top-ranked blog: ${blog.title.substring(0, 30)}...`,
+            `Generating summary for blog ${blog.id}: ${blog.title.substring(0, 30)}... (${effectivePostType})`,
           );
 
           const summary = await this.openaiService.summarizeContent(
@@ -839,17 +857,21 @@ export class BlogPostService {
             postType,
           );
 
-          // DB에 summary 저장
-          await this.prisma.blog.update({
-            where: { id: blog.id },
-            data: { summary },
+          // BlogSummaryCache에 blogId + postType 조합으로 영구 저장
+          await this.prisma.blogSummaryCache.create({
+            data: {
+              blogId: blog.id,
+              postType: effectivePostType,
+              category,
+              summary,
+            },
           });
 
-          // 생성된 전체 요약 사용 (400-600자, 작성 기법 분석 결과)
           referenceContents.push(summary);
-
-          this.logger.debug(`Summary generated and saved for blog ${blog.id}`);
-        } catch (error) {
+          this.logger.debug(
+            `Summary generated and cached for blog ${blog.id} (${effectivePostType})`,
+          );
+        } catch (error: any) {
           this.logger.warn(
             `Failed to generate summary for blog ${blog.id}: ${error.message}`,
           );
@@ -863,10 +885,24 @@ export class BlogPostService {
     }
 
     this.logger.debug(
-      `Prepared ${referenceContents.length} reference contents for keyword: ${keyword}`,
+      `Prepared ${referenceContents.length} reference contents for keyword: ${keyword} (${effectivePostType})`,
     );
 
     return referenceContents;
+  }
+
+  /**
+   * 포스트 타입에 따른 카테고리 결정
+   * @param postType - 포스트 타입
+   * @returns 'info' (정보성) 또는 'review' (후기성)
+   */
+  private getPostCategory(postType: string): 'info' | 'review' {
+    const informationalTypes = [
+      '일반 키워드 정보성',
+      '병/의원 의료상식 정보성',
+      '법률상식 정보성',
+    ];
+    return informationalTypes.includes(postType) ? 'info' : 'review';
   }
 
   /**

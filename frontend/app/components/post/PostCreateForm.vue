@@ -1,19 +1,28 @@
 <script lang="ts" setup>
 import {
   fieldConfigsByType,
-  postTypes,
   aiPostSchema,
   writingToneOptions,
   type WritingTone,
 } from '~/schemas/post';
 
-definePageMeta({
-  middleware: 'auth',
-});
+// Props
+const props = defineProps<{
+  postType: string;
+  pageTitle: string;
+  pageDescription: string;
+  // 키워드 검색 필요 여부 (맛집 후기)
+  requiresKeywordSearch?: boolean;
+  // 제품 URL 필요 여부 (제품 후기)
+  requiresProductUrl?: boolean;
+  // 카테고리 (review | info)
+  category: 'review' | 'info';
+  // API 엔드포인트 타입 (restaurant, product, travel, general, medical, legal)
+  apiType: 'restaurant' | 'product' | 'travel' | 'general' | 'medical' | 'legal';
+}>();
 
 const [isPending, startTransition] = useTransition();
 const auth = useAuth();
-const router = useRouter();
 const overlay = useOverlay();
 const mainForm = useTemplateRef('mainForm');
 const toast = useToast();
@@ -66,13 +75,13 @@ const isInsufficientBalance = computed(() => {
   );
 });
 
-// 현재 스키마 (서브 키워드 제거됨 - 추천 키워드로 대체)
+// 현재 스키마
 const currentSchema = aiPostSchema;
 
 // 현재 postType에 해당하는 필드 설정
 const currentFields = computed(() => {
   return (
-    fieldConfigsByType[state.postType as string] || {
+    fieldConfigsByType[props.postType] || {
       description: '',
       fields: [],
     }
@@ -105,22 +114,6 @@ const showKeywordResults = ref(false);
 
 // 추천 키워드 선택 상태
 const selectedRecommendedKeyword = ref<string | null>(null);
-
-// 키워드 조회 프로세스가 필요한 postType (맛집 후기만 해당)
-const KEYWORD_SEARCH_REQUIRED_TYPES = ['맛집 후기'];
-
-// 현재 postType이 키워드 조회가 필요한 타입인지 여부
-const requiresKeywordSearch = computed(() => {
-  return KEYWORD_SEARCH_REQUIRED_TYPES.includes(state.postType);
-});
-
-// 제품 URL이 필요한 타입 (제품 후기)
-const PRODUCT_URL_REQUIRED_TYPES = ['제품 후기'];
-
-// 현재 postType이 제품 URL이 필요한 타입인지 여부
-const requiresProductUrl = computed(() => {
-  return PRODUCT_URL_REQUIRED_TYPES.includes(state.postType);
-});
 
 // URL 필드 터치 상태 (사용자가 입력했거나 blur 이벤트가 발생한 경우)
 const placeUrlTouched = ref(false);
@@ -191,7 +184,7 @@ const isKeywordRequirementMet = computed(() => {
   }
 
   // 키워드 조회가 필요한 타입인 경우 (맛집 후기)
-  if (requiresKeywordSearch.value) {
+  if (props.requiresKeywordSearch) {
     // 연관 키워드 조회가 완료되어 있어야 함
     if (!showKeywordResults.value) {
       return false;
@@ -212,7 +205,7 @@ const submitBlockReason = computed(() => {
   }
 
   // 키워드 조회가 필요한 타입인 경우 (맛집 후기)
-  if (requiresKeywordSearch.value) {
+  if (props.requiresKeywordSearch) {
     if (!showKeywordResults.value) {
       return '키워드 조회를 완료해주세요';
     }
@@ -225,7 +218,7 @@ const submitBlockReason = computed(() => {
   }
 
   // PLACE URL 필수 입력 검증 (맛집 후기 타입)
-  if (requiresKeywordSearch.value) {
+  if (props.requiresKeywordSearch) {
     if (!state.placeUrl || state.placeUrl.trim() === '') {
       return 'PLACE URL을 입력해주세요';
     }
@@ -235,7 +228,7 @@ const submitBlockReason = computed(() => {
   }
 
   // 제품 URL 필수 입력 검증 (제품 후기 타입)
-  if (requiresProductUrl.value) {
+  if (props.requiresProductUrl) {
     if (!state.productUrl || state.productUrl.trim() === '') {
       return '제품 URL을 입력해주세요';
     }
@@ -325,7 +318,7 @@ const isValidNaverPlaceUrl = (url: string): boolean => {
 // touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
 const placeUrlError = computed((): string | undefined => {
   // 맛집 후기 타입이 아니면 검증 불필요
-  if (!requiresKeywordSearch.value) return undefined;
+  if (!props.requiresKeywordSearch) return undefined;
 
   // 터치되지 않은 상태에서는 에러 표시하지 않음
   if (!placeUrlTouched.value) return undefined;
@@ -342,7 +335,7 @@ const placeUrlError = computed((): string | undefined => {
 
 // Place URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
 const isPlaceUrlValid = computed(() => {
-  if (!requiresKeywordSearch.value) return true;
+  if (!props.requiresKeywordSearch) return true;
   if (!state.placeUrl || state.placeUrl.trim() === '') return false;
   return isValidNaverPlaceUrl(state.placeUrl);
 });
@@ -362,7 +355,7 @@ const isValidProductUrl = (url: string): boolean => {
 // touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
 const productUrlError = computed((): string | undefined => {
   // 제품 후기 타입이 아니면 검증 불필요
-  if (!requiresProductUrl.value) return undefined;
+  if (!props.requiresProductUrl) return undefined;
 
   // 터치되지 않은 상태에서는 에러 표시하지 않음
   if (!productUrlTouched.value) return undefined;
@@ -379,7 +372,7 @@ const productUrlError = computed((): string | undefined => {
 
 // Product URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
 const isProductUrlValid = computed(() => {
-  if (!requiresProductUrl.value) return true;
+  if (!props.requiresProductUrl) return true;
   if (!state.productUrl || state.productUrl.trim() === '') return false;
   return isValidProductUrl(state.productUrl);
 });
@@ -397,7 +390,7 @@ const state = reactive<{
   productUrl: string; // 제품 후기용 제품 URL
   fields: Record<string, any>;
 }>({
-  postType: postTypes[0] as string,
+  postType: props.postType,
   personaId: undefined,
   blogIndex: 'normal', // 기본값: 일반
   keyword: '',
@@ -409,18 +402,6 @@ const state = reactive<{
   // 동적 필드 값들을 저장할 객체
   fields: {} as Record<string, string | number>,
 });
-
-// postType 변경 시 fields, URL 및 touched 상태 초기화
-watch(
-  () => state.postType,
-  () => {
-    state.fields = {};
-    state.placeUrl = '';
-    state.productUrl = '';
-    placeUrlTouched.value = false;
-    productUrlTouched.value = false;
-  },
-);
 
 // 희망 키워드 변경 시 연관 키워드 및 추천 키워드 리셋
 watch(
@@ -471,57 +452,59 @@ const postRequest = async () => {
     personaId = undefined; // personaId는 undefined로
   }
 
-  // 추천 키워드 결정: 키워드 조회가 필요한 타입이면 선택된 값, 아니면 희망 키워드 사용
-  const recommendedKeyword = requiresKeywordSearch.value
+  // 추천 키워드 결정: 키워드 조회가 필요한 타입(맛집 후기)이면 선택된 값, 아니면 희망 키워드 사용
+  const recommendedKeyword = props.requiresKeywordSearch
     ? selectedRecommendedKeyword.value
     : state.keyword.trim();
 
+  // 블로그 지수 결정: 맛집 후기만 사용자 선택값, 나머지는 'optimal' 고정
+  const blogIndex = props.requiresKeywordSearch ? state.blogIndex : 'optimal';
+
   // PLACE URL 처리: 맛집 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
-  const placeUrl = requiresKeywordSearch.value
+  const placeUrl = props.requiresKeywordSearch
     ? state.placeUrl.trim()
     : undefined;
 
   // 제품 URL 처리: 제품 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
-  const productUrl = requiresProductUrl.value
+  const productUrl = props.requiresProductUrl
     ? state.productUrl.trim()
     : undefined;
 
-  // 최종 요청 데이터 (subKeywords 대신 recommendedKeyword 사용)
-  const finalData = {
-    postType: state.postType,
+  // 최종 요청 데이터 (postType은 백엔드에서 자동 설정됨)
+  const finalData: Record<string, any> = {
     keyword: state.keyword,
     length: state.length,
     count: state.count,
     personaId,
     useRandomPersona,
-    blogIndex: state.blogIndex,
+    blogIndex, // 맛집 후기: 사용자 선택, 나머지: 'optimal' 고정
     writingTone: state.writingTone, // 원고 말투
     recommendedKeyword, // 선택된 추천 키워드 또는 희망 키워드
-    placeUrl, // 맛집 후기용 PLACE URL (필수)
-    productUrl, // 제품 후기용 제품 URL (필수, 저장만 함)
     additionalFields: hasFields ? cleanedFields : null, // 비어있으면 null
   };
 
+  // 타입별 필수 필드 추가
+  if (placeUrl) {
+    finalData.placeUrl = placeUrl;
+  }
+  if (productUrl) {
+    finalData.productUrl = productUrl;
+  }
+
   await startTransition(async () => {
     try {
-      // const result = await useApi<{
-      //   id: number;
-      // }>('/blog-posts', {
-      //   method: 'POST',
-      //   body: finalData,
-      // });
-
-      // if (!result.id) {
-      //   throw new Error('원고 생성 요청에 실패했습니다.');
-      // }
-
-      // await auth.fetchUser();
-
-      await new Promise((res) => {
-        setTimeout(() => {
-          res(true);
-        }, 3000);
+      const result = await useApi<{
+        id: number;
+      }>(`/blog-posts/${props.apiType}`, {
+        method: 'POST',
+        body: finalData,
       });
+
+      if (!result.id) {
+        throw new Error('원고 생성 요청에 실패했습니다.');
+      }
+
+      await auth.fetchUser();
 
       // 모달 열기 및 사용자 액션 처리
       const action = await postCompleteModal.open({ count: finalData.count });
@@ -566,10 +549,10 @@ const onSubmit = async () => {
   }
 
   // 제출 시 모든 URL 필드를 touched 상태로 설정 (에러 표시 활성화)
-  if (requiresKeywordSearch.value) {
+  if (props.requiresKeywordSearch) {
     placeUrlTouched.value = true;
   }
-  if (requiresProductUrl.value) {
+  if (props.requiresProductUrl) {
     productUrlTouched.value = true;
   }
 
@@ -593,27 +576,25 @@ const onSubmit = async () => {
 <template>
   <SubscriptionGuard>
     <section class="container mx-auto max-w-5xl">
-      <ConsoleTitle
-        title="스마트 원고 생성"
-        description="AI를 활용한 포스트 작성을 도와드립니다."
-      />
+      <!-- 뒤로가기 + 제목 -->
+      <div class="flex items-center gap-4 mb-6">
+        <UButton
+          icon="i-heroicons-arrow-left"
+          variant="ghost"
+          color="neutral"
+          to="/console/ai-post"
+        >
+          목록으로
+        </UButton>
+      </div>
+
+      <ConsoleTitle :title="pageTitle" :description="pageDescription" />
 
       <div class="grid grid-cols-2 gap-x-5 items-start">
         <article>
           <UForm :state="state" :schema="currentSchema" ref="mainForm">
             <div class="flex flex-col gap-y-4 mb-8">
               <h4 class="font-bold">원고 개요</h4>
-              <UFormField label="포스트 유형" name="postType" required>
-                <USelect
-                  v-model="state.postType"
-                  name="postType"
-                  :items="postTypes"
-                  variant="soft"
-                  class="w-full"
-                  size="xl"
-                  placeholder="포스트 유형을 선택해 주세요."
-                />
-              </UFormField>
               <UFormField
                 label="페르소나"
                 name="personaId"
@@ -643,7 +624,9 @@ const onSubmit = async () => {
                   </UButton>
                 </template>
               </UFormField>
+              <!-- 맛집 후기 타입만 블로그 지수 선택 표시 -->
               <UFormField
+                v-if="requiresKeywordSearch"
                 label="작성 예정 블로그 지수"
                 name="blogIndex"
                 required

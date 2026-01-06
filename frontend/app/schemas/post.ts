@@ -40,27 +40,6 @@ export const fieldConfigsByType: Record<
       },
     ],
   },
-  '방문 후기': {
-    description:
-      '방문 후기: 실제로 방문한 장소에 대한 경험과 느낌을 공유하는 글입니다',
-    fields: [
-      {
-        name: 'companyName',
-        label: '방문 장소 이름',
-        type: 'text',
-        placeholder: '방문한 장소의 이름을 입력해주세요',
-        required: true,
-      },
-      {
-        name: 'extra',
-        label: '추가 정보',
-        type: 'textarea',
-        placeholder:
-          '원고에 반영할 정보를 자유롭게 작성해주세요.\n\n예시:\n- 플레이스 링크: https://naver.me/xxx\n- 방문 날짜: 2024년 12월 주말\n- 이용 서비스: 1인 네일아트 50,000원\n- 위치/주차: 강남역 3번 출구 도보 5분, 건물 내 주차 가능\n- 강조 포인트: 친절한 서비스, 깔끔한 시설',
-        rows: 6,
-      },
-    ],
-  },
   '여행 후기': {
     description:
       '여행 후기: 실제로 방문한 장소에 대한 경험과 느낌을 공유하는 글입니다',
@@ -173,7 +152,6 @@ export const fieldConfigsByType: Record<
 
 export const postTypes = [
   '맛집 후기',
-  '방문 후기',
   '여행 후기',
   '제품 후기',
   '일반 키워드 정보성',
