@@ -17,8 +17,8 @@ const props = defineProps<{
   requiresProductUrl?: boolean;
   // 카테고리 (review | info)
   category: 'review' | 'info';
-  // API 엔드포인트 타입 (restaurant, product, travel, general, medical, legal)
-  apiType: 'restaurant' | 'product' | 'travel' | 'general' | 'medical' | 'legal';
+  // API 엔드포인트 타입 (restaurant, product, general-review, general, medical, legal)
+  apiType: 'restaurant' | 'product' | 'general-review' | 'general' | 'medical' | 'legal';
 }>();
 
 const [isPending, startTransition] = useTransition();

@@ -64,9 +64,9 @@ const navigationGroups: NavigationGroup[] = [
             icon: 'i-heroicons-shopping-bag',
           },
           {
-            name: '여행 후기',
-            to: '/console/ai-post/travel',
-            icon: 'i-heroicons-map',
+            name: '일반 후기',
+            to: '/console/ai-post/general-review',
+            icon: 'i-heroicons-chat-bubble-left-right',
           },
           {
             name: '일반 키워드 정보성',
@@ -82,6 +82,11 @@ const navigationGroups: NavigationGroup[] = [
             name: '법률상식',
             to: '/console/ai-post/legal',
             icon: 'i-heroicons-scale',
+          },
+          {
+            name: '뉴스 원고',
+            to: '/console/ai-post/news',
+            icon: 'i-heroicons-newspaper',
           },
         ],
       },

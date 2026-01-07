@@ -38,13 +38,13 @@ const postTypes: PostType[] = [
     category: 'review',
   },
   {
-    id: 'travel',
-    title: '여행 후기',
-    description: '실제로 방문한 여행지에 대한 경험과 느낌을 공유하는 글',
-    icon: 'i-heroicons-map',
+    id: 'general-review',
+    title: '일반 후기',
+    description: '다양한 서비스나 장소에 대한 경험과 느낌을 공유하는 글',
+    icon: 'i-heroicons-chat-bubble-left-right',
     color: 'text-emerald-600',
     gradient: 'from-emerald-500 to-teal-500',
-    path: '/console/ai-post/travel',
+    path: '/console/ai-post/general-review',
     category: 'review',
   },
   // 정보성 카테고리

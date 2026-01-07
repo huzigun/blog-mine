@@ -11,7 +11,8 @@ import { DateService } from '../../lib/date/date.service';
 import { CreditService } from '@modules/credit/credit.service';
 import { NotificationService } from '@modules/notification/notification.service';
 import { PromptLogService } from '@lib/integrations/openai/prompt-log';
-import { CreateBlogPostDto, FilterBlogPostDto } from './dto';
+import { NewsCrawlerService } from '@lib/integrations/news-crawler/news-crawler.service';
+import { CreateBlogPostDto, CreateNewsPostDto, FilterBlogPostDto } from './dto';
 import {
   EditAIPostDto,
   EditAIPostResponse,
@@ -44,6 +45,7 @@ export class BlogPostService {
     private readonly creditService: CreditService,
     private readonly notificationService: NotificationService,
     private readonly promptLogService: PromptLogService,
+    private readonly newsCrawlerService: NewsCrawlerService,
   ) {}
 
   /**
@@ -1287,5 +1289,577 @@ export class BlogPostService {
       totalTokens: postVersion.totalTokens,
       createdAt: postVersion.createdAt,
     };
+  }
+
+  /**
+   * 뉴스 URL 파싱 가능 여부 확인
+   */
+  async checkNewsUrl(url: string): Promise<{
+    isSupported: boolean;
+    sourceName?: string;
+    message: string;
+  }> {
+    try {
+      const isSupported = this.newsCrawlerService.isSupported(url);
+
+      if (!isSupported) {
+        // 지원되는 도메인 목록 조회
+        const supportedDomains = this.newsCrawlerService.getSupportedDomains();
+        const domainList = supportedDomains
+          .slice(0, 10)
+          .map((d) => d.sourceName)
+          .join(', ');
+
+        return {
+          isSupported: false,
+          message: `지원하지 않는 뉴스 사이트입니다. 지원 매체: ${domainList} 등 ${supportedDomains.length}개`,
+        };
+      }
+
+      // 실제 파싱 테스트 (선택적)
+      const article = await this.newsCrawlerService.crawl(url);
+
+      return {
+        isSupported: true,
+        sourceName: article.sourceName,
+        message: `[${article.sourceName}] "${article.title}" - 파싱 가능`,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : '알 수 없는 오류';
+      return {
+        isSupported: false,
+        message: `뉴스 파싱 실패: ${errorMessage}`,
+      };
+    }
+  }
+
+  /**
+   * 뉴스 기반 원고 생성 요청
+   */
+  async createFromNews(userId: number, dto: CreateNewsPostDto) {
+    // 1. 뉴스 URL 파싱
+    this.logger.log(`Parsing news URL: ${dto.newsUrl}`);
+
+    let newsArticle;
+    try {
+      newsArticle = await this.newsCrawlerService.crawl(dto.newsUrl);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : '알 수 없는 오류';
+      throw new BadRequestException(`뉴스 파싱 실패: ${errorMessage}`);
+    }
+
+    // 2. 파싱 결과 검증
+    if (!newsArticle.title || !newsArticle.content) {
+      throw new BadRequestException(
+        '뉴스 기사에서 제목 또는 본문을 추출할 수 없습니다.',
+      );
+    }
+
+    this.logger.log(
+      `News parsed successfully: "${newsArticle.title}" from ${newsArticle.sourceName}`,
+    );
+
+    // 3. 페르소나 처리
+    let personaSnapshot: any;
+
+    if (dto.personaId) {
+      const persona = await this.prisma.persona.findFirst({
+        where: {
+          id: dto.personaId,
+          userId,
+        },
+      });
+
+      if (!persona) {
+        throw new NotFoundException(
+          `Persona with id ${dto.personaId} not found or access denied`,
+        );
+      }
+
+      personaSnapshot = {
+        gender: persona.gender,
+        blogTopic: persona.blogTopic,
+        characteristics: persona.characteristics,
+        isRandom: false,
+      };
+    } else if (dto.useRandomPersona) {
+      personaSnapshot = {
+        isRandom: true,
+      };
+    } else {
+      throw new BadRequestException(
+        'personaId 또는 useRandomPersona 중 하나는 필수입니다.',
+      );
+    }
+
+    // 4. BloC 비용 계산 및 잔액 확인
+    const totalCost = this.CREDIT_COST_PER_POST * dto.count;
+
+    const balance = await this.creditService.getBalance(userId);
+    if (balance.totalCredits < totalCost) {
+      throw new BadRequestException(
+        `BloC이 부족합니다. (필요: ${totalCost} BloC, 보유: ${balance.totalCredits} BloC)`,
+      );
+    }
+
+    // 5. 키워드로 상위 블로그 수집 (뉴스용도 기존 학습 프로세스 사용)
+    this.logger.log(
+      `Collecting blog ranks for keyword: "${dto.keyword}" for news-based post`,
+    );
+    await this.blogRankService.collectBlogRanks(dto.keyword, 40);
+
+    // 6. displayId 생성
+    const datePrefix = getDatePrefix();
+    const displayId = await this.generateNextDisplayId(datePrefix);
+
+    // 7. BlogPost 생성 (뉴스 정보 포함)
+    const blogPost = await this.prisma.blogPost.create({
+      data: {
+        userId,
+        displayId,
+        keyword: dto.keyword,
+        postType: '뉴스 기반 원고',
+        blogIndex: dto.blogIndex,
+        writingTone: dto.writingTone,
+        recommendedKeyword: dto.recommendedKeyword || null,
+        subKeywords: [],
+        length: dto.length,
+        count: dto.count,
+        targetCount: dto.count,
+        additionalFields: {
+          ...dto.additionalFields,
+          // 뉴스 관련 정보 저장
+          newsUrl: dto.newsUrl,
+          newsTitle: newsArticle.title,
+          newsContent: newsArticle.content,
+          newsSourceName: newsArticle.sourceName,
+          newsAuthor: newsArticle.author,
+          newsPublishedAt: newsArticle.publishedAt,
+        },
+        status: 'IN_PROGRESS',
+        persona: personaSnapshot,
+      },
+    });
+
+    this.logger.log(
+      `Created news-based blog post request ${blogPost.id} for user ${userId}`,
+    );
+
+    // 8. BloC 차감
+    try {
+      await this.creditService.useCredits(
+        userId,
+        totalCost,
+        'blog_post',
+        blogPost.id,
+        JSON.stringify({
+          keyword: dto.keyword,
+          count: dto.count,
+          costPerPost: this.CREDIT_COST_PER_POST,
+          newsUrl: dto.newsUrl,
+          newsSourceName: newsArticle.sourceName,
+        }),
+      );
+
+      this.logger.log(
+        `Charged ${totalCost} BloC for user ${userId} (blogPost ${blogPost.id})`,
+      );
+    } catch (error) {
+      await this.prisma.blogPost.delete({ where: { id: blogPost.id } });
+      throw error;
+    }
+
+    // 9. 시작 시간 기록
+    await this.prisma.blogPost.update({
+      where: { id: blogPost.id },
+      data: { startedAt: new Date() },
+    });
+
+    // 10. 백그라운드에서 원고 생성 시작
+    this.generateNewsPostsWithRetry(blogPost.id, dto.count, userId).catch(
+      async (error) => {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Failed to generate news posts for blogPost ${blogPost.id}: ${errorMessage}`,
+          error.stack,
+        );
+
+        const actualCount = await this.prisma.aIPost.count({
+          where: { blogPostId: blogPost.id },
+        });
+
+        try {
+          await this.prisma.blogPost.update({
+            where: { id: blogPost.id },
+            data: {
+              status: 'FAILED',
+              completedCount: actualCount,
+              lastError: errorMessage.substring(0, 500),
+              errorAt: new Date(),
+            },
+          });
+        } catch (updateError) {
+          this.logger.error(
+            `Failed to update blogPost ${blogPost.id} status to FAILED`,
+            updateError,
+          );
+        }
+
+        // 실패한 원고에 대한 BloC 환불
+        const failedCount = dto.count - actualCount;
+        if (failedCount > 0) {
+          const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
+          try {
+            await this.creditService.grantBonusCredits(
+              userId,
+              refundAmount,
+              `뉴스 원고 생성 실패 환불 (${failedCount}/${dto.count}개 실패, BlogPost ${blogPost.id})`,
+            );
+          } catch (refundError) {
+            this.logger.error(
+              `Failed to refund ${refundAmount} BloC to user ${userId}`,
+              refundError,
+            );
+          }
+        }
+      },
+    );
+
+    return blogPost;
+  }
+
+  /**
+   * 뉴스 기반 원고 생성 (재시도 로직 포함)
+   */
+  private async generateNewsPostsWithRetry(
+    blogPostId: number,
+    targetCount: number,
+    userId: number,
+  ) {
+    const startTime = Date.now();
+
+    const blogPost = await this.prisma.blogPost.findUnique({
+      where: { id: blogPostId },
+    });
+
+    if (!blogPost) {
+      throw new Error(`BlogPost ${blogPostId} not found`);
+    }
+
+    // 뉴스 정보 추출
+    const newsTitle = (blogPost.additionalFields as any)?.newsTitle || '';
+    const newsContent = (blogPost.additionalFields as any)?.newsContent || '';
+    const newsSourceName =
+      (blogPost.additionalFields as any)?.newsSourceName || '';
+
+    // 상위 블로그 참조 조회 (기존 로직 재사용)
+    const referenceContents = await this.fetchReferenceContents(
+      blogPost.keyword,
+      blogPost.postType,
+    );
+
+    let pendingIndices = Array.from({ length: targetCount }, (_, i) => i + 1);
+    let lastError: string | null = null;
+
+    for (let attempt = 1; attempt <= this.MAX_RETRY; attempt++) {
+      if (Date.now() - startTime > this.TOTAL_TIMEOUT) {
+        throw new Error(
+          `전체 프로세스 타임아웃 (${this.TOTAL_TIMEOUT / 60000}분 초과)`,
+        );
+      }
+
+      if (pendingIndices.length === 0) break;
+
+      this.logger.log(
+        `[뉴스 원고 시도 ${attempt}/${this.MAX_RETRY}] ${pendingIndices.length}개 생성 시작 (blogPost ${blogPostId})`,
+      );
+
+      const failedIndices: number[] = [];
+
+      for (let i = 0; i < pendingIndices.length; i += this.BATCH_SIZE) {
+        if (Date.now() - startTime > this.TOTAL_TIMEOUT) {
+          throw new Error(
+            `전체 프로세스 타임아웃 (${this.TOTAL_TIMEOUT / 60000}분 초과)`,
+          );
+        }
+
+        const batchIndices = pendingIndices.slice(i, i + this.BATCH_SIZE);
+
+        const results = await Promise.allSettled(
+          batchIndices.map((postIndex) =>
+            this.withTimeout(
+              this.generateSingleNewsPost(
+                blogPostId,
+                postIndex,
+                targetCount,
+                blogPost,
+                referenceContents,
+                newsTitle,
+                newsContent,
+                newsSourceName,
+              ),
+              this.SINGLE_POST_TIMEOUT,
+              `뉴스 원고 ${postIndex}/${targetCount} 생성 타임아웃`,
+            ),
+          ),
+        );
+
+        results.forEach((result, idx) => {
+          const postIndex = batchIndices[idx];
+          if (result.status === 'rejected') {
+            failedIndices.push(postIndex);
+            lastError = result.reason?.message || String(result.reason);
+            this.logger.warn(
+              `[시도 ${attempt}] 뉴스 원고 ${postIndex} 생성 실패: ${lastError}`,
+            );
+          }
+        });
+
+        const actualCount = await this.prisma.aIPost.count({
+          where: { blogPostId },
+        });
+
+        await this.prisma.blogPost.update({
+          where: { id: blogPostId },
+          data: {
+            completedCount: actualCount,
+            status: 'IN_PROGRESS',
+          },
+        });
+
+        if (i + this.BATCH_SIZE < pendingIndices.length) {
+          await this.sleep(1000);
+        }
+      }
+
+      pendingIndices = failedIndices;
+
+      if (pendingIndices.length === 0) {
+        this.logger.log(
+          `[시도 ${attempt}] 모든 뉴스 원고 생성 완료 (blogPost ${blogPostId})`,
+        );
+        break;
+      }
+
+      if (attempt < this.MAX_RETRY) {
+        const delay = this.RETRY_DELAY * Math.pow(2, attempt - 1);
+        await this.sleep(delay);
+      }
+    }
+
+    // 최종 결과 처리
+    const finalCount = await this.prisma.aIPost.count({
+      where: { blogPostId },
+    });
+
+    if (finalCount === targetCount) {
+      const updatedBlogPost = await this.prisma.blogPost.update({
+        where: { id: blogPostId },
+        data: {
+          status: 'COMPLETED',
+          completedCount: finalCount,
+          completedAt: new Date(),
+        },
+      });
+
+      try {
+        await this.notificationService.sendBlogPostCompleted(
+          userId,
+          blogPostId,
+          updatedBlogPost.displayId,
+        );
+      } catch (notifyError) {
+        this.logger.error(
+          `Failed to send completion notification for BlogPost ${blogPostId}`,
+          notifyError,
+        );
+      }
+    } else {
+      const failedCount = targetCount - finalCount;
+      const errorMessage = `${this.MAX_RETRY}회 시도 후 ${failedCount}개 실패`;
+
+      const failedBlogPost = await this.prisma.blogPost.update({
+        where: { id: blogPostId },
+        data: {
+          status: 'FAILED',
+          completedCount: finalCount,
+          lastError: `${errorMessage}. 마지막 에러: ${lastError ? String(lastError).substring(0, 400) : '알 수 없음'}`,
+          errorAt: new Date(),
+        },
+      });
+
+      const refundAmount = failedCount * this.CREDIT_COST_PER_POST;
+      if (refundAmount > 0) {
+        try {
+          await this.creditService.grantBonusCredits(
+            userId,
+            refundAmount,
+            `뉴스 원고 생성 실패 환불 (${failedCount}/${targetCount}개 실패, BlogPost ${blogPostId})`,
+          );
+        } catch (refundError) {
+          this.logger.error(
+            `Failed to refund ${refundAmount} BloC to user ${userId}`,
+            refundError,
+          );
+        }
+      }
+
+      try {
+        await this.notificationService.sendBlogPostFailed(
+          userId,
+          blogPostId,
+          failedBlogPost.displayId,
+          errorMessage,
+        );
+      } catch (notifyError) {
+        this.logger.error(
+          `Failed to send failure notification for BlogPost ${blogPostId}`,
+          notifyError,
+        );
+      }
+
+      throw new Error(
+        `${this.MAX_RETRY}회 시도 후 ${failedCount}/${targetCount}개 뉴스 원고 생성 실패`,
+      );
+    }
+  }
+
+  /**
+   * 단일 뉴스 기반 원고 생성
+   */
+  private async generateSingleNewsPost(
+    blogPostId: number,
+    postIndex: number,
+    totalCount: number,
+    blogPost: any,
+    referenceContents: string[],
+    newsTitle: string,
+    newsContent: string,
+    newsSourceName: string,
+  ): Promise<void> {
+    const currentCount = await this.prisma.aIPost.count({
+      where: { blogPostId },
+    });
+    if (currentCount >= postIndex) {
+      this.logger.log(`뉴스 원고 ${postIndex} 이미 존재, 스킵`);
+      return;
+    }
+
+    const existingPosts = await this.prisma.aIPost.findMany({
+      where: { blogPostId },
+      select: { title: true },
+    });
+
+    const existingTitles: string[] = existingPosts
+      .map((post) => post.title)
+      .filter((title): title is string => !!title);
+
+    const isRandomMode = blogPost.persona?.isRandom === true;
+    const actualPersona = isRandomMode
+      ? generateRandomPersona()
+      : blogPost.persona;
+
+    const startTime = Date.now();
+
+    // 뉴스 기사 학습 (GPT-4o-mini로 핵심 팩트 추출)
+    this.logger.log(`뉴스 기사 학습 시작 (postIndex: ${postIndex})`);
+    const analyzedNewsContent = await this.openaiService.analyzeNewsContent(
+      newsContent,
+      blogPost.keyword,
+    );
+    this.logger.log(
+      `뉴스 기사 학습 완료 (${analyzedNewsContent.length} chars)`,
+    );
+
+    // 뉴스 기반 원고 생성 - 학습된 내용으로 생성
+    const result = await this.openaiService.generatePost({
+      keyword: blogPost.keyword,
+      postType: blogPost.postType,
+      persona: actualPersona,
+      recommendedKeyword: blogPost.recommendedKeyword,
+      writingTone: blogPost.writingTone,
+      length: blogPost.length,
+      additionalFields: {
+        ...(blogPost.additionalFields as Record<string, any>),
+        // 학습된 뉴스 정보를 전달 (분석 결과 JSON)
+        newsTitle,
+        newsContent: analyzedNewsContent, // 원본 대신 학습 결과 전달
+        newsSourceName,
+      },
+      referenceContents,
+      postIndex,
+      totalCount,
+      existingTitles,
+    });
+
+    const responseTime = Date.now() - startTime;
+
+    let title: string | null = null;
+    let content: string = result.content;
+
+    try {
+      const parsed = JSON.parse(result.content) as {
+        title?: string;
+        content?: string;
+      };
+      title = parsed.title || null;
+      content = parsed.content || result.content;
+    } catch {
+      this.logger.warn(
+        `Failed to parse JSON response for news blogPost ${blogPostId}`,
+      );
+    }
+
+    const aiPost = await this.prisma.aIPost.create({
+      data: {
+        blogPostId,
+        title,
+        content,
+        retryCount: 0,
+        promptTokens: result.usage.promptTokens,
+        completionTokens: result.usage.completionTokens,
+        totalTokens: result.usage.totalTokens,
+      },
+    });
+
+    if (result.prompts) {
+      this.promptLogService
+        .logPrompt({
+          userId: blogPost.userId,
+          blogPostId,
+          aiPostId: aiPost.id,
+          systemPrompt: result.prompts.systemPrompt,
+          userPrompt: result.prompts.userPrompt,
+          fullPrompt: result.prompts.fullPrompt,
+          model: this.openaiService.getGenerationModel(),
+          promptTokens: result.usage.promptTokens,
+          completionTokens: result.usage.completionTokens,
+          totalTokens: result.usage.totalTokens,
+          response: result.content,
+          responseTime,
+          success: true,
+          purpose: 'news_blog_generation',
+          metadata: {
+            keyword: blogPost.keyword,
+            postType: blogPost.postType,
+            length: blogPost.length,
+            postIndex,
+            totalCount,
+            newsSourceName,
+          },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to log prompt for news aiPost ${aiPost.id}: ${error.message}`,
+          );
+        });
+    }
+
+    this.logger.log(
+      `뉴스 원고 ${postIndex}/${totalCount} 생성 완료 (blogPost ${blogPostId})`,
+    );
   }
 }

@@ -23,6 +23,7 @@ import {
   CreateGeneralPostDto,
   CreateMedicalPostDto,
   CreateLegalPostDto,
+  CreateNewsPostDto,
   FilterBlogPostDto,
   DeployOrderDto,
 } from './dto';
@@ -156,9 +157,9 @@ export class BlogPostController {
 
   /**
    * 일반 후기 원고 생성 요청
-   * POST /blog-posts/travel
+   * POST /blog-posts/general-review
    */
-  @Post('travel')
+  @Post('general-review')
   @UseGuards(ActiveSubscriptionGuard)
   async createGeneralReview(
     @GetRequestUser() user: RequestUser,
@@ -220,6 +221,37 @@ export class BlogPostController {
       ...dto,
       postType: '법률상식 정보성',
     });
+  }
+
+  /**
+   * 뉴스 기반 원고 생성 요청
+   * POST /blog-posts/news
+   *
+   * 1. 뉴스 URL 파싱 가능 여부 확인
+   * 2. 뉴스 내용 파싱
+   * 3. 키워드로 상위 블로그 학습
+   * 4. 뉴스 제목/내용 기반 원고 생성
+   */
+  @Post('news')
+  @UseGuards(ActiveSubscriptionGuard)
+  async createNews(
+    @GetRequestUser() user: RequestUser,
+    @Body() dto: CreateNewsPostDto,
+  ) {
+    const userId = user.id;
+    return this.blogPostService.createFromNews(userId, dto);
+  }
+
+  /**
+   * 뉴스 URL 파싱 가능 여부 확인
+   * GET /blog-posts/news/check-url?url=뉴스URL
+   */
+  @Get('news/check-url')
+  async checkNewsUrl(@Query('url') url: string) {
+    if (!url || url.trim().length === 0) {
+      throw new BadRequestException('뉴스 URL을 입력해주세요.');
+    }
+    return this.blogPostService.checkNewsUrl(url.trim());
   }
 
   /**

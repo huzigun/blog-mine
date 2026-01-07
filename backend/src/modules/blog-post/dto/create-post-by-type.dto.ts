@@ -103,3 +103,13 @@ export class CreateMedicalPostDto extends BaseCreatePostDto {}
  * 법률상식 원고 생성 DTO
  */
 export class CreateLegalPostDto extends BaseCreatePostDto {}
+
+/**
+ * 뉴스 기반 원고 생성 DTO
+ * - 뉴스 URL 필수
+ */
+export class CreateNewsPostDto extends BaseCreatePostDto {
+  // 뉴스 URL (필수)
+  @IsUrl({}, { message: '올바른 뉴스 URL을 입력해주세요.' })
+  newsUrl: string;
+}

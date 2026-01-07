@@ -57,6 +57,9 @@ export class OpenAIService {
     '법률상식 정보성',
   ];
 
+  // 뉴스 기반 포스트 타입
+  private readonly NEWS_POST_TYPE = '뉴스 기반 원고';
+
   // 원고 다양성을 위한 접근 방식
   private readonly DIVERSITY_APPROACHES = [
     '초보자도 쉽게 이해할 수 있도록 기초부터 차근차근 설명하는 방식',
@@ -177,15 +180,21 @@ export class OpenAIService {
       }
     }
 
-    // 정보성 포스트 여부 확인
+    // 포스트 타입 여부 확인
     const isInformational = this.isInformationalPostType(request.postType);
+    const isNews = this.isNewsPostType(request.postType);
 
     // postType에 따라 다른 프롬프트 빌드
     let systemPrompt: string;
     let referencePrompt: string;
     let userPrompt: string;
 
-    if (isInformational) {
+    if (isNews) {
+      // 뉴스 기반 원고: 뉴스 기사 학습 결과를 활용한 프롬프트
+      systemPrompt = this.getNewsSystemPrompt();
+      referencePrompt = ''; // 뉴스는 유저 프롬프트에 학습 결과 포함
+      userPrompt = this.buildNewsPrompt(request);
+    } else if (isInformational) {
       // 정보성 포스트: 정보 추출 기반 프롬프트 (타입별 분리)
       systemPrompt = this.getInformationalSystemPromptByType(request.postType);
       referencePrompt = ''; // 정보성은 유저 프롬프트에 분석 결과 포함
@@ -354,6 +363,110 @@ export class OpenAIService {
       );
       throw error;
     }
+  }
+
+  /**
+   * 뉴스 기반 원고를 위한 시스템 프롬프트
+   */
+  private getNewsSystemPrompt(): string {
+    return `당신은 뉴스 정보를 정리하여 블로그용 정보 글로 재구성하는 콘텐츠 작성자입니다.
+이 글은 개인 의견, 해석, 논평을 포함하지 않으며,
+뉴스 기사에 포함된 사실 정보를 독자가 이해하기 쉬운 형태로 정리하는 것이 목적입니다.
+
+
+[입력값 전제 – 매우 중요]
+
+이 프롬프트에는 사전에 수행된 '뉴스 학습 프롬프트'의 출력 결과(JSON)가 함께 제공됩니다.
+
+이 JSON에는 다음 정보가 포함되어 있습니다:
+- issue_summary
+- core_facts
+- timeline
+- key_entities
+- quoted_statements
+- common_points
+- differences
+- uncertain_points
+
+당신은 **이 입력값에 포함된 정보만 사용**하여 글을 작성해야 하며,
+입력값에 없는 사실, 해석, 추론을 추가해서는 안 됩니다.
+
+
+[역할 정의]
+
+당신의 역할은 뉴스 기자도, 해설가도 아닙니다.
+당신은 여러 개의 뉴스 기사에 흩어져 있는 사실 정보를 하나의 흐름으로 정리해주는 '정보 정리자'입니다.
+이 글은 뉴스를 대신 전달하거나 평가하지 않으며, 사실 관계를 있는 그대로 정리합니다.
+
+
+[글 작성 핵심 원칙 – 반드시 지킬 것]
+
+- 뉴스에 없는 내용은 절대 추가하지 않는다.
+- 원인·결과 관계는 기사에 명시된 경우에만 연결한다.
+- 전망, 영향, 의미 해석을 하지 않는다.
+- 개인 의견, 감정 표현, 강조 표현을 사용하지 않는다.
+- 독자에게 행동을 유도하지 않는다.
+
+
+[글 구성 원칙]
+
+1. 도입부
+   - 이슈가 무엇인지 사실 중심으로 간단히 제시한다.
+   - 문제 제기, 의견, 해석 없이 시작한다.
+
+2. 본문
+   - core_facts와 common_points를 중심으로 구성한다.
+   - timeline이 있는 경우 시간 흐름에 따라 정리한다.
+   - 필요 시 quoted_statements를 사실 보조 자료로 활용한다.
+   - 기사 간 차이는 differences 항목을 기반으로 구분해 설명한다.
+
+3. 정리부
+   - 현재까지 확인된 사실 범위까지만 정리한다.
+   - 불확실한 부분은 uncertain_points를 활용해 명시한다.
+   - 향후 전망이나 추측은 포함하지 않는다.
+
+
+[표현 및 톤 규칙]
+
+- 객관적이고 중립적인 설명체 유지
+- "~로 보인다", "~할 것으로 예상된다" 사용 금지 (단, 기사에 그대로 포함된 경우에만 허용)
+- 평가형 형용사(중요한, 큰, 심각한 등) 사용 최소화
+- 인용 발언은 맥락을 함께 설명한다.
+
+
+[키워드 사용 규칙]
+
+- 메인 키워드는 제목에 1회 사용한다.
+- 본문에서는 자연스러운 정보 흐름 속에서만 사용한다.
+- 키워드를 반복하기 위해 문장을 늘리지 않는다.
+
+
+[출력 규칙]
+
+1. 반드시 아래 JSON 구조로 응답한다.
+{
+  "title": "제목",
+  "content": "<p>...</p>",
+  "tags": ["#태그1", "#태그2", "#태그3", "#태그4", "#태그5"]
+}
+
+2. content는 HTML 문자열 하나로만 구성한다.
+3. 허용 태그: <p>, <strong>, <ul>, <li>, <blockquote>
+4. 본문 문장은 반드시 <p> 내부에만 작성한다.
+5. 마크다운 기호(-, •, ~, +, >, |)는 사용하지 않는다.
+6. # 기호는 tags 필드 내부에서만 사용한다.
+7. 출력은 JSON 한 덩어리로만 제공한다.
+
+
+[최종 기준]
+
+이 글은 블로그에 게시되지만,
+- 뉴스 내용을 왜곡하지 않고
+- 기자의 해석을 대신하지 않으며
+- 개인 의견이나 논평처럼 보이지 않고
+- "뉴스 정리 글"로 명확히 인식되어야 합니다.
+
+'읽기 쉬운 뉴스 요약'이지 '새로운 주장이나 해석을 담은 글'이 되어서는 안 됩니다.`;
   }
 
   /**
@@ -1512,6 +1625,148 @@ export class OpenAIService {
   }
 
   /**
+   * 뉴스 기반 원고를 위한 사용자 프롬프트 생성
+   */
+  private buildNewsPrompt(request: GeneratePostRequest): string {
+    const additionalFields = request.additionalFields as Record<string, any>;
+    const newsTitle = additionalFields?.newsTitle || '';
+    const newsContent = additionalFields?.newsContent || '';
+    const newsSourceName = additionalFields?.newsSourceName || '';
+
+    let prompt = `[작성 조건]\n\n`;
+    prompt += `- 메인 키워드: ${request.keyword}\n`;
+    prompt += `- 목표 글자 수: ${request.length}자 (HTML 태그 제외 기준)\n`;
+
+    // 추가 요청사항 (extra 필드)
+    if (additionalFields?.extra) {
+      prompt += `- 추가 요청사항: ${additionalFields.extra}\n`;
+    }
+
+    prompt += `\n\n`;
+
+    // 뉴스 학습 결과 (JSON)
+    prompt += `[뉴스 학습 프롬프트 출력 결과]\n\n`;
+    prompt += `출처: ${newsSourceName}\n`;
+    prompt += `기사 제목: ${newsTitle}\n\n`;
+    prompt += `${newsContent}\n\n`;
+
+    // 다양성 지시 (여러 원고 생성 시)
+    if (request.totalCount && request.totalCount > 1 && request.postIndex) {
+      prompt += `[다양성 요청]\n\n`;
+      prompt += `총 ${request.totalCount}개의 원고 중 ${request.postIndex}번째 원고입니다.\n`;
+
+      if (request.existingTitles && request.existingTitles.length > 0) {
+        prompt += `\n이미 생성된 제목들 (중복 방지):\n`;
+        request.existingTitles.forEach((title, i) => {
+          prompt += `${i + 1}. ${title}\n`;
+        });
+        prompt += `\n위 제목들과 다른 구성으로 작성해주세요.\n`;
+      }
+
+      prompt += `\n`;
+    }
+
+    prompt += `위 뉴스 학습 결과를 바탕으로 블로그 정보 글을 작성해주세요.`;
+
+    return prompt;
+  }
+
+  /**
+   * 뉴스 기사 학습 프롬프트 생성 (GPT-4o-mini용)
+   * 뉴스 기사를 분석하여 핵심 팩트를 구조화된 JSON으로 추출
+   */
+  buildNewsLearningPrompt(newsContent: string, keyword: string): string {
+    return `당신은 정보 분석 전문가입니다.
+아래 뉴스 기사에서 **사실(팩트)만** 추출하세요.
+- 추측, 의견, 감정 표현은 제외
+- 직접 인용문("…"로 표시된 발언)은 그대로 보존
+
+키워드: "${keyword}"
+
+---
+
+${newsContent}
+
+---
+
+위 뉴스 기사를 분석하여 아래 JSON 형식으로 출력하세요:
+
+{
+  "issue_summary": "이 뉴스가 다루는 핵심 이슈를 1-2문장으로 요약",
+  "core_facts": [
+    "검증 가능한 사실 1",
+    "검증 가능한 사실 2",
+    "검증 가능한 사실 3"
+  ],
+  "timeline": [
+    {"date": "YYYY-MM-DD 또는 상대적 시점", "event": "발생한 사건"}
+  ],
+  "key_entities": {
+    "people": ["이름 (직함/역할)"],
+    "organizations": ["기관/회사명"],
+    "locations": ["장소"],
+    "numbers": ["수치와 맥락"]
+  },
+  "quoted_statements": [
+    {"speaker": "발언자", "quote": "원문 그대로의 인용"}
+  ],
+  "common_points": ["여러 기사에서 공통으로 언급된 사항들"],
+  "differences": ["기사별로 다르게 보도된 내용이나 관점 차이"],
+  "uncertain_points": ["불확실하거나 추가 확인이 필요한 정보"]
+}
+
+※ 해당 항목에 정보가 없으면 빈 배열([])로 출력
+※ 반드시 유효한 JSON만 출력 (설명 텍스트 없음)`;
+  }
+
+  /**
+   * 뉴스 기사 학습 실행 (GPT-4o-mini로 분석)
+   */
+  async analyzeNewsContent(
+    newsContent: string,
+    keyword: string,
+  ): Promise<string> {
+    if (!this.openai) {
+      throw new Error('OpenAI service is not configured.');
+    }
+
+    const prompt = this.buildNewsLearningPrompt(newsContent, keyword);
+
+    try {
+      const completion = await this.openai.chat.completions.create({
+        model: this.summaryModel, // GPT-4o-mini 사용
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        max_tokens: 2000,
+        response_format: { type: 'json_object' },
+      });
+
+      const content = completion.choices?.[0]?.message?.content;
+
+      if (!content) {
+        this.logger.warn('Empty response from news analysis');
+        return newsContent; // 분석 실패 시 원본 반환
+      }
+
+      // JSON 파싱 검증
+      try {
+        JSON.parse(content);
+        return content;
+      } catch {
+        this.logger.warn('Failed to parse news analysis JSON, returning raw');
+        return newsContent;
+      }
+    } catch (error) {
+      this.logger.error('News content analysis failed:', error);
+      return newsContent; // 분석 실패 시 원본 반환
+    }
+  }
+
+  /**
    * 후기성 포스트를 위한 사용자 프롬프트 생성
    */
   private buildReviewPrompt(
@@ -2024,6 +2279,13 @@ export class OpenAIService {
    */
   private isInformationalPostType(postType: string): boolean {
     return this.INFORMATIONAL_POST_TYPES.includes(postType);
+  }
+
+  /**
+   * 뉴스 기반 포스트 타입인지 확인
+   */
+  private isNewsPostType(postType: string): boolean {
+    return postType === this.NEWS_POST_TYPE;
   }
 
   /**

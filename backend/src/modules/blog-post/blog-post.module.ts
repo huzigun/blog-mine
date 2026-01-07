@@ -11,6 +11,7 @@ import { NotificationModule } from '../notification/notification.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { HelloDmModule } from '@lib/integrations/hello-dm/hello-dm.module';
 import { S3Module } from '@lib/integrations/s3';
+import { NewsCrawlerModule } from '@lib/integrations/news-crawler/news-crawler.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { S3Module } from '@lib/integrations/s3';
     SubscriptionModule,
     HelloDmModule,
     S3Module,
+    NewsCrawlerModule,
   ],
   controllers: [BlogPostController],
   providers: [BlogPostService, DeployService],
