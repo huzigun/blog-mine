@@ -284,8 +284,8 @@ export class DeployService {
           gdrive: attachmentUrl,
           // 네이버 플레이스 URL (맛집/법률/병의원)
           wg_map_link: blogPost.placeUrl || undefined,
-          // 제품 URL (제품 후기)
-          wg_url_link: blogPost.productUrl || undefined,
+          // 제품 URL (제품 후기) 또는 관련 URL (일반 후기)
+          wg_url_link: blogPost.productUrl || blogPost.relatedUrl || undefined,
         });
 
         if (!helloDmResult.success) {

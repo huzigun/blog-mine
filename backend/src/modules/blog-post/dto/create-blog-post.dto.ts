@@ -49,6 +49,11 @@ export class CreateBlogPostDto {
   @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
   productUrl?: string | null;
 
+  // 관련 URL (일반 후기 전용, 배포 시 wg_url_link로 전달)
+  @IsOptional()
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  relatedUrl?: string | null;
+
   @IsNumber()
   @IsInt()
   @Min(300)

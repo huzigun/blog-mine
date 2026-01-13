@@ -78,8 +78,13 @@ export class CreateProductPostDto extends BaseCreatePostDto {
 
 /**
  * 일반 후기 원고 생성 DTO
+ * - 관련 URL 필수
  */
-export class CreateGeneralReviewPostDto extends BaseCreatePostDto {}
+export class CreateGeneralReviewPostDto extends BaseCreatePostDto {
+  // 관련 URL (필수 - 배포 시 wg_url_link로 전달)
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  relatedUrl: string;
+}
 
 /**
  * 일반 키워드 정보성 원고 생성 DTO

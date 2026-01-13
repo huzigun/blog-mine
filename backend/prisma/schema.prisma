@@ -95,6 +95,7 @@ model BlogPost {
   recommendedKeyword  String?    @map("recommended_keyword") // 선택된 추천 키워드
   placeUrl            String?    @map("place_url") // 네이버 플레이스 URL (맛집 후기 전용)
   productUrl          String?    @map("product_url") // 제품 URL (제품 후기 전용, 저장만 하고 사용 안함)
+  relatedUrl          String?    @map("related_url") // 관련 URL (일반 후기 전용, 배포 시 wg_url_link로 전달)
   length              Int        @default(300)
   count               Int        @default(1)
   additionalFields    Json?      @map("additional_fields")

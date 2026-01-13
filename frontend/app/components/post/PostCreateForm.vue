@@ -17,6 +17,8 @@ const props = defineProps<{
   requiresProductUrl?: boolean;
   // Place URL 필요 여부 (맛집 후기, 법률, 병의원 등) - 선택 입력
   requiresPlaceUrl?: boolean;
+  // 관련 URL 필요 여부 (일반 후기) - 필수 입력
+  requiresRelatedUrl?: boolean;
   // 카테고리 (review | info)
   category: 'review' | 'info';
   // API 엔드포인트 타입 (restaurant, product, general-review, general, medical, legal)
@@ -111,6 +113,7 @@ const selectedRecommendedKeyword = ref<string | null>(null);
 // URL 필드 터치 상태 (사용자가 입력했거나 blur 이벤트가 발생한 경우)
 const placeUrlTouched = ref(false);
 const productUrlTouched = ref(false);
+const relatedUrlTouched = ref(false);
 
 // 검색량 기준 필터링 임계값
 const SEARCH_VOLUME_THRESHOLDS = {
@@ -226,6 +229,16 @@ const submitBlockReason = computed(() => {
       return '제품 URL을 입력해주세요';
     }
     if (!isProductUrlValid.value) {
+      return '올바른 URL 형식을 입력해주세요';
+    }
+  }
+
+  // 관련 URL 필수 입력 검증 (일반 후기 타입)
+  if (props.requiresRelatedUrl) {
+    if (!state.relatedUrl || state.relatedUrl.trim() === '') {
+      return '관련 URL을 입력해주세요';
+    }
+    if (!isRelatedUrlValid.value) {
       return '올바른 URL 형식을 입력해주세요';
     }
   }
@@ -390,6 +403,43 @@ const isProductUrlValid = computed(() => {
   return isValidProductUrl(state.productUrl);
 });
 
+// Related URL 유효성 검사 (일반 URL 형식 - 일반 후기 타입)
+const isValidRelatedUrl = (url: string): boolean => {
+  if (!url || url.trim() === '') return false; // 빈 값은 허용 안함 (필수 입력)
+  try {
+    new URL(url.trim());
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Related URL 유효성 상태 (일반 후기 타입에서만 필수)
+// touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
+const relatedUrlError = computed((): string | undefined => {
+  // 일반 후기 타입이 아니면 검증 불필요
+  if (!props.requiresRelatedUrl) return undefined;
+
+  // 터치되지 않은 상태에서는 에러 표시하지 않음
+  if (!relatedUrlTouched.value) return undefined;
+
+  // 일반 후기 타입일 때 필수 입력
+  if (!state.relatedUrl || state.relatedUrl.trim() === '') {
+    return '관련 URL을 입력해주세요.';
+  }
+  if (!isValidRelatedUrl(state.relatedUrl)) {
+    return '올바른 URL 형식을 입력해주세요.';
+  }
+  return undefined;
+});
+
+// Related URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
+const isRelatedUrlValid = computed(() => {
+  if (!props.requiresRelatedUrl) return true;
+  if (!state.relatedUrl || state.relatedUrl.trim() === '') return false;
+  return isValidRelatedUrl(state.relatedUrl);
+});
+
 // 동적 state (postType별 필드값 저장)
 const state = reactive<{
   postType: string;
@@ -401,6 +451,7 @@ const state = reactive<{
   writingTone: WritingTone; // 원고 말투
   placeUrl: string; // 맛집 후기용 PLACE URL
   productUrl: string; // 제품 후기용 제품 URL
+  relatedUrl: string; // 일반 후기용 관련 URL
   fields: Record<string, any>;
 }>({
   postType: props.postType,
@@ -412,6 +463,7 @@ const state = reactive<{
   writingTone: 'casual', // 기본값: ~해요체
   placeUrl: '', // 맛집 후기용 PLACE URL
   productUrl: '', // 제품 후기용 제품 URL
+  relatedUrl: '', // 일반 후기용 관련 URL
   // 동적 필드 값들을 저장할 객체
   fields: {} as Record<string, string | number>,
 });
@@ -478,6 +530,11 @@ const postRequest = async () => {
     ? state.productUrl.trim()
     : undefined;
 
+  // 관련 URL 처리: 일반 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
+  const relatedUrl = props.requiresRelatedUrl
+    ? state.relatedUrl.trim()
+    : undefined;
+
   // 최종 요청 데이터 (postType은 백엔드에서 자동 설정됨)
   const finalData: Record<string, any> = {
     keyword: state.keyword,
@@ -496,6 +553,9 @@ const postRequest = async () => {
   }
   if (productUrl) {
     finalData.productUrl = productUrl;
+  }
+  if (relatedUrl) {
+    finalData.relatedUrl = relatedUrl;
   }
 
   await startTransition(async () => {
@@ -540,6 +600,7 @@ const resetForm = () => {
   state.writingTone = 'casual';
   state.placeUrl = '';
   state.productUrl = '';
+  state.relatedUrl = '';
   state.fields = {};
   // 연관 키워드 상태 초기화
   relatedKeywords.value = [];
@@ -548,6 +609,7 @@ const resetForm = () => {
   // touched 상태 초기화
   placeUrlTouched.value = false;
   productUrlTouched.value = false;
+  relatedUrlTouched.value = false;
 };
 
 const onSubmit = async () => {
@@ -561,6 +623,9 @@ const onSubmit = async () => {
   }
   if (props.requiresProductUrl) {
     productUrlTouched.value = true;
+  }
+  if (props.requiresRelatedUrl) {
+    relatedUrlTouched.value = true;
   }
 
   // UForm의 validate 메서드를 사용하여 유효성 검사 후 직접 postRequest 호출
@@ -975,6 +1040,38 @@ const onSubmit = async () => {
                 <template #description>
                   <span class="text-xs text-neutral-500">
                     쿠팡, 네이버 쇼핑 등 제품 구매 페이지 URL을 입력해주세요.
+                  </span>
+                </template>
+              </UFormField>
+            </div>
+
+            <!-- 관련 URL 입력 (일반 후기 전용) -->
+            <div v-if="requiresRelatedUrl">
+              <h4 class="font-bold mb-1">관련 URL</h4>
+              <p class="text-[13px] text-muted dark:text-gray-400 mb-2">
+                후기를 작성할 서비스나 장소의 관련 URL을 입력해주세요.
+              </p>
+              <UFormField
+                label="관련 URL"
+                name="relatedUrl"
+                :error="relatedUrlError"
+                required
+              >
+                <UInput
+                  v-model.trim="state.relatedUrl"
+                  name="relatedUrl"
+                  type="url"
+                  placeholder="예: https://example.com/service"
+                  size="xl"
+                  class="w-full"
+                  variant="soft"
+                  :color="relatedUrlError ? 'error' : undefined"
+                  @blur="relatedUrlTouched = true"
+                />
+                <template #description>
+                  <span class="text-xs text-neutral-500">
+                    관련 웹사이트, 예약 페이지, 소개 페이지 등의 URL을
+                    입력해주세요.
                   </span>
                 </template>
               </UFormField>

@@ -155,6 +155,7 @@ export class BlogPostService {
         recommendedKeyword: dto.recommendedKeyword || null, // 추천 키워드
         placeUrl: dto.placeUrl || null, // 네이버 플레이스 URL (맛집 후기 전용)
         productUrl: dto.productUrl || null, // 제품 URL (제품 후기 전용, 저장만)
+        relatedUrl: dto.relatedUrl || null, // 관련 URL (일반 후기 전용, 배포 시 wg_url_link)
         subKeywords: [], // deprecated: 빈 배열로 유지
         length: dto.length,
         count: dto.count,
