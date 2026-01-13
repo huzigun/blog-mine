@@ -6,8 +6,6 @@ import {
   Min,
   Max,
   IsObject,
-  IsBoolean,
-  ValidateIf,
   IsIn,
   IsUrl,
 } from 'class-validator';
@@ -16,17 +14,11 @@ export class CreateBlogPostDto {
   @IsString()
   postType: string;
 
-  // personaId와 useRandomPersona 중 하나만 필수
-  @ValidateIf((o) => !o.useRandomPersona)
+  // 페르소나 ID (필수)
   @IsNumber()
   @IsInt()
   @Min(1)
-  personaId?: number;
-
-  // personaId가 없을 때 랜덤 페르소나 사용 플래그
-  @ValidateIf((o) => !o.personaId)
-  @IsBoolean()
-  useRandomPersona?: boolean;
+  personaId: number;
 
   // 작성 예정 블로그 지수 (normal, semi-optimal, optimal)
   @IsString()

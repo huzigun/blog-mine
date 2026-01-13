@@ -19,7 +19,6 @@ import {
   AIPostVersionListResponse,
   AIPostVersionResponse,
 } from './dto/edit-ai-post.dto';
-import { generateRandomPersona } from './random-persona.util';
 import { getDatePrefix, generateDisplayId } from './display-id.util';
 
 @Injectable()
@@ -97,44 +96,27 @@ export class BlogPostService {
   async create(userId: number, dto: CreateBlogPostDto) {
     let personaSnapshot: any;
 
-    // 1. 페르소나 처리 (DB 조회 또는 랜덤 플래그 설정)
-    if (dto.personaId) {
-      // 기존 페르소나 ID 사용
-      const persona = await this.prisma.persona.findFirst({
-        where: {
-          id: dto.personaId,
-          userId, // 본인의 페르소나만 사용 가능
-        },
-      });
+    // 1. 페르소나 처리 (DB 조회)
+    const persona = await this.prisma.persona.findFirst({
+      where: {
+        id: dto.personaId,
+        userId, // 본인의 페르소나만 사용 가능
+      },
+    });
 
-      if (!persona) {
-        throw new NotFoundException(
-          `Persona with id ${dto.personaId} not found or access denied`,
-        );
-      }
-
-      // 페르소나 스냅샷 생성
-      personaSnapshot = {
-        gender: persona.gender,
-        blogTopic: persona.blogTopic,
-        characteristics: persona.characteristics,
-        isRandom: false,
-      };
-    } else if (dto.useRandomPersona) {
-      // 랜덤 페르소나 플래그 설정 (실제 생성은 각 원고마다)
-      // 플레이스홀더 스냅샷 (실제로는 사용되지 않음)
-      personaSnapshot = {
-        isRandom: true,
-      };
-
-      this.logger.log(
-        `Random persona generation enabled - each post will get unique persona`,
-      );
-    } else {
-      throw new BadRequestException(
-        'personaId 또는 useRandomPersona 중 하나는 필수입니다.',
+    if (!persona) {
+      throw new NotFoundException(
+        `Persona with id ${dto.personaId} not found or access denied`,
       );
     }
+
+    // 페르소나 스냅샷 생성
+    personaSnapshot = {
+      gender: persona.gender,
+      blogTopic: persona.blogTopic,
+      characteristics: persona.characteristics,
+      isRandom: false,
+    };
 
     // 2. 필요한 BloC 계산 (원고 개수만으로 계산)
     const totalCost = this.CREDIT_COST_PER_POST * dto.count;
@@ -688,25 +670,13 @@ export class BlogPostService {
       .map((post) => post.title)
       .filter((title): title is string => !!title);
 
-    // 랜덤 페르소나 모드인 경우 각 원고마다 새로운 랜덤 페르소나 생성
-    const isRandomMode = blogPost.persona?.isRandom === true;
-    const actualPersona = isRandomMode
-      ? generateRandomPersona()
-      : blogPost.persona;
-
-    if (isRandomMode) {
-      this.logger.log(
-        `Generated random persona for post ${postIndex}/${totalCount}: ${actualPersona.blogTopic} (${actualPersona.gender})`,
-      );
-    }
-
     const startTime = Date.now();
 
     // LLM 호출
     const result = await this.openaiService.generatePost({
       keyword: blogPost.keyword,
       postType: blogPost.postType,
-      persona: actualPersona,
+      persona: blogPost.persona,
       recommendedKeyword: blogPost.recommendedKeyword, // 추천 키워드 사용
       placeUrl: blogPost.placeUrl, // 네이버 플레이스 URL (맛집 후기 전용)
       writingTone: blogPost.writingTone, // 원고 말투
@@ -1362,37 +1332,25 @@ export class BlogPostService {
     );
 
     // 3. 페르소나 처리
-    let personaSnapshot: any;
+    const persona = await this.prisma.persona.findFirst({
+      where: {
+        id: dto.personaId,
+        userId,
+      },
+    });
 
-    if (dto.personaId) {
-      const persona = await this.prisma.persona.findFirst({
-        where: {
-          id: dto.personaId,
-          userId,
-        },
-      });
-
-      if (!persona) {
-        throw new NotFoundException(
-          `Persona with id ${dto.personaId} not found or access denied`,
-        );
-      }
-
-      personaSnapshot = {
-        gender: persona.gender,
-        blogTopic: persona.blogTopic,
-        characteristics: persona.characteristics,
-        isRandom: false,
-      };
-    } else if (dto.useRandomPersona) {
-      personaSnapshot = {
-        isRandom: true,
-      };
-    } else {
-      throw new BadRequestException(
-        'personaId 또는 useRandomPersona 중 하나는 필수입니다.',
+    if (!persona) {
+      throw new NotFoundException(
+        `Persona with id ${dto.personaId} not found or access denied`,
       );
     }
+
+    const personaSnapshot = {
+      gender: persona.gender,
+      blogTopic: persona.blogTopic,
+      characteristics: persona.characteristics,
+      isRandom: false,
+    };
 
     // 4. BloC 비용 계산 및 잔액 확인
     const totalCost = this.CREDIT_COST_PER_POST * dto.count;
@@ -1757,11 +1715,6 @@ export class BlogPostService {
       .map((post) => post.title)
       .filter((title): title is string => !!title);
 
-    const isRandomMode = blogPost.persona?.isRandom === true;
-    const actualPersona = isRandomMode
-      ? generateRandomPersona()
-      : blogPost.persona;
-
     const startTime = Date.now();
 
     // 뉴스 기사 학습 (GPT-4o-mini로 핵심 팩트 추출)
@@ -1778,7 +1731,7 @@ export class BlogPostService {
     const result = await this.openaiService.generatePost({
       keyword: blogPost.keyword,
       postType: blogPost.postType,
-      persona: actualPersona,
+      persona: blogPost.persona,
       recommendedKeyword: blogPost.recommendedKeyword,
       writingTone: blogPost.writingTone,
       length: blogPost.length,

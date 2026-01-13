@@ -37,9 +37,6 @@ const postCompleteModal = overlay.create(PostRequestCompleteModal);
 
 interface SimplePersona extends Pick<Persona, 'id' | 'blogTopic' | 'gender'> {}
 
-// 특별한 값으로 "임의 생성" 옵션 구분
-const RANDOM_PERSONA_VALUE = -1;
-
 const { data: personas } = await useApiFetch<
   {
     label: string;
@@ -49,16 +46,10 @@ const { data: personas } = await useApiFetch<
   method: 'GET',
   lazy: true,
   transform: (data: any) => {
-    const personaList = data.map((item: SimplePersona) => ({
+    return data.map((item: SimplePersona) => ({
       label: `${item.blogTopic} (${item.gender})`,
       value: item.id,
     }));
-
-    // "임의 생성" 옵션을 맨 위에 추가
-    return [
-      { label: '✨ 임의 생성', value: RANDOM_PERSONA_VALUE },
-      ...personaList,
-    ];
   },
 });
 
@@ -464,16 +455,6 @@ const postRequest = async () => {
     }
   });
 
-  // 페르소나 처리: 임의 생성인 경우 플래그 설정
-  let personaId = state.personaId;
-  let useRandomPersona = false;
-
-  if (personaId === RANDOM_PERSONA_VALUE) {
-    // 임의 생성 선택 시 플래그 설정 (백엔드에서 각 원고마다 랜덤 생성)
-    useRandomPersona = true;
-    personaId = undefined; // personaId는 undefined로
-  }
-
   // 추천 키워드 결정: 키워드 조회가 필요한 타입(맛집 후기)이면 선택된 값, 아니면 희망 키워드 사용
   const recommendedKeyword = props.requiresKeywordSearch
     ? selectedRecommendedKeyword.value
@@ -502,8 +483,7 @@ const postRequest = async () => {
     keyword: state.keyword,
     length: state.length,
     count: state.count,
-    personaId,
-    useRandomPersona,
+    personaId: state.personaId, // 페르소나 필수 선택
     blogIndex, // 맛집 후기: 사용자 선택, 나머지: 'optimal' 고정
     writingTone: state.writingTone, // 원고 말투
     recommendedKeyword, // 선택된 추천 키워드 또는 희망 키워드
@@ -626,11 +606,6 @@ const onSubmit = async () => {
                 label="페르소나"
                 name="personaId"
                 required
-                :description="
-                  state.personaId === RANDOM_PERSONA_VALUE
-                    ? '각 원고마다 임의의 다른 페르소나가 자동으로 설정됩니다.'
-                    : undefined
-                "
               >
                 <USelect
                   v-model="state.personaId"
