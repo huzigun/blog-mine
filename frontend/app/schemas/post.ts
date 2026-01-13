@@ -197,10 +197,10 @@ const baseObjectSchema = z.object({
     .string({ required_error: '포스트 유형을 선택해주세요' })
     .min(1, '포스트 유형을 선택해주세요'),
   // personaId와 useRandomPersona 중 하나는 필수
-  // -1은 "임의 생성" 선택을 나타내는 특수 값으로 허용
+  // 0은 "기본 페르소나", -1은 "임의 생성" 선택을 나타내는 특수 값으로 허용
   personaId: z
     .number()
-    .refine((val) => val === undefined || val === -1 || val > 0, {
+    .refine((val) => val === undefined || val === -1 || val >= 0, {
       message: '올바른 페르소나를 선택해주세요',
     })
     .optional(),
@@ -227,8 +227,12 @@ const baseObjectSchema = z.object({
 });
 
 // AI 추천 모드용 스키마 (기본)
+// personaId: 0 = 기본 페르소나, -1 = 임의 생성, 1+ = 사용자 페르소나
 export const aiPostSchema = baseObjectSchema.refine(
-  (data) => data.personaId || data.useRandomPersona,
+  (data) =>
+    data.personaId !== undefined && data.personaId !== null
+      ? true
+      : data.useRandomPersona,
   {
     message: '페르소나를 선택하거나 임의 생성을 선택해주세요',
     path: ['personaId'],
