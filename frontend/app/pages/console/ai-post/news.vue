@@ -21,6 +21,12 @@ interface SimplePersona extends Pick<Persona, 'id' | 'blogTopic' | 'gender'> {}
 // 특별한 값으로 "임의 생성" 옵션 구분
 const RANDOM_PERSONA_VALUE = -1;
 
+// 기본 페르소나 옵션 (특수 ID: 0)
+const DEFAULT_PERSONA_OPTION = {
+  label: '기본 페르소나 (20~30대 직장인/프리랜서)',
+  value: 0,
+};
+
 const { data: personas } = await useApiFetch<
   {
     label: string;
@@ -35,8 +41,9 @@ const { data: personas } = await useApiFetch<
       value: item.id,
     }));
 
-    // "임의 생성" 옵션을 맨 위에 추가
+    // "기본 페르소나" 옵션과 "임의 생성" 옵션을 맨 위에 추가
     return [
+      DEFAULT_PERSONA_OPTION,
       { label: '✨ 임의 생성', value: RANDOM_PERSONA_VALUE },
       ...personaList,
     ];

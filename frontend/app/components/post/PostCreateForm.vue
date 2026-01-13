@@ -39,6 +39,12 @@ const postCompleteModal = overlay.create(PostRequestCompleteModal);
 
 interface SimplePersona extends Pick<Persona, 'id' | 'blogTopic' | 'gender'> {}
 
+// 기본 페르소나 옵션 (특수 ID: 0)
+const DEFAULT_PERSONA_OPTION = {
+  label: '기본 페르소나 (20~30대 직장인/프리랜서)',
+  value: 0,
+};
+
 const { data: personas } = await useApiFetch<
   {
     label: string;
@@ -48,10 +54,12 @@ const { data: personas } = await useApiFetch<
   method: 'GET',
   lazy: true,
   transform: (data: any) => {
-    return data.map((item: SimplePersona) => ({
+    const userPersonas = data.map((item: SimplePersona) => ({
       label: `${item.blogTopic} (${item.gender})`,
       value: item.id,
     }));
+    // 기본 페르소나 옵션을 맨 앞에 추가
+    return [DEFAULT_PERSONA_OPTION, ...userPersonas];
   },
 });
 

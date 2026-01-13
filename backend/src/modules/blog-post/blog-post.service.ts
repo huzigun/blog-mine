@@ -36,6 +36,24 @@ export class BlogPostService {
   // 수정 횟수 제한
   private readonly MAX_EDIT_COUNT = 3;
 
+  // 기본 페르소나 정의 (personaId === 0일 때 사용)
+  private readonly DEFAULT_PERSONA = {
+    id: 0,
+    gender: '중립 (성별 특정 표현 일체 사용 안 함)',
+    blogTopic: '일상 기록, 솔직 후기',
+    characteristics: `- 연령대: 20대 후반~30대 중반
+- 직업: 직장인 또는 프리랜서 (업종 불특정)
+- 블로그 운영 기간: 4~6년차
+- 글쓰기 스타일: 일상 기록형, 솔직 후기형
+- 말투: 자연스러운 반말 구어체, 과도한 이모티콘 지양
+- 방문 패턴: 일상적 외식, 약속, 기분 전환, 우연한 발견
+- 동행 표현: '혼자', '같이 간 사람', '일행', '친구' 등 중립 용어
+- 관심사: 맛, 분위기, 서비스, 그날의 전반적 만족도
+- 성향: 디테일 관찰형, 솔직한 편, 완벽주의 아님
+- 의사결정: 즉흥적이거나 계획적이거나 상황에 따라 유연`,
+    isDefault: true,
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly openaiService: OpenAIService,
@@ -96,27 +114,41 @@ export class BlogPostService {
   async create(userId: number, dto: CreateBlogPostDto) {
     let personaSnapshot: any;
 
-    // 1. 페르소나 처리 (DB 조회)
-    const persona = await this.prisma.persona.findFirst({
-      where: {
-        id: dto.personaId,
-        userId, // 본인의 페르소나만 사용 가능
-      },
-    });
+    // 1. 페르소나 처리 (personaId === 0이면 기본 페르소나 사용)
+    if (dto.personaId === 0) {
+      // 기본 페르소나 사용
+      personaSnapshot = {
+        gender: this.DEFAULT_PERSONA.gender,
+        blogTopic: this.DEFAULT_PERSONA.blogTopic,
+        characteristics: this.DEFAULT_PERSONA.characteristics,
+        isRandom: false,
+        isDefault: true,
+      };
+      this.logger.log('Using default persona for blog post generation');
+    } else {
+      // DB에서 사용자 페르소나 조회
+      const persona = await this.prisma.persona.findFirst({
+        where: {
+          id: dto.personaId,
+          userId, // 본인의 페르소나만 사용 가능
+        },
+      });
 
-    if (!persona) {
-      throw new NotFoundException(
-        `Persona with id ${dto.personaId} not found or access denied`,
-      );
+      if (!persona) {
+        throw new NotFoundException(
+          `Persona with id ${dto.personaId} not found or access denied`,
+        );
+      }
+
+      // 페르소나 스냅샷 생성
+      personaSnapshot = {
+        gender: persona.gender,
+        blogTopic: persona.blogTopic,
+        characteristics: persona.characteristics,
+        isRandom: false,
+        isDefault: false,
+      };
     }
-
-    // 페르소나 스냅샷 생성
-    personaSnapshot = {
-      gender: persona.gender,
-      blogTopic: persona.blogTopic,
-      characteristics: persona.characteristics,
-      isRandom: false,
-    };
 
     // 2. 필요한 BloC 계산 (원고 개수만으로 계산)
     const totalCost = this.CREDIT_COST_PER_POST * dto.count;
@@ -1332,26 +1364,41 @@ export class BlogPostService {
       `News parsed successfully: "${newsArticle.title}" from ${newsArticle.sourceName}`,
     );
 
-    // 3. 페르소나 처리
-    const persona = await this.prisma.persona.findFirst({
-      where: {
-        id: dto.personaId,
-        userId,
-      },
-    });
+    // 3. 페르소나 처리 (personaId === 0이면 기본 페르소나 사용)
+    let personaSnapshot: any;
+    if (dto.personaId === 0) {
+      // 기본 페르소나 사용
+      personaSnapshot = {
+        gender: this.DEFAULT_PERSONA.gender,
+        blogTopic: this.DEFAULT_PERSONA.blogTopic,
+        characteristics: this.DEFAULT_PERSONA.characteristics,
+        isRandom: false,
+        isDefault: true,
+      };
+      this.logger.log('Using default persona for news post generation');
+    } else {
+      // DB에서 사용자 페르소나 조회
+      const persona = await this.prisma.persona.findFirst({
+        where: {
+          id: dto.personaId,
+          userId,
+        },
+      });
 
-    if (!persona) {
-      throw new NotFoundException(
-        `Persona with id ${dto.personaId} not found or access denied`,
-      );
+      if (!persona) {
+        throw new NotFoundException(
+          `Persona with id ${dto.personaId} not found or access denied`,
+        );
+      }
+
+      personaSnapshot = {
+        gender: persona.gender,
+        blogTopic: persona.blogTopic,
+        characteristics: persona.characteristics,
+        isRandom: false,
+        isDefault: false,
+      };
     }
-
-    const personaSnapshot = {
-      gender: persona.gender,
-      blogTopic: persona.blogTopic,
-      characteristics: persona.characteristics,
-      isRandom: false,
-    };
 
     // 4. BloC 비용 계산 및 잔액 확인
     const totalCost = this.CREDIT_COST_PER_POST * dto.count;

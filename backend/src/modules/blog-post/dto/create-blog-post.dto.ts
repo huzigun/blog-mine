@@ -14,10 +14,10 @@ export class CreateBlogPostDto {
   @IsString()
   postType: string;
 
-  // 페르소나 ID (필수)
+  // 페르소나 ID (필수, 0: 기본 페르소나, 1+: 사용자 페르소나)
   @IsNumber()
   @IsInt()
-  @Min(1)
+  @Min(0)
   personaId: number;
 
   // 작성 예정 블로그 지수 (normal, semi-optimal, optimal)
