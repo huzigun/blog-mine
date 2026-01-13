@@ -54,10 +54,11 @@ export class CreateBlogPostDto {
   @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
   relatedUrl?: string | null;
 
+  // 원고 글자수 (2000자 고정)
   @IsNumber()
   @IsInt()
-  @Min(300)
-  @Max(3000)
+  @Min(2000)
+  @Max(2000)
   length: number;
 
   @IsNumber()

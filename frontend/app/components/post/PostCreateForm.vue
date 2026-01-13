@@ -458,7 +458,7 @@ const state = reactive<{
   personaId: undefined,
   blogIndex: 'normal', // 기본값: 일반
   keyword: '',
-  length: 1500,
+  length: 2000, // 2000자로 고정
   count: 1,
   writingTone: 'casual', // 기본값: ~해요체
   placeUrl: '', // 맛집 후기용 PLACE URL
@@ -595,7 +595,7 @@ const resetForm = () => {
   state.personaId = undefined;
   state.blogIndex = 'normal';
   state.keyword = '';
-  state.length = 1500;
+  state.length = 2000;
   state.count = 1;
   state.writingTone = 'casual';
   state.placeUrl = '';
@@ -912,23 +912,8 @@ const onSubmit = async () => {
                 </div>
               </div>
 
-              <UFormField label="글자 수" name="length" required>
-                <input type="hidden" name="length" :value="state.length" />
-                <div class="flex justify-between py-1 gap-x-2.5">
-                  <UButton
-                    v-for="len in [1000, 1500, 2000]"
-                    :key="`len-${len.toString()}`"
-                    size="lg"
-                    :color="state.length === len ? 'primary' : 'neutral'"
-                    :variant="state.length === len ? 'solid' : 'soft'"
-                    class="rounded-full"
-                    @click="state.length = len"
-                    block
-                  >
-                    {{ len.toLocaleString() }}자
-                  </UButton>
-                </div>
-              </UFormField>
+              <!-- 글자 수는 2000자로 고정 (hidden) -->
+              <input type="hidden" name="length" :value="state.length" />
               <UFormField label="원고 수" name="count" required>
                 <UInput
                   v-model.number="state.count"
