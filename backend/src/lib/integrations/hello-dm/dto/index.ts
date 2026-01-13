@@ -20,6 +20,10 @@ export interface RequestPostDto {
   guidelink: string;
   /** 첨부파일링크 (자료 첨부파일 링크) */
   gdrive?: string;
+  /** 네이버 플레이스 URL (맛집/법률/병의원) */
+  wg_map_link?: string;
+  /** 제품 URL (제품 후기) */
+  wg_url_link?: string;
 }
 
 /**

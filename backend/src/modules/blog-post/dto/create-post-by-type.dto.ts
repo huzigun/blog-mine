@@ -96,13 +96,25 @@ export class CreateGeneralPostDto extends BaseCreatePostDto {}
 
 /**
  * 병/의원 의료상식 원고 생성 DTO
+ * - 네이버 플레이스 URL 선택
  */
-export class CreateMedicalPostDto extends BaseCreatePostDto {}
+export class CreateMedicalPostDto extends BaseCreatePostDto {
+  // 네이버 플레이스 URL (선택)
+  @IsOptional()
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  placeUrl?: string;
+}
 
 /**
  * 법률상식 원고 생성 DTO
+ * - 네이버 플레이스 URL 선택
  */
-export class CreateLegalPostDto extends BaseCreatePostDto {}
+export class CreateLegalPostDto extends BaseCreatePostDto {
+  // 네이버 플레이스 URL (선택)
+  @IsOptional()
+  @IsUrl({}, { message: '올바른 URL 형식을 입력해주세요.' })
+  placeUrl?: string;
+}
 
 /**
  * 뉴스 기반 원고 생성 DTO

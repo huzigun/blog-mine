@@ -282,6 +282,10 @@ export class DeployService {
           okday_cnt: dto.dailyUploadCount,
           guidelink: postsFileUrl,
           gdrive: attachmentUrl,
+          // 네이버 플레이스 URL (맛집/법률/병의원)
+          wg_map_link: blogPost.placeUrl || undefined,
+          // 제품 URL (제품 후기)
+          wg_url_link: blogPost.productUrl || undefined,
         });
 
         if (!helloDmResult.success) {

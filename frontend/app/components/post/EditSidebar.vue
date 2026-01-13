@@ -73,7 +73,9 @@ const versions = ref<AIPostVersion[]>([]);
 const isLoadingVersions = ref(false);
 
 // 원본 콘텐츠 (v1)
-const originalContent = ref<{ title: string | null; content: string } | null>(null);
+const originalContent = ref<{ title: string | null; content: string } | null>(
+  null,
+);
 
 // 남은 수정 횟수
 const remainingEdits = computed(() => MAX_EDITS - props.post.editCount);
@@ -190,6 +192,7 @@ const submitEditRequest = async () => {
         {
           method: 'POST',
           body: { request },
+          timeout: 300000, // 5분 타임아웃 (OpenAI API 호출로 오래 걸릴 수 있음)
         },
       );
 
@@ -256,15 +259,33 @@ const submitEditRequest = async () => {
         scrollToBottom();
       }
     } catch (err: any) {
+      // 사용자 친화적인 에러 메시지로 변환
+      let userMessage = '수정 요청 중 오류가 발생했습니다.';
+
+      if (
+        err.message?.includes('Failed to fetch') ||
+        err.message?.includes('no response')
+      ) {
+        userMessage = '서버 연결에 실패했습니다. 잠시 후 다시 시도해주세요.';
+      } else if (
+        err.message?.includes('timeout') ||
+        err.message?.includes('Timeout')
+      ) {
+        userMessage =
+          '요청 처리 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.';
+      } else if (err.statusCode === 500 || err.message?.includes('500')) {
+        userMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      }
+
       versionHistory.value.push({
         type: 'error',
-        message: err.message || '수정 요청 중 오류가 발생했습니다.',
+        message: userMessage,
         timestamp: new Date(),
       });
 
       toast.add({
         title: '수정 요청 실패',
-        description: err.message || '수정 요청 중 오류가 발생했습니다.',
+        description: userMessage,
         color: 'error',
       });
 
@@ -360,7 +381,10 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
     <template #header>
       <div class="flex items-center justify-between w-full">
         <div class="flex items-center gap-2">
-          <UIcon name="i-heroicons-pencil-square" class="w-5 h-5 text-primary" />
+          <UIcon
+            name="i-heroicons-pencil-square"
+            class="w-5 h-5 text-primary"
+          />
           <span class="font-bold">원고 수정</span>
         </div>
         <div class="flex items-center gap-2">
@@ -378,28 +402,49 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
     <template #body>
       <div class="flex flex-col h-full">
         <!-- 수정 안내 배너 -->
-        <div class="mb-4 p-3 rounded-lg bg-warning-50 dark:bg-warning-950/30 border border-warning-200 dark:border-warning-800">
+        <div
+          class="mb-4 p-3 rounded-lg bg-warning-50 dark:bg-warning-950/30 border border-warning-200 dark:border-warning-800"
+        >
           <div class="flex items-start gap-2">
-            <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4 text-warning-600 dark:text-warning-400 mt-0.5 shrink-0" />
+            <UIcon
+              name="i-heroicons-exclamation-triangle"
+              class="w-4 h-4 text-warning-600 dark:text-warning-400 mt-0.5 shrink-0"
+            />
             <div class="text-xs text-warning-800 dark:text-warning-200">
               <p class="font-medium mb-1">수정 안내</p>
-              <ul class="list-disc list-inside space-y-0.5 text-warning-700 dark:text-warning-300">
-                <li>원고 수정은 <strong>최대 {{ MAX_EDITS }}회</strong>까지 가능합니다.</li>
-                <li>수정과 관련 없는 요청(질문, 인사 등)은 거부되며, <strong>횟수가 차감</strong>됩니다.</li>
+              <ul
+                class="list-disc list-inside space-y-0.5 text-warning-700 dark:text-warning-300"
+              >
+                <li>
+                  원고 수정은
+                  <strong>최대 {{ MAX_EDITS }}회</strong>
+                  까지 가능합니다.
+                </li>
+                <li>
+                  수정과 관련 없는 요청(질문, 인사 등)은 거부되며,
+                  <strong>횟수가 차감</strong>
+                  됩니다.
+                </li>
               </ul>
             </div>
           </div>
         </div>
 
         <!-- 버전 히스토리 (원본 → 요청 → 수정본 순서) -->
-        <div ref="historyContainer" class="flex-1 overflow-y-auto mb-4 space-y-4">
+        <div
+          ref="historyContainer"
+          class="flex-1 overflow-y-auto mb-4 space-y-4"
+        >
           <!-- 로딩 상태 -->
           <div
             v-if="isLoadingVersions"
             class="flex items-center justify-center h-full text-neutral-500 text-sm"
           >
             <div class="flex items-center gap-2">
-              <UIcon name="i-heroicons-arrow-path" class="w-5 h-5 animate-spin" />
+              <UIcon
+                name="i-heroicons-arrow-path"
+                class="w-5 h-5 animate-spin"
+              />
               <span>버전 히스토리 로딩 중...</span>
             </div>
           </div>
@@ -418,7 +463,10 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
               >
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
-                    <UIcon name="i-heroicons-document" class="w-4 h-4 text-neutral-500" />
+                    <UIcon
+                      name="i-heroicons-document"
+                      class="w-4 h-4 text-neutral-500"
+                    />
                     <UBadge color="neutral" variant="soft" size="xs">
                       v1 (원본)
                     </UBadge>
@@ -447,7 +495,9 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
                     </UButton>
                   </div>
                 </div>
-                <h4 class="text-base font-bold text-neutral-900 dark:text-white mb-2">
+                <h4
+                  class="text-base font-bold text-neutral-900 dark:text-white mb-2"
+                >
                   {{ item.title }}
                 </h4>
                 <!-- 접힌 상태: 미리보기 -->
@@ -470,7 +520,11 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
                   @click="toggleCardExpand(index)"
                 >
                   <UIcon
-                    :name="isCardExpanded(index) ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'"
+                    :name="
+                      isCardExpanded(index)
+                        ? 'i-heroicons-chevron-up'
+                        : 'i-heroicons-chevron-down'
+                    "
                     class="w-3.5 h-3.5"
                   />
                   {{ isCardExpanded(index) ? '접기' : '펼치기' }}
@@ -478,13 +532,15 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
               </div>
 
               <!-- 수정 요청 (사용자 채팅) -->
-              <div
-                v-else-if="item.type === 'request'"
-                class="flex justify-end"
-              >
-                <div class="max-w-[85%] p-3 rounded-xl bg-primary-500 text-white">
+              <div v-else-if="item.type === 'request'" class="flex justify-end">
+                <div
+                  class="max-w-[85%] p-3 rounded-xl bg-primary-500 text-white"
+                >
                   <div class="flex items-center gap-2 mb-1">
-                    <UIcon name="i-heroicons-chat-bubble-left" class="w-3.5 h-3.5" />
+                    <UIcon
+                      name="i-heroicons-chat-bubble-left"
+                      class="w-3.5 h-3.5"
+                    />
                     <span class="text-xs opacity-80">수정 요청</span>
                   </div>
                   <p class="text-sm">{{ item.message }}</p>
@@ -501,7 +557,10 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
               >
                 <div class="flex items-center justify-between mb-2">
                   <div class="flex items-center gap-2">
-                    <UIcon name="i-heroicons-check-circle" class="w-4 h-4 text-success-600" />
+                    <UIcon
+                      name="i-heroicons-check-circle"
+                      class="w-4 h-4 text-success-600"
+                    />
                     <UBadge color="success" variant="soft" size="xs">
                       v{{ item.version }} (수정본)
                     </UBadge>
@@ -530,7 +589,9 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
                     </UButton>
                   </div>
                 </div>
-                <h4 class="text-base font-bold text-neutral-900 dark:text-white mb-2">
+                <h4
+                  class="text-base font-bold text-neutral-900 dark:text-white mb-2"
+                >
                   {{ item.title }}
                 </h4>
                 <!-- 접힌 상태: 미리보기 -->
@@ -553,7 +614,11 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
                   @click="toggleCardExpand(index)"
                 >
                   <UIcon
-                    :name="isCardExpanded(index) ? 'i-heroicons-chevron-up' : 'i-heroicons-chevron-down'"
+                    :name="
+                      isCardExpanded(index)
+                        ? 'i-heroicons-chevron-up'
+                        : 'i-heroicons-chevron-down'
+                    "
                     class="w-3.5 h-3.5"
                   />
                   {{ isCardExpanded(index) ? '접기' : '펼치기' }}
@@ -561,13 +626,15 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
               </div>
 
               <!-- 에러 메시지 -->
-              <div
-                v-else-if="item.type === 'error'"
-                class="flex justify-start"
-              >
-                <div class="max-w-[85%] p-3 rounded-xl bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-200">
+              <div v-else-if="item.type === 'error'" class="flex justify-start">
+                <div
+                  class="max-w-[85%] p-3 rounded-xl bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-200"
+                >
                   <div class="flex items-center gap-2 mb-1">
-                    <UIcon name="i-heroicons-exclamation-triangle" class="w-3.5 h-3.5" />
+                    <UIcon
+                      name="i-heroicons-exclamation-triangle"
+                      class="w-3.5 h-3.5"
+                    />
                     <span class="text-xs opacity-80">오류</span>
                   </div>
                   <p class="text-sm">{{ item.message }}</p>
@@ -580,9 +647,14 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
 
             <!-- 로딩 중 (수정 요청 처리 중) -->
             <div v-if="isPending" class="flex justify-start">
-              <div class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+              <div
+                class="p-3 rounded-xl bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400"
+              >
                 <div class="flex items-center gap-2">
-                  <UIcon name="i-heroicons-arrow-path" class="w-4 h-4 animate-spin" />
+                  <UIcon
+                    name="i-heroicons-arrow-path"
+                    class="w-4 h-4 animate-spin"
+                  />
                   <span class="text-sm">원고 수정 중...</span>
                 </div>
               </div>
@@ -608,12 +680,16 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
         </div>
 
         <!-- 수정 요청 입력 -->
-        <div class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-auto">
+        <div
+          class="border-t border-neutral-200 dark:border-neutral-700 pt-4 mt-auto"
+        >
           <div
             v-if="!canEdit"
             class="mb-3 p-3 rounded-lg bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800"
           >
-            <div class="flex items-center gap-2 text-warning-700 dark:text-warning-300">
+            <div
+              class="flex items-center gap-2 text-warning-700 dark:text-warning-300"
+            >
               <UIcon name="i-heroicons-exclamation-triangle" class="w-4 h-4" />
               <span class="text-sm font-medium">
                 수정 횟수를 모두 사용했습니다
@@ -732,7 +808,7 @@ const copyHtmlToClipboard = async (html: string | undefined) => {
 
 .version-content :deep(br) {
   display: block;
-  content: "";
+  content: '';
   margin-top: 0.5rem;
 }
 

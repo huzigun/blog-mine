@@ -7,6 +7,7 @@ const props = defineProps<{
   post: AIPost;
   index: number;
   blogPostId: number;
+  defaultExpanded?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -24,7 +25,7 @@ const remainingEdits = computed(() => MAX_EDITS - (props.post.editCount || 0));
 const canEdit = computed(() => remainingEdits.value > 0);
 
 // Expand/collapse state
-const isExpanded = ref(false);
+const isExpanded = ref(props.defaultExpanded ?? false);
 
 // 버전 선택 상태
 const selectedVersion = ref(props.post.currentVersion || 1);
@@ -229,14 +230,15 @@ const getTextPreview = (htmlContent: string, maxLength = 200): string => {
       </div>
       <div class="flex gap-2">
         <UButton
-          icon="i-heroicons-pencil-square"
-          variant="soft"
+          icon="i-heroicons-sparkles"
           size="sm"
-          :color="canEdit ? 'primary' : 'neutral'"
           :disabled="!canEdit"
+          :class="canEdit
+            ? 'bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold'
+            : 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400 cursor-not-allowed'"
           @click="emit('edit', post)"
         >
-          수정
+          AI 수정
         </UButton>
         <UButton
           icon="i-heroicons-document-text"

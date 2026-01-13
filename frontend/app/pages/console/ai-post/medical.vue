@@ -11,5 +11,6 @@ definePageMeta({
     page-description="병원 및 의료 관련 상식을 제공하는 블로그 원고를 생성합니다."
     category="info"
     api-type="medical"
+    requires-place-url
   />
 </template>

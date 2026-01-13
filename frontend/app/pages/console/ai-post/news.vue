@@ -135,22 +135,21 @@ const checkNewsUrl = async () => {
 
   try {
     const result = await useApi<{
-      supported: boolean;
-      domain: string;
+      isSupported: boolean;
       sourceName?: string;
-      message?: string;
+      message: string;
     }>('/blog-posts/news/check-url', {
       method: 'GET',
       params: { url: state.newsUrl.trim() },
     });
 
     newsUrlChecked.value = true;
-    newsUrlValid.value = result.supported;
+    newsUrlValid.value = result.isSupported;
 
-    if (result.supported) {
+    if (result.isSupported) {
       toast.add({
         title: '뉴스 URL 확인 완료',
-        description: `${result.sourceName || result.domain}의 뉴스 기사를 가져올 수 있습니다.`,
+        description: `${result.sourceName}의 뉴스 기사를 가져올 수 있습니다.`,
         color: 'success',
       });
     } else {

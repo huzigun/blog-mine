@@ -391,6 +391,7 @@ const openDeployResultModal = () => {
               :post="post"
               :index="(currentPage - 1) * itemsPerPage + index"
               :blog-post-id="blogPostId"
+              :default-expanded="blogPost.posts.length === 1"
               @copy-text="copyTextToClipboard"
               @copy-html="copyHtmlToClipboard"
               @edit="openEditSidebar"

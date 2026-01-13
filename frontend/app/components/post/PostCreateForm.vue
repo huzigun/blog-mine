@@ -15,6 +15,8 @@ const props = defineProps<{
   requiresKeywordSearch?: boolean;
   // 제품 URL 필요 여부 (제품 후기)
   requiresProductUrl?: boolean;
+  // Place URL 필요 여부 (맛집 후기, 법률, 병의원 등) - 선택 입력
+  requiresPlaceUrl?: boolean;
   // 카테고리 (review | info)
   category: 'review' | 'info';
   // API 엔드포인트 타입 (restaurant, product, general-review, general, medical, legal)
@@ -314,30 +316,50 @@ const isValidNaverPlaceUrl = (url: string): boolean => {
   return NAVER_PLACE_URL_PATTERN.test(url.trim());
 };
 
-// Place URL 유효성 상태 (맛집 후기 타입에서만 필수)
+// Place URL 유효성 상태
+// 맛집 후기 타입: 필수 입력
+// 법률/병의원 타입 (requiresPlaceUrl): 선택 입력 (입력 시에만 형식 검증)
 // touched 상태일 때만 에러 표시 (초기 로딩 시 에러 표시 방지)
 const placeUrlError = computed((): string | undefined => {
-  // 맛집 후기 타입이 아니면 검증 불필요
-  if (!props.requiresKeywordSearch) return undefined;
+  // 맛집 후기 타입도 아니고 requiresPlaceUrl도 아니면 검증 불필요
+  if (!props.requiresKeywordSearch && !props.requiresPlaceUrl) return undefined;
 
   // 터치되지 않은 상태에서는 에러 표시하지 않음
   if (!placeUrlTouched.value) return undefined;
 
   // 맛집 후기 타입일 때 필수 입력
-  if (!state.placeUrl || state.placeUrl.trim() === '') {
-    return 'PLACE URL을 입력해주세요.';
+  if (props.requiresKeywordSearch) {
+    if (!state.placeUrl || state.placeUrl.trim() === '') {
+      return 'PLACE URL을 입력해주세요.';
+    }
+    if (!isValidNaverPlaceUrl(state.placeUrl)) {
+      return '네이버 지도 또는 플레이스 URL만 입력 가능합니다.';
+    }
   }
-  if (!isValidNaverPlaceUrl(state.placeUrl)) {
-    return '네이버 지도 또는 플레이스 URL만 입력 가능합니다.';
+
+  // 법률/병의원 타입일 때 선택 입력 (입력한 경우에만 형식 검증)
+  if (props.requiresPlaceUrl && state.placeUrl && state.placeUrl.trim() !== '') {
+    if (!isValidNaverPlaceUrl(state.placeUrl)) {
+      return '네이버 지도 또는 플레이스 URL만 입력 가능합니다.';
+    }
   }
+
   return undefined;
 });
 
 // Place URL이 유효한지 여부 (제출 검증용 - touched 상태와 무관하게 실제 유효성 검사)
 const isPlaceUrlValid = computed(() => {
-  if (!props.requiresKeywordSearch) return true;
-  if (!state.placeUrl || state.placeUrl.trim() === '') return false;
-  return isValidNaverPlaceUrl(state.placeUrl);
+  // 맛집 후기: 필수 입력 + 형식 검증
+  if (props.requiresKeywordSearch) {
+    if (!state.placeUrl || state.placeUrl.trim() === '') return false;
+    return isValidNaverPlaceUrl(state.placeUrl);
+  }
+  // 법률/병의원: 선택 입력 (입력한 경우에만 형식 검증)
+  if (props.requiresPlaceUrl) {
+    if (!state.placeUrl || state.placeUrl.trim() === '') return true; // 빈 값 허용
+    return isValidNaverPlaceUrl(state.placeUrl);
+  }
+  return true;
 });
 
 // 제품 URL 유효성 검사 (일반 URL 형식)
@@ -460,10 +482,15 @@ const postRequest = async () => {
   // 블로그 지수 결정: 맛집 후기만 사용자 선택값, 나머지는 'optimal' 고정
   const blogIndex = props.requiresKeywordSearch ? state.blogIndex : 'optimal';
 
-  // PLACE URL 처리: 맛집 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
-  const placeUrl = props.requiresKeywordSearch
-    ? state.placeUrl.trim()
-    : undefined;
+  // PLACE URL 처리:
+  // - 맛집 후기 (requiresKeywordSearch): 필수
+  // - 법률/병의원 (requiresPlaceUrl): 선택 (입력한 경우에만 포함)
+  let placeUrl: string | undefined = undefined;
+  if (props.requiresKeywordSearch) {
+    placeUrl = state.placeUrl.trim();
+  } else if (props.requiresPlaceUrl && state.placeUrl && state.placeUrl.trim() !== '') {
+    placeUrl = state.placeUrl.trim();
+  }
 
   // 제품 URL 처리: 제품 후기 타입일 때만 포함 (필수), 다른 타입은 undefined
   const productUrl = props.requiresProductUrl
@@ -549,7 +576,7 @@ const onSubmit = async () => {
   }
 
   // 제출 시 모든 URL 필드를 touched 상태로 설정 (에러 표시 활성화)
-  if (props.requiresKeywordSearch) {
+  if (props.requiresKeywordSearch || props.requiresPlaceUrl) {
     placeUrlTouched.value = true;
   }
   if (props.requiresProductUrl) {
@@ -914,6 +941,36 @@ const onSubmit = async () => {
                   :color="placeUrlError ? 'error' : undefined"
                   @blur="placeUrlTouched = true"
                 />
+              </UFormField>
+            </div>
+
+            <!-- 법률/병의원 전용: PLACE URL 입력 (선택) -->
+            <div v-if="requiresPlaceUrl && !requiresKeywordSearch" class="mb-2">
+              <h4 class="font-bold mb-1">네이버 플레이스 정보 (선택)</h4>
+              <p class="text-[13px] text-muted dark:text-gray-400 mb-2">
+                사업장 플레이스 URL을 입력하면 추가 정보를 참고할 수 있습니다.
+              </p>
+              <UFormField
+                label="PLACE URL"
+                name="placeUrl"
+                :error="placeUrlError"
+              >
+                <UInput
+                  v-model.trim="state.placeUrl"
+                  name="placeUrl"
+                  type="url"
+                  placeholder="예: https://map.naver.com/p/entry/place/1234567890"
+                  size="xl"
+                  class="w-full"
+                  variant="soft"
+                  :color="placeUrlError ? 'error' : undefined"
+                  @blur="placeUrlTouched = true"
+                />
+                <template #description>
+                  <span class="text-xs text-neutral-500">
+                    네이버 지도 또는 플레이스 URL만 입력 가능합니다. (선택 입력)
+                  </span>
+                </template>
               </UFormField>
             </div>
 
