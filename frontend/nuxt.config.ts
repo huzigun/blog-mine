@@ -14,6 +14,8 @@ export default defineNuxtConfig({
   },
 
   runtimeConfig: {
+    // 서버 사이드에서만 사용되는 내부 API URL (Docker 네트워크용)
+    internalApiUrl: process.env.NUXT_INTERNAL_API_URL || '',
     public: {
       apiBaseUrl:
         process.env.NODE_ENV === 'production'

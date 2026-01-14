@@ -17,7 +17,10 @@ export default defineEventHandler(async (event) => {
   }
 
   const isDev = import.meta.dev;
-  const apiUrl = isDev ? 'http://localhost:9706' : config.public.apiBaseUrl;
+  // 서버 사이드에서는 내부 URL 사용 (Docker 네트워크), 없으면 public URL fallback
+  const apiUrl = isDev
+    ? 'http://localhost:9706'
+    : config.internalApiUrl || config.public.apiBaseUrl;
 
   try {
     // Backend API 호출 (body로 refreshToken 전달)

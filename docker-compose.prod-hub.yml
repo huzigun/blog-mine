@@ -42,6 +42,8 @@ services:
       - NODE_ENV=production
       - NUXT_PUBLIC_API_BASE_URL=https://api.blogmine.ai.kr
       - NUXT_PUBLIC_USE_DIRECT_API=false
+      # 서버 사이드 API 호출용 내부 URL (Docker 네트워크)
+      - NUXT_INTERNAL_API_URL=http://backend:9706
     depends_on:
       backend:
         condition: service_healthy
