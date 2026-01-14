@@ -19,10 +19,10 @@ services:
       - blog-mine-network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:9706/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 60s
     logging:
       driver: "json-file"
       options:

@@ -21,7 +21,7 @@ import {
 } from './dto';
 import { JwtPayload } from './strategies/jwt.strategy';
 import { SubscriptionStatus } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 
 @Injectable()

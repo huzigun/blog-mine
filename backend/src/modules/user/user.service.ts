@@ -15,7 +15,7 @@ import {
   VerifyEmailChangeDto,
   SetPasswordDto,
 } from './dto';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
 @Injectable()
 export class UserService implements OnModuleInit {
